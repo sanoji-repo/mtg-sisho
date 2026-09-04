@@ -7,3 +7,6 @@ tqdm==4.67.3
 ijson==3.5.0
 # MCP サーバー（src/mcp_server.py）。
 mcp==2.0.0
+
+# 開発・試験用
+pytest==9.1.1
