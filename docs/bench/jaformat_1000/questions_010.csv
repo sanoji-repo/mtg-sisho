@@ -1,0 +1,101 @@
+id,template,question,note
+901,T5_en_question,Opposition Agent はどのフォーマットのどんなデッキで使われてる？,card=Opposition Agent
+902,T6_arch_lands,ヴィンテージのFleshraker MUDでよく使われる土地を5枚挙げて,archetype=Fleshraker MUD
+903,T9_comma,モダンで《新たな夜明け、ケトラモーズ》と一緒によく使われるカードは？,"card=Ketramose, the New Dawn（読点入り）"
+904,T1_arch_cards,ヴィンテージのDimir Controlの主要なカードを教えて,archetype=Dimir Control decks=120
+905,T2_partner_ja,ヴィンテージで《マイトストーンとウィークストーン》と一緒に入るカードは？,card=The Mightstone and Weakstone
+906,T3_edh_partner,統率者戦で《敬虔な新米、デニック // 敬虔な心霊、デニック》を使うデッキでよく一緒に使われるカードは？,"card=Dennick, Pious Apprentice // Dennick, Pious Apparition"
+907,T4_legal_bare,プレモダンでフィンドホーンのエルフはまだ使える？,card=Fyndhorn Elves（裸の日本語名で問う）
+908,T5_en_question,Scalding Viper // Steam Clean はどのフォーマットのどんなデッキで使われてる？,card=Scalding Viper // Steam Clean（日本語版なし）
+909,T6_arch_lands,モダンのDevoted Comboでよく使われる土地を5枚挙げて,archetype=Devoted Combo
+910,T9_comma,パイオニアで《素早き救済者、アン》と一緒によく使われるカードは？,"card=Aang, Swift Savior // Aang and La, Ocean's Fury（読点入り）"
+911,T1_arch_cards,レガシーのElvesの主要なカードを教えて,archetype=Elves decks=53
+912,T2_partner_ja,パウパーで《タミヨウの保管》と一緒に入るカードは？,card=Tamiyo's Safekeeping
+913,T3_edh_partner,統率者戦で《ヴェンディリオン三人衆》を使うデッキでよく一緒に使われるカードは？,card=Vendilion Clique
+914,T4_legal_bare,プレモダンで紅蓮光電の柱はまだ使える？,card=Pyrostatic Pillar（裸の日本語名で問う）
+915,T5_en_question,Wall of Roots はどのフォーマットのどんなデッキで使われてる？,card=Wall of Roots
+916,T6_arch_lands,ヴィンテージのDoomsdayでよく使われる土地を5枚挙げて,archetype=Doomsday
+917,T9_comma,モダンで《悪戯の神、ロキ》と一緒によく使われるカードは？,"card=Loki, God of Mischief（読点入り）"
+918,T1_arch_cards,レガシーのUB Reanimatorの主要なカードを教えて,archetype=UB Reanimator decks=54
+919,T2_partner_ja,パウパーで《黒薔薇の棘》と一緒に入るカードは？,card=Thorn of the Black Rose
+920,T3_edh_partner,統率者戦で《迷える黒魔道士、ビビ》を使うデッキでよく一緒に使われるカードは？,card=Vivi Ornitier
+921,T4_legal_bare,パウパーで北方の大鷲はまだ使える？,card=Eagles of the North（裸の日本語名で問う）
+922,T5_en_question,Fury はどのフォーマットのどんなデッキで使われてる？,card=Fury
+923,T6_arch_lands,レガシーのInitiative Stompyでよく使われる土地を5枚挙げて,archetype=Initiative Stompy
+924,T9_comma,スタンダードで《タフなタートル、ラファエロ》と一緒によく使われるカードは？,"card=Raphael, Tough Turtle（読点入り）"
+925,T1_arch_cards,パウパーのWeenie Whiteの主要なカードを教えて,archetype=Weenie White decks=81
+926,T2_partner_ja,レガシーで《エルドラージの戦線破り》と一緒に入るカードは？,card=Eldrazi Linebreaker
+927,T3_edh_partner,統率者戦で《遵法長、バラル》を使うデッキでよく一緒に使われるカードは？,"card=Baral, Chief of Compliance"
+928,T4_legal_bare,プレモダンでウークタビー・オランウータンはまだ使える？,card=Uktabi Orangutan（裸の日本語名で問う）
+929,T5_en_question,Seasoned Pyromancer はどのフォーマットのどんなデッキで使われてる？,card=Seasoned Pyromancer
+930,T6_arch_lands,モダンのUR Aggroでよく使われる土地を5枚挙げて,archetype=UR Aggro
+931,T9_comma,モダンで《猪の祟神、イルハグ》と一緒によく使われるカードは？,"card=Ilharg, the Raze-Boar（読点入り）"
+932,T1_arch_cards,モダンのScepter Chantの主要なカードを教えて,archetype=Scepter Chant decks=43
+933,T2_partner_ja,スタンダードで《鋭い目の管理者》と一緒に入るカードは？,card=Keen-Eyed Curator
+934,T3_edh_partner,統率者戦で《カンフーの達人、シャン・チー》を使うデッキでよく一緒に使われるカードは？,"card=Shang-Chi, Master of Kung Fu"
+935,T4_legal_bare,パウパーで聖なる猫はまだ使える？,card=Sacred Cat（裸の日本語名で問う）
+936,T5_en_question,Rest in Peace はどのフォーマットのどんなデッキで使われてる？,card=Rest in Peace
+937,T6_arch_lands,レガシーのArtifacts Blueでよく使われる土地を5枚挙げて,archetype=Artifacts Blue
+938,T9_comma,モダンで《飢餓の潮流、グリスト》と一緒によく使われるカードは？,"card=Grist, the Hunger Tide（読点入り）"
+939,T1_arch_cards,モダンのCreativityの主要なカードを教えて,archetype=Creativity decks=43
+940,T2_partner_ja,パウパーで《屍肉喰らい》と一緒に入るカードは？,card=Carrion Feeder
+941,T3_edh_partner,統率者戦で《棘を播く者、逆棘のビル》を使うデッキでよく一緒に使われるカードは？,"card=Bristly Bill, Spine Sower"
+942,T4_legal_bare,パウパーでギルドパクトの守護者はまだ使える？,card=Guardian of the Guildpact（裸の日本語名で問う）
+943,T5_en_question,"Ajani, Nacatl Pariah // Ajani, Nacatl Avenger はどのフォーマットのどんなデッキで使われてる？","card=Ajani, Nacatl Pariah // Ajani, Nacatl Avenger（日本語版なし）"
+944,T6_arch_lands,レガシーのShow and Tellでよく使われる土地を5枚挙げて,archetype=Show and Tell
+945,T9_comma,スタンダードで《光に導かれし者、ハリーヤ》と一緒によく使われるカードは？,"card=Haliya, Guided by Light（読点入り）"
+946,T1_arch_cards,スタンダードのMono Green Aggroの主要なカードを教えて,archetype=Mono Green Aggro decks=54
+947,T2_partner_ja,パイオニアで《永劫の好奇心》と一緒に入るカードは？,card=Enduring Curiosity
+948,T3_edh_partner,統率者戦で《墓場波、ムルドローサ》を使うデッキでよく一緒に使われるカードは？,"card=Muldrotha, the Gravetide"
+949,T4_legal_bare,レガシーで地底街の密告人はまだ使える？,card=Undercity Informer（裸の日本語名で問う）
+950,T5_en_question,Benevolent Blessing はどのフォーマットのどんなデッキで使われてる？,card=Benevolent Blessing
+951,T6_arch_lands,スタンダードのSelesnya Landfallでよく使われる土地を5枚挙げて,archetype=Selesnya Landfall
+952,T9_comma,スタンダードで《素早き救済者、アン》と一緒によく使われるカードは？,"card=Aang, Swift Savior // Aang and La, Ocean's Fury（読点入り）"
+953,T1_arch_cards,スタンダードのAzorius Momoの主要なカードを教えて,archetype=Azorius Momo decks=56
+954,T2_partner_ja,プレモダンで《マスティコア》と一緒に入るカードは？,card=Masticore
+955,T3_edh_partner,統率者戦で《眷者の神童、キナン》を使うデッキでよく一緒に使われるカードは？,"card=Kinnan, Bonder Prodigy"
+956,T4_legal_bare,モダンで量子の謎かけ屋はまだ使える？,card=Quantum Riddler（裸の日本語名で問う）
+957,T5_en_question,Badgermole Cub はどのフォーマットのどんなデッキで使われてる？,card=Badgermole Cub
+958,T6_arch_lands,スタンダードのUR Soul Cauldronでよく使われる土地を5枚挙げて,archetype=UR Soul Cauldron
+959,T9_comma,パイオニアで《嘘の神、ヴァルキー》と一緒によく使われるカードは？,"card=Valki, God of Lies // Tibalt, Cosmic Impostor（読点入り）"
+960,T1_arch_cards,パウパーのGatesの主要なカードを教えて,archetype=Gates decks=87
+961,T2_partner_ja,ヴィンテージで《苛立たしいガラクタ》と一緒に入るカードは？,card=Vexing Bauble
+962,T3_edh_partner,統率者戦で《黎明をもたらす者ライラ》を使うデッキでよく一緒に使われるカードは？,card=Lyra Dawnbringer
+963,T4_legal_bare,パウパーで愛のヴィジョンはまだ使える？,card=Vision of Love（裸の日本語名で問う）
+964,T5_en_question,Pyretic Ritual はどのフォーマットのどんなデッキで使われてる？,card=Pyretic Ritual
+965,T6_arch_lands,レガシーのEldrazi Aggroでよく使われる土地を5枚挙げて,archetype=Eldrazi Aggro
+966,T9_comma,パウパーで《シュレッダーの誕生、オロク・サキ》と一緒によく使われるカードは？,"card=Oroku Saki, Shredder Rising（読点入り）"
+967,T1_arch_cards,レガシーのCradle Controlの主要なカードを教えて,archetype=Cradle Control decks=43
+968,T2_partner_ja,パイオニアで《パルヘリオンⅡ》と一緒に入るカードは？,card=Parhelion II
+969,T3_edh_partner,統率者戦で《浄火の戦術家、デリーヴィー》を使うデッキでよく一緒に使われるカードは？,"card=Derevi, Empyrial Tactician"
+970,T4_legal_bare,パイオニアでベイルマークの大主はまだ使える？,card=Overlord of the Balemurk（裸の日本語名で問う）
+971,T5_en_question,Chrome Mox はどのフォーマットのどんなデッキで使われてる？,card=Chrome Mox
+972,T6_arch_lands,モダンのBoros Energyでよく使われる土地を5枚挙げて,archetype=Boros Energy
+973,T9_comma,モダンで《太陽の執事長、インティ》と一緒によく使われるカードは？,"card=Inti, Seneschal of the Sun（読点入り）"
+974,T1_arch_cards,モダンのBoros Energyの主要なカードを教えて,archetype=Boros Energy decks=113
+975,T2_partner_ja,レガシーで《シェオルドレッドの勅令》と一緒に入るカードは？,card=Sheoldred's Edict
+976,T3_edh_partner,統率者戦で《解き放たれし王、ブミ》を使うデッキでよく一緒に使われるカードは？,"card=Bumi, Unleashed"
+977,T4_legal_bare,モダンで燃え立つ調査はまだ使える？,card=Burning Inquiry（裸の日本語名で問う）
+978,T5_en_question,The Legend of Roku // Avatar Roku はどのフォーマットのどんなデッキで使われてる？,card=The Legend of Roku // Avatar Roku
+979,T6_arch_lands,モダンのHollow Oneでよく使われる土地を5枚挙げて,archetype=Hollow One
+980,T9_comma,スタンダードで《岐路に立つアン》と一緒によく使われるカードは？,"card=Aang, at the Crossroads // Aang, Destined Savior（読点入り）"
+981,T1_arch_cards,スタンダードのEsper Raffineの主要なカードを教えて,archetype=Esper Raffine decks=64
+982,T2_partner_ja,レガシーで《浸食作用》と一緒に入るカードは？,card=Erode
+983,T3_edh_partner,統率者戦で《ウェザーライトの艦長、ジョイラ》を使うデッキでよく一緒に使われるカードは？,"card=Jhoira, Weatherlight Captain"
+984,T4_legal_bare,パイオニアで不気味なガラクタはまだ使える？,card=Grim Bauble（裸の日本語名で問う）
+985,T5_en_question,Omen of the Sea はどのフォーマットのどんなデッキで使われてる？,card=Omen of the Sea
+986,T6_arch_lands,パウパーのGrixis Affinityでよく使われる土地を5枚挙げて,archetype=Grixis Affinity
+987,T9_comma,モダンで《光に導かれし者、ハリーヤ》と一緒によく使われるカードは？,"card=Haliya, Guided by Light（読点入り）"
+988,T1_arch_cards,モダンのDevoted Comboの主要なカードを教えて,archetype=Devoted Combo decks=43
+989,T2_partner_ja,プレモダンで《ヤヴィマヤの古老》と一緒に入るカードは？,card=Yavimaya Elder
+990,T3_edh_partner,統率者戦で《薄暮薔薇の棘、ヴィト》を使うデッキでよく一緒に使われるカードは？,"card=Vito, Thorn of the Dusk Rose"
+991,T4_legal_bare,ヴィンテージで否定の力はまだ使える？,card=Force of Negation（裸の日本語名で問う）
+992,T5_en_question,Goblin Lackey はどのフォーマットのどんなデッキで使われてる？,card=Goblin Lackey
+993,T6_arch_lands,スタンダードのIzzet Spellementalsでよく使われる土地を5枚挙げて,archetype=Izzet Spellementals
+994,T9_comma,モダンで《素早き救済者、アン》と一緒によく使われるカードは？,"card=Aang, Swift Savior // Aang and La, Ocean's Fury（読点入り）"
+995,T1_arch_cards,ヴィンテージのDoomsdayの主要なカードを教えて,archetype=Doomsday decks=91
+996,T2_partner_ja,パウパーで《ローアンの陰惨な調査》と一緒に入るカードは？,card=Rowan's Grim Search
+997,T3_edh_partner,統率者戦で《メレティスの兵士、ブリゴニー》を使うデッキでよく一緒に使われるカードは？,"card=Brigone, Soldier of Meletis"
+998,T4_legal_bare,モダンで全ては塵はまだ使える？,card=All Is Dust（裸の日本語名で問う）
+999,T5_en_question,Fractured Sanity はどのフォーマットのどんなデッキで使われてる？,card=Fractured Sanity
+1000,T6_arch_lands,モダンのUR Cutter Prowessでよく使われる土地を5枚挙げて,archetype=UR Cutter Prowess

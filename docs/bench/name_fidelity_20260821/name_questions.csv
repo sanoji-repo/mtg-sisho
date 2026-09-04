@@ -1,0 +1,43 @@
+cat,card_name,japanese_name
+A_no_ja,Afterlife Insurance,
+A_no_ja,"Ezio, Blade of Vengeance",
+A_no_ja,Underground Sea,
+A_no_ja,Shadow the Hedgehog,
+A_no_ja,Clown Car,
+A_no_ja,Nazgûl Battle-Mace,
+A_no_ja,"Greymond, Avacyn's Stalwart",
+A_no_ja,Achilles Davenport,
+A_no_ja,"Aragorn, Hornburg Hero",
+A_no_ja,Rooftop Bypass,
+B_hob,Large Bear,大きな熊
+B_hob,"Dáin, Lord of the Iron Hills",くろがね連山の統治者、ダーイン
+B_hob,Elven Raft-Steerer,エルフのいかだの舵取り
+B_hob,Dwarven Mauler,ドワーフの打ち壊し屋
+B_hob,Goblin Plate Mail,ゴブリンの板金鎧
+B_hob,Wilderland Scrounger,荒れ地の国のたかり屋
+B_hob,Old Fat Spider,でぶの年寄りクモ
+B_hob,The Queen of Dale,谷間の国の王妃
+B_hob,Warg Tactics,魔狼の戦術
+B_hob,Quarrel,押し問答
+C_multi,Thousand Moons Smithy // Barracks of the Thousand,千の月の鍛冶場 // 千の兵舎
+C_multi,Razorgrass Ambush // Razorgrass Field,剃刀草の待ち伏せ // 剃刀草の原野
+C_multi,Jwari Disruption // Jwari Ruins,ジュワー島の撹乱 // ジュワー島の遺跡
+C_multi,Wandering Archaic // Explore the Vastlands,さまようアルカイック // 大界の探検
+C_multi,Riverglide Pathway // Lavaglide Pathway,河川滑りの小道 // 溶岩滑りの小道
+C_multi,Waterlogged Teachings // Inundated Archive,水浸しの教え // 冠水した書庫
+C_multi,"Shatterskull Smashing // Shatterskull, the Hammer Pass",髑髏砕きの一撃 // 鎚の山道、髑髏砕き
+C_multi,"Etali, Primal Conqueror // Etali, Primal Sickness",原初の征服者、エターリ // 原初の病、エターリ
+D_famous,Skullclamp,頭蓋骨絞め
+D_famous,Steam Vents,蒸気孔
+D_famous,Garruk's Uprising,ガラクの蜂起
+D_famous,Propaganda,プロパガンダ
+D_famous,Deadly Rollick,致命的なはしゃぎ回り
+D_famous,Nature's Lore,自然の知識
+E_nonliteral,Cori-Steel Cutter,コーリ鋼の短刀
+E_nonliteral,Fable of the Mirror-Breaker // Reflection of Kiki-Jiki,鏡割りの寓話 // キキジキの鏡像
+E_nonliteral,Psychic Frog,超能力蛙
+E_nonliteral,Up the Beanstalk,豆の木をのぼれ
+E_nonliteral,Ocelot Pride,オセロットの群れ
+E_nonliteral,Orcish Bowmasters,オークの弓使い
+E_nonliteral,"Sheoldred, the Apocalypse",黙示録、シェオルドレッド
+E_nonliteral,"Phlage, Titan of Fire's Fury",火の怒りのタイタン、フレージ

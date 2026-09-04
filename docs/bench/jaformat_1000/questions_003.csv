@@ -1,0 +1,101 @@
+id,template,question,note
+201,T10_noja,Dead // Gone と一緒に使われるカードは？,card=Dead // Gone（日本語版なし）
+202,T1_arch_cards,スタンダードのSelesnya Aggroの主要なカードを教えて,archetype=Selesnya Aggro decks=206
+203,T2_partner_ja,モダンで《カザド＝ドゥームのトロール》と一緒に入るカードは？,card=Troll of Khazad-dûm
+204,T3_edh_partner,統率者戦で《運命の大嵐、ドラゴンホーク》を使うデッキでよく一緒に使われるカードは？,"card=Dragonhawk, Fate's Tempest"
+205,T4_legal_bare,モダンで大祖始の遺産はまだ使える？,card=Relic of Progenitus（裸の日本語名で問う）
+206,T5_en_question,Momentum Breaker はどのフォーマットのどんなデッキで使われてる？,card=Momentum Breaker
+207,T6_arch_lands,モダンのCreatures Toolboxでよく使われる土地を5枚挙げて,archetype=Creatures Toolbox
+208,T7_top_type,パウパーで今いちばん採用率の高いアーティファクトは？上位5枚,type=Artifact
+209,T8_dfc,《敬虔な新米、デニック》を使うデッキはスタンダードでどれくらいある？主なカードも教えて,"card=Dennick, Pious Apprentice // Dennick, Pious Apparition（両面/分割）"
+210,T9_comma,モダンで《現実の設計者、タメシ》と一緒によく使われるカードは？,"card=Tameshi, Reality Architect（読点入り）"
+211,T10_noja,Mox Jet と一緒に使われるカードは？,card=Mox Jet（日本語版なし）
+212,T1_arch_cards,ヴィンテージのDoomsdayの主要なカードを教えて,archetype=Doomsday decks=91
+213,T2_partner_ja,パウパーで《豊かな成長》と一緒に入るカードは？,card=Abundant Growth
+214,T3_edh_partner,統率者戦で《アーチリッチ、アサーラック》を使うデッキでよく一緒に使われるカードは？,card=Acererak the Archlich
+215,T4_legal_bare,パウパーでレイモス教の再興はまだ使える？,card=Ramosian Rally（裸の日本語名で問う）
+216,T5_en_question,Mana Tithe はどのフォーマットのどんなデッキで使われてる？,card=Mana Tithe
+217,T6_arch_lands,スタンダードのSuperior Doomsdayでよく使われる土地を5枚挙げて,archetype=Superior Doomsday
+218,T7_top_type,プレモダンで今いちばん採用率の高いプレインズウォーカーは？上位5枚,type=Planeswalker
+219,T8_dfc,《幻獣との交わり》を使うデッキはスタンダードでどれくらいある？主なカードも教えて,card=Esper Origins // Summon: Esper Maduin（両面/分割）
+220,T9_comma,モダンで《火の怒りのタイタン、フレージ》と一緒によく使われるカードは？,"card=Phlage, Titan of Fire's Fury（読点入り）"
+221,T10_noja,Demonic Consultation と一緒に使われるカードは？,card=Demonic Consultation（日本語版なし）
+222,T1_arch_cards,パウパーのGatesの主要なカードを教えて,archetype=Gates decks=87
+223,T2_partner_ja,レガシーで《砂の斥候》と一緒に入るカードは？,card=Sand Scout
+224,T3_edh_partner,統率者戦で《キヨシ島の大ウナギ》を使うデッキでよく一緒に使われるカードは？,card=The Unagi of Kyoshi Island
+225,T4_legal_bare,スタンダードで並外れた語り部はまだ使える？,card=Formidable Speaker（裸の日本語名で問う）
+226,T5_en_question,Monastery Swiftspear はどのフォーマットのどんなデッキで使われてる？,card=Monastery Swiftspear
+227,T6_arch_lands,モダンのBoros Aggroでよく使われる土地を5枚挙げて,archetype=Boros Aggro
+228,T7_top_type,パイオニアで今いちばん採用率の高いプレインズウォーカーは？上位5枚,type=Planeswalker
+229,T8_dfc,《婚礼の発表》を使うデッキはスタンダードでどれくらいある？主なカードも教えて,card=Wedding Announcement // Wedding Festivity（両面/分割）
+230,T9_comma,スタンダードで《司書、ワン・シー・トン》と一緒によく使われるカードは？,"card=Wan Shi Tong, Librarian（読点入り）"
+231,T10_noja,Mox Sapphire と一緒に使われるカードは？,card=Mox Sapphire（日本語版なし）
+232,T1_arch_cards,パイオニアのDimir Aggroの主要なカードを教えて,archetype=Dimir Aggro decks=47
+233,T2_partner_ja,パイオニアで《実験統合機》と一緒に入るカードは？,card=Experimental Synthesizer
+234,T3_edh_partner,統率者戦で《浄火の戦術家、デリーヴィー》を使うデッキでよく一緒に使われるカードは？,"card=Derevi, Empyrial Tactician"
+235,T4_legal_bare,ヴィンテージで神秘の炉はまだ使える？,card=Mystic Forge（裸の日本語名で問う）
+236,T5_en_question,Patchwork Automaton はどのフォーマットのどんなデッキで使われてる？,card=Patchwork Automaton
+237,T6_arch_lands,パウパーのKuldotha Redでよく使われる土地を5枚挙げて,archetype=Kuldotha Red
+238,T7_top_type,ヴィンテージで今いちばん採用率の高いアーティファクトは？上位5枚,type=Artifact
+239,T8_dfc,《秘密を掘り下げる者》を使うデッキはパウパーでどれくらいある？主なカードも教えて,card=Delver of Secrets // Insectile Aberration（両面/分割）
+240,T9_comma,スタンダードで《自然の怒りのタイタン、ウーロ》と一緒によく使われるカードは？,"card=Uro, Titan of Nature's Wrath（読点入り）"
+241,T10_noja,Mox Pearl と一緒に使われるカードは？,card=Mox Pearl（日本語版なし）
+242,T1_arch_cards,パイオニアのUR Aggroの主要なカードを教えて,archetype=UR Aggro decks=182
+243,T2_partner_ja,モダンで《ベイルマークの大主》と一緒に入るカードは？,card=Overlord of the Balemurk
+244,T3_edh_partner,統率者戦で《湖に潜む者、エムリー》を使うデッキでよく一緒に使われるカードは？,"card=Emry, Lurker of the Loch"
+245,T4_legal_bare,モダンでのたうつ蛹はまだ使える？,card=Writhing Chrysalis（裸の日本語名で問う）
+246,T5_en_question,Priest of Titania はどのフォーマットのどんなデッキで使われてる？,card=Priest of Titania
+247,T6_arch_lands,スタンダードのIzzet Controlでよく使われる土地を5枚挙げて,archetype=Izzet Control
+248,T7_top_type,パウパーで今いちばん採用率の高いプレインズウォーカーは？上位5枚,type=Planeswalker
+249,T8_dfc,《錠前破りのいたずら屋》を使うデッキはパイオニアでどれくらいある？主なカードも教えて,card=Picklock Prankster // Free the Fae（両面/分割）
+250,T9_comma,スタンダードで《轟く機知、ラル》と一緒によく使われるカードは？,"card=Ral, Crackling Wit（読点入り）"
+251,T10_noja,Questing Druid // Seek the Beast と一緒に使われるカードは？,card=Questing Druid // Seek the Beast（日本語版なし）
+252,T1_arch_cards,レガシーのStormの主要なカードを教えて,archetype=Storm decks=41
+253,T2_partner_ja,パウパーで《天上の鎧》と一緒に入るカードは？,card=Ethereal Armor
+254,T3_edh_partner,統率者戦で《司書、ワン・シー・トン》を使うデッキでよく一緒に使われるカードは？,"card=Wan Shi Tong, Librarian"
+255,T4_legal_bare,パイオニアで嘘の神、ヴァルキーはまだ使える？,"card=Valki, God of Lies // Tibalt, Cosmic Impostor（裸の日本語名で問う）"
+256,T5_en_question,Fiery Temper はどのフォーマットのどんなデッキで使われてる？,card=Fiery Temper
+257,T6_arch_lands,パウパーのRakdos Madness Burnでよく使われる土地を5枚挙げて,archetype=Rakdos Madness Burn
+258,T7_top_type,レガシーで今いちばん採用率の高いソーサリーは？上位5枚,type=Sorcery
+259,T8_dfc,《再点火、アシュリング》を使うデッキはスタンダードでどれくらいある？主なカードも教えて,"card=Ashling, Rekindled // Ashling, Rimebound（両面/分割）"
+260,T9_comma,レガシーで《時を解す者、テフェリー》と一緒によく使われるカードは？,"card=Teferi, Time Raveler（読点入り）"
+261,T10_noja,Callous Sell-Sword // Burn Together と一緒に使われるカードは？,card=Callous Sell-Sword // Burn Together（日本語版なし）
+262,T1_arch_cards,パウパーのMono Blue Terrorの主要なカードを教えて,archetype=Mono Blue Terror decks=41
+263,T2_partner_ja,レガシーで《鏡割りの寓話》と一緒に入るカードは？,card=Fable of the Mirror-Breaker // Reflection of Kiki-Jiki
+264,T3_edh_partner,統率者戦で《巨怪な略奪者、ヴォリンクレックス》を使うデッキでよく一緒に使われるカードは？,"card=Vorinclex, Monstrous Raider"
+265,T4_legal_bare,ヴィンテージで神秘の教示者はまだ使える？,card=Mystical Tutor（裸の日本語名で問う）
+266,T5_en_question,Demonic Consultation はどのフォーマットのどんなデッキで使われてる？,card=Demonic Consultation（日本語版なし）
+267,T6_arch_lands,スタンダードのUR Aggroでよく使われる土地を5枚挙げて,archetype=UR Aggro
+268,T7_top_type,ヴィンテージで今いちばん採用率の高いインスタントは？上位5枚,type=Instant
+269,T8_dfc,《咆哮する焼炉》を使うデッキはスタンダードでどれくらいある？主なカードも教えて,card=Roaring Furnace // Steaming Sauna（両面/分割）
+270,T9_comma,パイオニアで《悪夢滅ぼし、魁渡》と一緒によく使われるカードは？,"card=Kaito, Bane of Nightmares（読点入り）"
+271,T1_arch_cards,モダンのUW Controlの主要なカードを教えて,archetype=UW Control decks=47
+272,T2_partner_ja,レガシーで《厳かなモノリス》と一緒に入るカードは？,card=Grim Monolith
+273,T3_edh_partner,統率者戦で《厚顔の無法者、マグダ》を使うデッキでよく一緒に使われるカードは？,"card=Magda, Brazen Outlaw"
+274,T4_legal_bare,パウパーでフェアリーの予見者はまだ使える？,card=Faerie Seer（裸の日本語名で問う）
+275,T5_en_question,Force of Will はどのフォーマットのどんなデッキで使われてる？,card=Force of Will
+276,T6_arch_lands,パイオニアのRed Deck Winsでよく使われる土地を5枚挙げて,archetype=Red Deck Wins
+277,T7_top_type,パウパーで今いちばん採用率の高いインスタントは？上位5枚,type=Instant
+278,T8_dfc,《ロクの伝説》を使うデッキはモダンでどれくらいある？主なカードも教えて,card=The Legend of Roku // Avatar Roku（両面/分割）
+279,T9_comma,パイオニアで《迷える黒魔道士、ビビ》と一緒によく使われるカードは？,card=Vivi Ornitier（読点入り）
+280,T1_arch_cards,パイオニアのJund Sacrificeの主要なカードを教えて,archetype=Jund Sacrifice decks=43
+281,T2_partner_ja,レガシーで《致命的な一押し》と一緒に入るカードは？,card=Fatal Push
+282,T3_edh_partner,統率者戦で《ミッドガルの傭兵、クラウド》を使うデッキでよく一緒に使われるカードは？,"card=Cloud, Midgar Mercenary"
+283,T4_legal_bare,スタンダードで冬夜の物語はまだ使える？,card=Winternight Stories（裸の日本語名で問う）
+284,T5_en_question,Defile はどのフォーマットのどんなデッキで使われてる？,card=Defile
+285,T6_arch_lands,パイオニアのJund Sacrificeでよく使われる土地を5枚挙げて,archetype=Jund Sacrifice
+286,T7_top_type,パイオニアで今いちばん採用率の高いソーサリーは？上位5枚,type=Sorcery
+287,T8_dfc,《マラング川の執政》を使うデッキはスタンダードでどれくらいある？主なカードも教えて,card=Marang River Regent // Coil and Catch（両面/分割）
+288,T9_comma,スタンダードで《反逆の先導者、チャンドラ》と一緒によく使われるカードは？,"card=Chandra, Torch of Defiance（読点入り）"
+289,T1_arch_cards,モダンのYawgmothの主要なカードを教えて,archetype=Yawgmoth decks=40
+290,T2_partner_ja,ヴィンテージで《目くらまし》と一緒に入るカードは？,card=Daze
+291,T3_edh_partner,統率者戦で《輝かしい聖戦士、エーデリン》を使うデッキでよく一緒に使われるカードは？,"card=Adeline, Resplendent Cathar"
+292,T4_legal_bare,スタンダードで薮打ちはまだ使える？,card=Bushwhack（裸の日本語名で問う）
+293,T5_en_question,"Momo, Friendly Flier はどのフォーマットのどんなデッキで使われてる？","card=Momo, Friendly Flier"
+294,T6_arch_lands,モダンのDimir Controlでよく使われる土地を5枚挙げて,archetype=Dimir Control
+295,T7_top_type,デュエルコマンダーで今いちばん採用率の高いインスタントは？上位5枚,type=Instant
+296,T8_dfc,《ジェニファー・ウォルターズ》を使うデッキはスタンダードでどれくらいある？主なカードも教えて,card=Jennifer Walters // The Sensational She-Hulk（両面/分割）
+297,T9_comma,モダンで《敏捷なこそ泥、ラガバン》と一緒によく使われるカードは？,"card=Ragavan, Nimble Pilferer（読点入り）"
+298,T1_arch_cards,モダンのUR Cutter Prowessの主要なカードを教えて,archetype=UR Cutter Prowess decks=110
+299,T2_partner_ja,パイオニアで《嵐追いの才能》と一緒に入るカードは？,card=Stormchaser's Talent
+300,T3_edh_partner,統率者戦で《ダニー・ピンク》を使うデッキでよく一緒に使われるカードは？,card=Danny Pink

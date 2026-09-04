@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 60,
+            "statusMessage": "Sisho: 答案のカード名を検査中",
+            "command": "PYTHONPATH=/path/to/mcp-sdk /path/to/venv/bin/python /path/to/mtg-sisho/hooks/sisho_stop_verify.py"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,101 @@
+id,template,question,note
+501,T3_edh_partner,統率者戦で《月皇の司令官、オドリック》を使うデッキでよく一緒に使われるカードは？,"card=Odric, Lunarch Marshal"
+502,T4_legal_bare,パウパーで胆液爪のマイアはまだ使える？,card=Ichorclaw Myr（裸の日本語名で問う）
+503,T5_en_question,Lively Dirge はどのフォーマットのどんなデッキで使われてる？,card=Lively Dirge
+504,T6_arch_lands,レガシーのGrixis Delverでよく使われる土地を5枚挙げて,archetype=Grixis Delver
+505,T8_dfc,《侵攻の伝令、ローナ》を使うデッキはパイオニアでどれくらいある？主なカードも教えて,"card=Rona, Herald of Invasion // Rona, Tolarian Obliterator（両面/分割）"
+506,T9_comma,モダンで《嵐の目、ウギン》と一緒によく使われるカードは？,"card=Ugin, Eye of the Storms（読点入り）"
+507,T1_arch_cards,レガシーのElvesの主要なカードを教えて,archetype=Elves decks=52
+508,T2_partner_ja,プレモダンで《溶岩の投げ矢》と一緒に入るカードは？,card=Lava Dart
+509,T3_edh_partner,統率者戦で《ブリキ通りの重鎮、クレンコ》を使うデッキでよく一緒に使われるカードは？,"card=Krenko, Tin Street Kingpin"
+510,T4_legal_bare,スタンダードで選択はまだ使える？,card=Opt（裸の日本語名で問う）
+511,T5_en_question,Transmute Artifact はどのフォーマットのどんなデッキで使われてる？,card=Transmute Artifact（日本語版なし）
+512,T6_arch_lands,モダンのLandless Belcherでよく使われる土地を5枚挙げて,archetype=Landless Belcher
+513,T8_dfc,《覆滅》を使うデッキはモダンでどれくらいある？主なカードも教えて,card=Repudiate // Replicate（両面/分割）
+514,T9_comma,パイオニアで《創造の座、オムナス》と一緒によく使われるカードは？,"card=Omnath, Locus of Creation（読点入り）"
+515,T1_arch_cards,パイオニアのThe Rockの主要なカードを教えて,archetype=The Rock decks=122
+516,T2_partner_ja,レガシーで《絵描きの召使い》と一緒に入るカードは？,card=Painter's Servant
+517,T3_edh_partner,統率者戦で《光砕く者、テルサ》を使うデッキでよく一緒に使われるカードは？,card=Tersa Lightshatter
+518,T4_legal_bare,プレモダンで怨恨はまだ使える？,card=Rancor（裸の日本語名で問う）
+519,T5_en_question,Pest Control はどのフォーマットのどんなデッキで使われてる？,card=Pest Control
+520,T6_arch_lands,パイオニアのUR Cutterでよく使われる土地を5枚挙げて,archetype=UR Cutter
+521,T8_dfc,《マラング川の執政》を使うデッキはスタンダードでどれくらいある？主なカードも教えて,card=Marang River Regent // Coil and Catch（両面/分割）
+522,T9_comma,モダンで《反逆の先導者、チャンドラ》と一緒によく使われるカードは？,"card=Chandra, Torch of Defiance（読点入り）"
+523,T1_arch_cards,モダンのUrzaTronの主要なカードを教えて,archetype=UrzaTron decks=116
+524,T2_partner_ja,モダンで《ヴォーデイリアの呪詛抑え》と一緒に入るカードは？,card=Vodalian Hexcatcher
+525,T3_edh_partner,統率者戦で《野生の魂、アシャヤ》を使うデッキでよく一緒に使われるカードは？,"card=Ashaya, Soul of the Wild"
+526,T4_legal_bare,パウパーで村の儀式はまだ使える？,card=Village Rites（裸の日本語名で問う）
+527,T5_en_question,Life from the Loam はどのフォーマットのどんなデッキで使われてる？,card=Life from the Loam
+528,T6_arch_lands,パウパーのJund Wildfireでよく使われる土地を5枚挙げて,archetype=Jund Wildfire
+529,T8_dfc,《嘘の神、ヴァルキー》を使うデッキはパイオニアでどれくらいある？主なカードも教えて,"card=Valki, God of Lies // Tibalt, Cosmic Impostor（両面/分割）"
+530,T9_comma,パイオニアで《客員講師、ラル・ザレック》と一緒によく使われるカードは？,"card=Ral Zarek, Guest Lecturer（読点入り）"
+531,T1_arch_cards,モダンのCascade Crashの主要なカードを教えて,archetype=Cascade Crash decks=51
+532,T2_partner_ja,モダンで《研磨基地》と一緒に入るカードは？,card=Grinding Station
+533,T3_edh_partner,統率者戦で《巨怪な略奪者、ヴォリンクレックス》を使うデッキでよく一緒に使われるカードは？,"card=Vorinclex, Monstrous Raider"
+534,T4_legal_bare,プレモダンで火炎破はまだ使える？,card=Fireblast（裸の日本語名で問う）
+535,T5_en_question,Callous Sell-Sword // Burn Together はどのフォーマットのどんなデッキで使われてる？,card=Callous Sell-Sword // Burn Together（日本語版なし）
+536,T6_arch_lands,パウパーのMono Blue Terrorでよく使われる土地を5枚挙げて,archetype=Mono Blue Terror
+537,T8_dfc,《錠前破りのいたずら屋》を使うデッキはパイオニアでどれくらいある？主なカードも教えて,card=Picklock Prankster // Free the Fae（両面/分割）
+538,T9_comma,スタンダードで《ヴィジランテ、ケイシー・ジョーンズ》と一緒によく使われるカードは？,"card=Casey Jones, Vigilante（読点入り）"
+539,T1_arch_cards,レガシーのCephalid Breakfastの主要なカードを教えて,archetype=Cephalid Breakfast decks=51
+540,T2_partner_ja,パイオニアで《森の轟き、ルムラ》と一緒に入るカードは？,"card=Lumra, Bellow of the Woods"
+541,T3_edh_partner,統率者戦で《動物学者、ベニー・ブラックス》を使うデッキでよく一緒に使われるカードは？,"card=Bennie Bracks, Zoologist"
+542,T4_legal_bare,レガシーで炎の儀式はまだ使える？,card=Rite of Flame（裸の日本語名で問う）
+543,T5_en_question,Cori-Steel Cutter はどのフォーマットのどんなデッキで使われてる？,card=Cori-Steel Cutter
+544,T6_arch_lands,ヴィンテージのOath of Druidsでよく使われる土地を5枚挙げて,archetype=Oath of Druids
+545,T8_dfc,《火》を使うデッキはモダンでどれくらいある？主なカードも教えて,card=Fire // Ice（両面/分割）
+546,T9_comma,ヴィンテージで《偉大なる統一者、アトラクサ》と一緒によく使われるカードは？,"card=Atraxa, Grand Unifier（読点入り）"
+547,T1_arch_cards,モダンのDimir Controlの主要なカードを教えて,archetype=Dimir Control decks=124
+548,T2_partner_ja,レガシーで《三なる宝球》と一緒に入るカードは？,card=Trinisphere
+549,T3_edh_partner,統率者戦で《ヴラーキスの勇者、ラエゼル》を使うデッキでよく一緒に使われるカードは？,"card=Lae'zel, Vlaakith's Champion"
+550,T4_legal_bare,モダンで純鋼の聖騎士はまだ使える？,card=Puresteel Paladin（裸の日本語名で問う）
+551,T5_en_question,Traverse the Ulvenwald はどのフォーマットのどんなデッキで使われてる？,card=Traverse the Ulvenwald
+552,T6_arch_lands,パウパーのDimir Terrorでよく使われる土地を5枚挙げて,archetype=Dimir Terror
+553,T8_dfc,《鏡割りの寓話》を使うデッキはモダンでどれくらいある？主なカードも教えて,card=Fable of the Mirror-Breaker // Reflection of Kiki-Jiki（両面/分割）
+554,T9_comma,レガシーで《王冠泥棒、オーコ》と一緒によく使われるカードは？,"card=Oko, Thief of Crowns（読点入り）"
+555,T1_arch_cards,レガシーのReanimatorの主要なカードを教えて,archetype=Reanimator decks=147
+556,T2_partner_ja,レガシーで《バロウゴイフ》と一緒に入るカードは？,card=Barrowgoyf
+557,T3_edh_partner,統率者戦で《約束された終末、エムラクール》を使うデッキでよく一緒に使われるカードは？,"card=Emrakul, the Promised End"
+558,T4_legal_bare,スタンダードでマネドリはまだ使える？,card=Mockingbird（裸の日本語名で問う）
+559,T5_en_question,Trinisphere はどのフォーマットのどんなデッキで使われてる？,card=Trinisphere
+560,T6_arch_lands,パウパーのMono Blue Aggroでよく使われる土地を5枚挙げて,archetype=Mono Blue Aggro
+561,T8_dfc,《厚かましい借り手》を使うデッキはモダンでどれくらいある？主なカードも教えて,card=Brazen Borrower // Petty Theft（両面/分割）
+562,T9_comma,レガシーで《司書、ワン・シー・トン》と一緒によく使われるカードは？,"card=Wan Shi Tong, Librarian（読点入り）"
+563,T1_arch_cards,モダンのCreatures Toolboxの主要なカードを教えて,archetype=Creatures Toolbox decks=46
+564,T2_partner_ja,モダンで《クウィリーオン・レインジャー》と一緒に入るカードは？,card=Quirion Ranger
+565,T3_edh_partner,統率者戦で《ドラーナとリンヴァーラ》を使うデッキでよく一緒に使われるカードは？,card=Drana and Linvala
+566,T4_legal_bare,レガシーで物読みはまだ使える？,card=Thoughtcast（裸の日本語名で問う）
+567,T5_en_question,Mox Emerald はどのフォーマットのどんなデッキで使われてる？,card=Mox Emerald（日本語版なし）
+568,T6_arch_lands,レガシーのDragon Stompyでよく使われる土地を5枚挙げて,archetype=Dragon Stompy
+569,T8_dfc,《ジェニファー・ウォルターズ》を使うデッキはパイオニアでどれくらいある？主なカードも教えて,card=Jennifer Walters // The Sensational She-Hulk（両面/分割）
+570,T9_comma,スタンダードで《道の体現者、シィコ》と一緒によく使われるカードは？,"card=Shiko, Paragon of the Way（読点入り）"
+571,T1_arch_cards,パウパーのRed Deck Winsの主要なカードを教えて,archetype=Red Deck Wins decks=130
+572,T2_partner_ja,パウパーで《割れ仮面の侍者》と一緒に入るカードは？,card=Shattered Acolyte
+573,T3_edh_partner,統率者戦で《戦闘の神、ハルヴァール // 領界の剣》を使うデッキでよく一緒に使われるカードは？,"card=Halvar, God of Battle // Sword of the Realms"
+574,T4_legal_bare,パイオニアで清掃人の才能はまだ使える？,card=Scavenger's Talent（裸の日本語名で問う）
+575,T5_en_question,Blastoderm はどのフォーマットのどんなデッキで使われてる？,card=Blastoderm
+576,T6_arch_lands,モダンのBoros Energyでよく使われる土地を5枚挙げて,archetype=Boros Energy
+577,T8_dfc,《素早き救済者、アン》を使うデッキはレガシーでどれくらいある？主なカードも教えて,"card=Aang, Swift Savior // Aang and La, Ocean's Fury（両面/分割）"
+578,T9_comma,スタンダードで《猛打者、タイヴァー》と一緒によく使われるカードは？,"card=Tyvar, the Pummeler（読点入り）"
+579,T1_arch_cards,モダンのBoros Ponzaの主要なカードを教えて,archetype=Boros Ponza decks=58
+580,T2_partner_ja,スタンダードで《致命的な一押し》と一緒に入るカードは？,card=Fatal Push
+581,T3_edh_partner,統率者戦で《殺しの羽ペン、マリ》を使うデッキでよく一緒に使われるカードは？,"card=Mari, the Killing Quill"
+582,T4_legal_bare,プレモダンで翻弄する魔道士はまだ使える？,card=Meddling Mage（裸の日本語名で問う）
+583,T5_en_question,Elvish Spirit Guide はどのフォーマットのどんなデッキで使われてる？,card=Elvish Spirit Guide
+584,T6_arch_lands,レガシーのOmni - Showでよく使われる土地を5枚挙げて,archetype=Omni - Show
+585,T8_dfc,《不浄な別室》を使うデッキはスタンダードでどれくらいある？主なカードも教えて,card=Unholy Annex // Ritual Chamber（両面/分割）
+586,T9_comma,レガシーで《有翼の叡智、ナドゥ》と一緒によく使われるカードは？,"card=Nadu, Winged Wisdom（読点入り）"
+587,T1_arch_cards,パウパーのWeenie Whiteの主要なカードを教えて,archetype=Weenie White decks=79
+588,T2_partner_ja,モダンで《呪文嵌め》と一緒に入るカードは？,card=Spell Snare
+589,T3_edh_partner,統率者戦で《無双の古きもの、クラウス》を使うデッキでよく一緒に使われるカードは？,"card=Klauth, Unrivaled Ancient"
+590,T4_legal_bare,ヴィンテージで吸血の教示者はまだ使える？,card=Vampiric Tutor（裸の日本語名で問う）
+591,T5_en_question,"Giada, Font of Hope はどのフォーマットのどんなデッキで使われてる？","card=Giada, Font of Hope"
+592,T6_arch_lands,レガシーのReanimatorでよく使われる土地を5枚挙げて,archetype=Reanimator
+593,T8_dfc,《ロクの伝説》を使うデッキはスタンダードでどれくらいある？主なカードも教えて,card=The Legend of Roku // Avatar Roku（両面/分割）
+594,T9_comma,スタンダードで《轟く機知、ラル》と一緒によく使われるカードは？,"card=Ral, Crackling Wit（読点入り）"
+595,T1_arch_cards,スタンダードのUR Soul Cauldronの主要なカードを教えて,archetype=UR Soul Cauldron decks=41
+596,T2_partner_ja,パイオニアで《悪魔の職工》と一緒に入るカードは？,card=Fiend Artisan
+597,T3_edh_partner,統率者戦で《炎の大口、ドラクセス》を使うデッキでよく一緒に使われるカードは？,"card=Drakuseth, Maw of Flames"
+598,T4_legal_bare,ヴィンテージで思案はまだ使える？,card=Ponder（裸の日本語名で問う）
+599,T5_en_question,Force of Will はどのフォーマットのどんなデッキで使われてる？,card=Force of Will
+600,T6_arch_lands,モダンのBoros Ponzaでよく使われる土地を5枚挙げて,archetype=Boros Ponza

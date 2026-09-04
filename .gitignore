@@ -1,0 +1,21 @@
+# 秘密・接続情報
+.env
+.env.*
+*.env
+# Python
+__pycache__/
+*.pyc
+# 実行時の生成物（ログ・状態・バックアップ）
+logs/
+state/
+*.log
+*.bak
+*.bak_*
+*.tmp
+nohup.out
+# 入力データ（Scryfall バルク・総合ルール原文・裁定原文はリポジトリに含めない）
+data/
+*.json.gz
+# 道具のバイナリ
+bin/terraform
+bin/cloudflared*

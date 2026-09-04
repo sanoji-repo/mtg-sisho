@@ -1,0 +1,84 @@
+A_no_ja	Afterlife Insurance		off	日本語版なし	correct	1
+A_no_ja	Afterlife Insurance		on	日本語版なし	correct	3
+A_no_ja	Ezio, Blade of Vengeance		off	日本語版なし	correct	1
+A_no_ja	Ezio, Blade of Vengeance		on	日本語版なし	correct	3
+A_no_ja	Underground Sea		off	アンダーグラウンド・シー	wrong	1
+A_no_ja	Underground Sea		on	日本語版なし	correct	3
+A_no_ja	Shadow the Hedgehog		off	日本語版なし	correct	1
+A_no_ja	Shadow the Hedgehog		on	日本語版なし	correct	3
+A_no_ja	Clown Car		off	ピエロの車	wrong	1
+A_no_ja	Clown Car		on	日本語版なし	correct	3
+A_no_ja	Nazgûl Battle-Mace		off	日本語版なし	correct	1
+A_no_ja	Nazgûl Battle-Mace		on	日本語版なし	correct	3
+A_no_ja	Greymond, Avacyn's Stalwart		off	日本語版なし	correct	1
+A_no_ja	Greymond, Avacyn's Stalwart		on	日本語版なし	correct	3
+A_no_ja	Achilles Davenport		off	不明	unknown	1
+A_no_ja	Achilles Davenport		on	日本語版なし	correct	3
+A_no_ja	Aragorn, Hornburg Hero		off	不明	unknown	1
+A_no_ja	Aragorn, Hornburg Hero		on	日本語版なし	correct	3
+A_no_ja	Rooftop Bypass		off	屋上バイパス	wrong	1
+A_no_ja	Rooftop Bypass		on	日本語版なし	correct	3
+B_hob	Large Bear	大きな熊	off	日本語版なし	noja_wrong	1
+B_hob	Large Bear	大きな熊	on	大きな熊	correct	3
+B_hob	Dáin, Lord of the Iron Hills	くろがね連山の統治者、ダーイン	off	日本語版なし	noja_wrong	1
+B_hob	Dáin, Lord of the Iron Hills	くろがね連山の統治者、ダーイン	on	くろがね連山の統治者、ダーイン	correct	3
+B_hob	Elven Raft-Steerer	エルフのいかだの舵取り	off	不明	unknown	1
+B_hob	Elven Raft-Steerer	エルフのいかだの舵取り	on	エルフのいかだの舵取り	correct	3
+B_hob	Dwarven Mauler	ドワーフの打ち壊し屋	off	ドワーフの猛撃者	wrong	1
+B_hob	Dwarven Mauler	ドワーフの打ち壊し屋	on	ドワーフの打ち壊し屋	correct	3
+B_hob	Goblin Plate Mail	ゴブリンの板金鎧	off	日本語版なし	noja_wrong	1
+B_hob	Goblin Plate Mail	ゴブリンの板金鎧	on	ゴブリンの板金鎧	correct	3
+B_hob	Wilderland Scrounger	荒れ地の国のたかり屋	off	不明	unknown	1
+B_hob	Wilderland Scrounger	荒れ地の国のたかり屋	on	荒れ地の国のたかり屋	correct	3
+B_hob	Old Fat Spider	でぶの年寄りクモ	off	老いた肥大蜘蛛	wrong	1
+B_hob	Old Fat Spider	でぶの年寄りクモ	on	でぶの年寄りクモ	correct	3
+B_hob	The Queen of Dale	谷間の国の王妃	off	日本語版なし	noja_wrong	1
+B_hob	The Queen of Dale	谷間の国の王妃	on	谷間の国の王妃	correct	3
+B_hob	Warg Tactics	魔狼の戦術	off	不明	unknown	1
+B_hob	Warg Tactics	魔狼の戦術	on	魔狼の戦術	correct	3
+B_hob	Quarrel	押し問答	off	諍い	wrong	1
+B_hob	Quarrel	押し問答	on	押し問答	correct	3
+C_multi	Thousand Moons Smithy // Barracks of the Thousand	千の月の鍛冶場 // 千の兵舎	off	千月の鍛冶場 // 千の兵営	wrong	1
+C_multi	Thousand Moons Smithy // Barracks of the Thousand	千の月の鍛冶場 // 千の兵舎	on	千の月の鍛冶場 // 千の兵舎	correct	3
+C_multi	Razorgrass Ambush // Razorgrass Field	剃刀草の待ち伏せ // 剃刀草の原野	off	日本語版なし	noja_wrong	1
+C_multi	Razorgrass Ambush // Razorgrass Field	剃刀草の待ち伏せ // 剃刀草の原野	on	剃刀草の待ち伏せ // 剃刀草の原野	correct	3
+C_multi	Jwari Disruption // Jwari Ruins	ジュワー島の撹乱 // ジュワー島の遺跡	off	ジャワーラの分裂	wrong	1
+C_multi	Jwari Disruption // Jwari Ruins	ジュワー島の撹乱 // ジュワー島の遺跡	on	ジュワー島の撹乱 // ジュワー島の遺跡	correct	3
+C_multi	Wandering Archaic // Explore the Vastlands	さまようアルカイック // 大界の探検	off	さすらいの古老 // 大草原の探検	wrong	1
+C_multi	Wandering Archaic // Explore the Vastlands	さまようアルカイック // 大界の探検	on	さまようアルカイック // 大界の探検	correct	3
+C_multi	Riverglide Pathway // Lavaglide Pathway	河川滑りの小道 // 溶岩滑りの小道	off	川流の小道 // 溶岩流の小道	wrong	1
+C_multi	Riverglide Pathway // Lavaglide Pathway	河川滑りの小道 // 溶岩滑りの小道	on	河川滑りの小道 // 溶岩滑りの小道	correct	3
+C_multi	Waterlogged Teachings // Inundated Archive	水浸しの教え // 冠水した書庫	off	水浸しの教え // 水没した文書庫	wrong	1
+C_multi	Waterlogged Teachings // Inundated Archive	水浸しの教え // 冠水した書庫	on	水浸しの教え // 冠水した書庫	correct	3
+C_multi	Shatterskull Smashing // Shatterskull, the Hammer Pass	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	off	大砕きの一撃 // 大槌峠、シャタースカル	wrong	1
+C_multi	Shatterskull Smashing // Shatterskull, the Hammer Pass	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	on	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	correct	3
+C_multi	Etali, Primal Conqueror // Etali, Primal Sickness	原初の征服者、エターリ // 原初の病、エターリ	off	エターリ、始原の征服者 // エターリ、始原の病魔	wrong	1
+C_multi	Etali, Primal Conqueror // Etali, Primal Sickness	原初の征服者、エターリ // 原初の病、エターリ	on	原初の征服者、エターリ // 原初の病、エターリ	correct	3
+D_famous	Skullclamp	頭蓋骨絞め	off	頭蓋骨締め	wrong	1
+D_famous	Skullclamp	頭蓋骨絞め	on	頭蓋骨絞め	correct	3
+D_famous	Steam Vents	蒸気孔	off	蒸気孔	correct	1
+D_famous	Steam Vents	蒸気孔	on	蒸気孔	correct	3
+D_famous	Garruk's Uprising	ガラクの蜂起	off	ガラクの復奏	wrong	1
+D_famous	Garruk's Uprising	ガラクの蜂起	on	ガラクの蜂起	correct	3
+D_famous	Propaganda	プロパガンダ	off	プロパガンダ	correct	1
+D_famous	Propaganda	プロパガンダ	on	プロパガンダ	correct	3
+D_famous	Deadly Rollick	致命的なはしゃぎ回り	off	破滅的な反乱	wrong	1
+D_famous	Deadly Rollick	致命的なはしゃぎ回り	on	致命的なはしゃぎ回り	correct	3
+D_famous	Nature's Lore	自然の知識	off	自然の知識	correct	1
+D_famous	Nature's Lore	自然の知識	on	自然の知識	correct	3
+E_nonliteral	Cori-Steel Cutter	コーリ鋼の短刀	off	剣刃、コリ=スティール	wrong	1
+E_nonliteral	Cori-Steel Cutter	コーリ鋼の短刀	on	コーリ鋼の短刀	correct	3
+E_nonliteral	Fable of the Mirror-Breaker // Reflection of Kiki-Jiki	鏡割りの寓話 // キキジキの鏡像	off	鏡割りの寓話 // キキジキの反射	wrong	1
+E_nonliteral	Fable of the Mirror-Breaker // Reflection of Kiki-Jiki	鏡割りの寓話 // キキジキの鏡像	on	鏡割りの寓話 // キキジキの鏡像	correct	3
+E_nonliteral	Psychic Frog	超能力蛙	off	サイキック・フロッグ	wrong	1
+E_nonliteral	Psychic Frog	超能力蛙	on	超能力蛙	correct	3
+E_nonliteral	Up the Beanstalk	豆の木をのぼれ	off	豆の茎を登る	wrong	1
+E_nonliteral	Up the Beanstalk	豆の木をのぼれ	on	豆の木をのぼれ	correct	3
+E_nonliteral	Ocelot Pride	オセロットの群れ	off	山猫の矜持	wrong	1
+E_nonliteral	Ocelot Pride	オセロットの群れ	on	オセロットの群れ	correct	3
+E_nonliteral	Orcish Bowmasters	オークの弓使い	off	オーク弓の名手	wrong	1
+E_nonliteral	Orcish Bowmasters	オークの弓使い	on	オークの弓使い	correct	3
+E_nonliteral	Sheoldred, the Apocalypse	黙示録、シェオルドレッド	off	シェオルドレッド、絶望の親玉	wrong	1
+E_nonliteral	Sheoldred, the Apocalypse	黙示録、シェオルドレッド	on	黙示録、シェオルドレッド	correct	3
+E_nonliteral	Phlage, Titan of Fire's Fury	火の怒りのタイタン、フレージ	off	火の激情、タイタンのフレイジ	wrong	1
+E_nonliteral	Phlage, Titan of Fire's Fury	火の怒りのタイタン、フレージ	on	火の怒りのタイタン、フレージ	correct	3

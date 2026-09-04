@@ -1,0 +1,101 @@
+id,template,question,note
+401,T6_arch_lands,パイオニアのThe Rockでよく使われる土地を5枚挙げて,archetype=The Rock
+402,T7_top_type,スタンダードで今いちばん採用率の高いクリーチャーは？上位5枚,type=Creature
+403,T9_comma,スタンダードで《棘を播く者、逆棘のビル》と一緒によく使われるカードは？,"card=Bristly Bill, Spine Sower（読点入り）"
+404,T1_arch_cards,レガシーのArtifacts Blueの主要なカードを教えて,archetype=Artifacts Blue decks=71
+405,T2_partner_ja,レガシーで《貴族の教主》と一緒に入るカードは？,card=Noble Hierarch
+406,T3_edh_partner,統率者戦で《双対の声、ヴェイラン》を使うデッキでよく一緒に使われるカードは？,"card=Veyran, Voice of Duality"
+407,T4_legal_bare,スタンダードでキランの真意号はまだ使える？,card=Heart of Kiran（裸の日本語名で問う）
+408,T5_en_question,Make Disappear はどのフォーマットのどんなデッキで使われてる？,card=Make Disappear
+409,T6_arch_lands,モダンのAllosaurus Comboでよく使われる土地を5枚挙げて,archetype=Allosaurus Combo
+410,T7_top_type,パイオニアで今いちばん採用率の高いインスタントは？上位5枚,type=Instant
+411,T9_comma,モダンで《カンフーの達人、シャン・チー》と一緒によく使われるカードは？,"card=Shang-Chi, Master of Kung Fu（読点入り）"
+412,T1_arch_cards,パウパーのElvesの主要なカードを教えて,archetype=Elves decks=103
+413,T2_partner_ja,モダンで《記憶への放逐》と一緒に入るカードは？,card=Consign to Memory
+414,T3_edh_partner,統率者戦で《勇敢な追跡者、ルビー》を使うデッキでよく一緒に使われるカードは？,"card=Ruby, Daring Tracker"
+415,T4_legal_bare,モダンで偉大なる統一者、アトラクサはまだ使える？,"card=Atraxa, Grand Unifier（裸の日本語名で問う）"
+416,T5_en_question,Candelabra of Tawnos はどのフォーマットのどんなデッキで使われてる？,card=Candelabra of Tawnos（日本語版なし）
+417,T6_arch_lands,モダンのEsper Blinkでよく使われる土地を5枚挙げて,archetype=Esper Blink
+418,T7_top_type,デュエルコマンダーで今いちばん採用率の高いクリーチャーは？上位5枚,type=Creature
+419,T9_comma,レガシーで《王冠泥棒、オーコ》と一緒によく使われるカードは？,"card=Oko, Thief of Crowns（読点入り）"
+420,T1_arch_cards,パイオニアのRakdos Midrangeの主要なカードを教えて,archetype=Rakdos Midrange decks=139
+421,T2_partner_ja,レガシーで《魂の導き手》と一緒に入るカードは？,card=Guide of Souls
+422,T3_edh_partner,統率者戦で《リスの将軍、サワギバ》を使うデッキでよく一緒に使われるカードは？,"card=Chatterfang, Squirrel General"
+423,T4_legal_bare,モダンで波起こしはまだ使える？,card=Waker of Waves（裸の日本語名で問う）
+424,T5_en_question,"Emry, Lurker of the Loch はどのフォーマットのどんなデッキで使われてる？","card=Emry, Lurker of the Loch"
+425,T6_arch_lands,レガシーのThe Fantasticarでよく使われる土地を5枚挙げて,archetype=The Fantasticar
+426,T7_top_type,プレモダンで今いちばん採用率の高いソーサリーは？上位5枚,type=Sorcery
+427,T9_comma,レガシーで《飢餓の潮流、グリスト》と一緒によく使われるカードは？,"card=Grist, the Hunger Tide（読点入り）"
+428,T1_arch_cards,パイオニアのArclight Phoenixの主要なカードを教えて,archetype=Arclight Phoenix decks=98
+429,T2_partner_ja,モダンで《全ては塵》と一緒に入るカードは？,card=All Is Dust
+430,T3_edh_partner,統率者戦で《黙示録、シェオルドレッド》を使うデッキでよく一緒に使われるカードは？,"card=Sheoldred, the Apocalypse"
+431,T4_legal_bare,パウパーで儚い存在はまだ使える？,card=Ephemerate（裸の日本語名で問う）
+432,T5_en_question,Unholy Heat はどのフォーマットのどんなデッキで使われてる？,card=Unholy Heat
+433,T6_arch_lands,パウパーのAffinityでよく使われる土地を5枚挙げて,archetype=Affinity
+434,T7_top_type,スタンダードで今いちばん採用率の高いソーサリーは？上位5枚,type=Sorcery
+435,T9_comma,ヴィンテージで《覆いを割く者、ナーセット》と一緒によく使われるカードは？,"card=Narset, Parter of Veils（読点入り）"
+436,T1_arch_cards,レガシーのCephalid Breakfastの主要なカードを教えて,archetype=Cephalid Breakfast decks=51
+437,T2_partner_ja,モダンで《湖に潜む者、エムリー》と一緒に入るカードは？,"card=Emry, Lurker of the Loch"
+438,T3_edh_partner,統率者戦で《不死身、スクイー》を使うデッキでよく一緒に使われるカードは？,"card=Squee, the Immortal"
+439,T4_legal_bare,ヴィンテージで太陽の指輪はまだ使える？,card=Sol Ring（裸の日本語名で問う）
+440,T5_en_question,"Narset, Parter of Veils はどのフォーマットのどんなデッキで使われてる？","card=Narset, Parter of Veils"
+441,T6_arch_lands,モダンのAffinityでよく使われる土地を5枚挙げて,archetype=Affinity
+442,T7_top_type,スタンダードで今いちばん採用率の高いエンチャントは？上位5枚,type=Enchantment
+443,T9_comma,モダンで《黙示録、シェオルドレッド》と一緒によく使われるカードは？,"card=Sheoldred, the Apocalypse（読点入り）"
+444,T1_arch_cards,ヴィンテージのInitiative Hatebearの主要なカードを教えて,archetype=Initiative Hatebear decks=157
+445,T2_partner_ja,レガシーで《孤独》と一緒に入るカードは？,card=Solitude
+446,T3_edh_partner,統率者戦で《尋問のドミヌス、テクータル》を使うデッキでよく一緒に使われるカードは？,"card=Tekuthal, Inquiry Dominus"
+447,T4_legal_bare,スタンダードで空虚はまだ使える？,card=Emptiness（裸の日本語名で問う）
+448,T5_en_question,Waker of Waves はどのフォーマットのどんなデッキで使われてる？,card=Waker of Waves
+449,T6_arch_lands,パウパーのRed Deck Winsでよく使われる土地を5枚挙げて,archetype=Red Deck Wins
+450,T7_top_type,モダンで今いちばん採用率の高いソーサリーは？上位5枚,type=Sorcery
+451,T9_comma,レガシーで《悪夢滅ぼし、魁渡》と一緒によく使われるカードは？,"card=Kaito, Bane of Nightmares（読点入り）"
+452,T1_arch_cards,モダンのYawgmothの主要なカードを教えて,archetype=Yawgmoth decks=40
+453,T2_partner_ja,スタンダードで《遠眼鏡のセイレーン》と一緒に入るカードは？,card=Spyglass Siren
+454,T3_edh_partner,統率者戦で《穢すもの、ウラモグ》を使うデッキでよく一緒に使われるカードは？,"card=Ulamog, the Defiler"
+455,T4_legal_bare,レガシーで集団的蛮行はまだ使える？,card=Collective Brutality（裸の日本語名で問う）
+456,T5_en_question,Mox Emerald はどのフォーマットのどんなデッキで使われてる？,card=Mox Emerald（日本語版なし）
+457,T6_arch_lands,ヴィンテージのEsper Lurrusでよく使われる土地を5枚挙げて,archetype=Esper Lurrus
+458,T9_comma,パイオニアで《黙示録、シェオルドレッド》と一緒によく使われるカードは？,"card=Sheoldred, the Apocalypse（読点入り）"
+459,T1_arch_cards,モダンのBroodscale Bloodchiefの主要なカードを教えて,archetype=Broodscale Bloodchief decks=170
+460,T2_partner_ja,パイオニアで《轟雷のブルードワゴン》と一緒に入るカードは？,card=Thundering Broodwagon
+461,T3_edh_partner,統率者戦で《下水王、駆け抜け侯》を使うデッキでよく一緒に使われるカードは？,"card=Lord Skitter, Sewer King"
+462,T4_legal_bare,スタンダードで溶かし歩きの消散はまだ使える？,card=Meltstrider's Resolve（裸の日本語名で問う）
+463,T5_en_question,Colossal Skyturtle はどのフォーマットのどんなデッキで使われてる？,card=Colossal Skyturtle
+464,T6_arch_lands,パイオニアのUR Aggroでよく使われる土地を5枚挙げて,archetype=UR Aggro
+465,T9_comma,スタンダードで《敬虔な新米、デニック》と一緒によく使われるカードは？,"card=Dennick, Pious Apprentice // Dennick, Pious Apparition（読点入り）"
+466,T1_arch_cards,パウパーのMono Blue Aggroの主要なカードを教えて,archetype=Mono Blue Aggro decks=79
+467,T2_partner_ja,パウパーで《ブレス攻撃》と一緒に入るカードは？,card=Breath Weapon
+468,T3_edh_partner,統率者戦で《大いなる歪み、コジレック》を使うデッキでよく一緒に使われるカードは？,"card=Kozilek, the Great Distortion"
+469,T4_legal_bare,レガシーで選定された平和の番人はまだ使える？,card=Anointed Peacekeeper（裸の日本語名で問う）
+470,T5_en_question,Master of Death はどのフォーマットのどんなデッキで使われてる？,card=Master of Death
+471,T6_arch_lands,モダンのHollow Oneでよく使われる土地を5枚挙げて,archetype=Hollow One
+472,T9_comma,レガシーで《嵐の目、ウギン》と一緒によく使われるカードは？,"card=Ugin, Eye of the Storms（読点入り）"
+473,T1_arch_cards,モダンのAffinityの主要なカードを教えて,archetype=Affinity decks=65
+474,T2_partner_ja,パウパーで《無謀なる衝動》と一緒に入るカードは？,card=Reckless Impulse
+475,T3_edh_partner,統率者戦で《城塞の近衛兵、ピピン》を使うデッキでよく一緒に使われるカードは？,"card=Pippin, Guard of the Citadel"
+476,T4_legal_bare,モダンで自然の律動はまだ使える？,card=Nature's Rhythm（裸の日本語名で問う）
+477,T5_en_question,Sire of Seven Deaths はどのフォーマットのどんなデッキで使われてる？,card=Sire of Seven Deaths
+478,T6_arch_lands,レガシーのGrixis Delverでよく使われる土地を5枚挙げて,archetype=Grixis Delver
+479,T9_comma,レガシーで《真夜中の盗人、ビルボ》と一緒によく使われるカードは？,"card=Bilbo, Thief in the Night（読点入り）"
+480,T1_arch_cards,レガシーのElvesの主要なカードを教えて,archetype=Elves decks=52
+481,T2_partner_ja,パウパーで《多元宇宙の警告》と一緒に入るカードは？,card=Behold the Multiverse
+482,T3_edh_partner,統率者戦で《神出鬼没の狩人、スーラク》を使うデッキでよく一緒に使われるカードは？,"card=Surrak, Elusive Hunter"
+483,T4_legal_bare,パウパーで勢団の取り引きはまだ使える？,card=Reckoner's Bargain（裸の日本語名で問う）
+484,T5_en_question,Dress Down はどのフォーマットのどんなデッキで使われてる？,card=Dress Down
+485,T6_arch_lands,レガシーのOmni - Showでよく使われる土地を5枚挙げて,archetype=Omni - Show
+486,T9_comma,モダンで《悪夢滅ぼし、魁渡》と一緒によく使われるカードは？,"card=Kaito, Bane of Nightmares（読点入り）"
+487,T1_arch_cards,パイオニアのThe Rockの主要なカードを教えて,archetype=The Rock decks=122
+488,T2_partner_ja,スタンダードで《傷残す批評》と一緒に入るカードは？,card=Traumatic Critique
+489,T3_edh_partner,統率者戦で《ロフガフフの息子、ログラクフ》を使うデッキでよく一緒に使われるカードは？,"card=Rograkh, Son of Rohgahh"
+490,T4_legal_bare,パイオニアで失せろはまだ使える？,card=Get Lost（裸の日本語名で問う）
+491,T5_en_question,Portent はどのフォーマットのどんなデッキで使われてる？,card=Portent
+492,T6_arch_lands,パウパーのWeenie Whiteでよく使われる土地を5枚挙げて,archetype=Weenie White
+493,T9_comma,パイオニアで《覆いを割く者、ナーセット》と一緒によく使われるカードは？,"card=Narset, Parter of Veils（読点入り）"
+494,T1_arch_cards,モダンのUrzaTronの主要なカードを教えて,archetype=UrzaTron decks=116
+495,T2_partner_ja,レガシーで《ミシュラのガラクタ》と一緒に入るカードは？,card=Mishra's Bauble
+496,T3_edh_partner,統率者戦で《アストラルの狩人、ガナクス》を使うデッキでよく一緒に使われるカードは？,"card=Ganax, Astral Hunter"
+497,T4_legal_bare,スタンダードで脈の新学部長、モセオはまだ使える？,"card=Moseo, Vein's New Dean（裸の日本語名で問う）"
+498,T5_en_question,Thought-Knot Seer はどのフォーマットのどんなデッキで使われてる？,card=Thought-Knot Seer
+499,T6_arch_lands,パウパーのJund Wildfireでよく使われる土地を5枚挙げて,archetype=Jund Wildfire
+500,T9_comma,モダンで《塔の長官、ボロミア》と一緒によく使われるカードは？,"card=Boromir, Warden of the Tower（読点入り）"
