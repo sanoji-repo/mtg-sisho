@@ -1,0 +1,101 @@
+id,template,question,note
+101,T10_noja,Transmute Artifact と一緒に使われるカードは？,card=Transmute Artifact（日本語版なし）
+102,T1_arch_cards,パイオニアのSelesnya Companyの主要なカードを教えて,archetype=Selesnya Company decks=96
+103,T2_partner_ja,レガシーで《動く死体》と一緒に入るカードは？,card=Animate Dead
+104,T3_edh_partner,統率者戦で《ヴラーキスの勇者、ラエゼル》を使うデッキでよく一緒に使われるカードは？,"card=Lae'zel, Vlaakith's Champion"
+105,T4_legal_bare,ヴィンテージでゴブリンの太守スクイーはまだ使える？,"card=Squee, Goblin Nabob（裸の日本語名で問う）"
+106,T5_en_question,Crypt Rats はどのフォーマットのどんなデッキで使われてる？,card=Crypt Rats
+107,T6_arch_lands,モダンのUW Controlでよく使われる土地を5枚挙げて,archetype=UW Control
+108,T7_top_type,ヴィンテージで今いちばん採用率の高いクリーチャーは？上位5枚,type=Creature
+109,T8_dfc,《ゼンディカーへの侵攻》を使うデッキはスタンダードでどれくらいある？主なカードも教えて,card=Invasion of Zendikar // Awakened Skyclave（両面/分割）
+110,T9_comma,モダンで《光に導かれし者、ハリーヤ》と一緒によく使われるカードは？,"card=Haliya, Guided by Light（読点入り）"
+111,T10_noja,Thermokarst と一緒に使われるカードは？,card=Thermokarst（日本語版なし）
+112,T1_arch_cards,パウパーのDimir Terrorの主要なカードを教えて,archetype=Dimir Terror decks=60
+113,T2_partner_ja,モダンで《死せる生》と一緒に入るカードは？,card=Living End
+114,T3_edh_partner,統率者戦で《アルバーズ・ミール》を使うデッキでよく一緒に使われるカードは？,card=Arbaaz Mir
+115,T4_legal_bare,レガシーで物読みはまだ使える？,card=Thoughtcast（裸の日本語名で問う）
+116,T5_en_question,Virtue of Loyalty // Ardenvale Fealty はどのフォーマットのどんなデッキで使われてる？,card=Virtue of Loyalty // Ardenvale Fealty（日本語版なし）
+117,T6_arch_lands,スタンダードのAzorius Aggroでよく使われる土地を5枚挙げて,archetype=Azorius Aggro
+118,T7_top_type,パウパーで今いちばん採用率の高いエンチャントは？上位5枚,type=Enchantment
+119,T8_dfc,《豊穣の名誉教授》を使うデッキはパイオニアでどれくらいある？主なカードも教えて,card=Emeritus of Abundance // Regrowth（両面/分割）
+120,T9_comma,ヴィンテージで《アゾリウスの造反者、ラヴィニア》と一緒によく使われるカードは？,"card=Lavinia, Azorius Renegade（読点入り）"
+121,T10_noja,Time Walk と一緒に使われるカードは？,card=Time Walk（日本語版なし）
+122,T1_arch_cards,スタンダードのIzzet Controlの主要なカードを教えて,archetype=Izzet Control decks=49
+123,T2_partner_ja,スタンダードで《不注意な読書家》と一緒に入るカードは？,card=Oblivious Bookworm
+124,T3_edh_partner,統率者戦で《大衆扇動者、ブリーナ》を使うデッキでよく一緒に使われるカードは？,"card=Breena, the Demagogue"
+125,T4_legal_bare,モダンでミシュラのガラクタはまだ使える？,card=Mishra's Bauble（裸の日本語名で問う）
+126,T5_en_question,The Wandering Emperor はどのフォーマットのどんなデッキで使われてる？,card=The Wandering Emperor
+127,T6_arch_lands,スタンダードのMono Green Landfallでよく使われる土地を5枚挙げて,archetype=Mono Green Landfall
+128,T7_top_type,プレモダンで今いちばん採用率の高いエンチャントは？上位5枚,type=Enchantment
+129,T8_dfc,《鏡割りの寓話》を使うデッキはレガシーでどれくらいある？主なカードも教えて,card=Fable of the Mirror-Breaker // Reflection of Kiki-Jiki（両面/分割）
+130,T9_comma,モダンで《約束された終末、エムラクール》と一緒によく使われるカードは？,"card=Emrakul, the Promised End（読点入り）"
+131,T10_noja,Mox Emerald と一緒に使われるカードは？,card=Mox Emerald（日本語版なし）
+132,T1_arch_cards,パイオニアのUW Controlの主要なカードを教えて,archetype=UW Control decks=113
+133,T2_partner_ja,モダンで《忌まわしき眼魔》と一緒に入るカードは？,card=Abhorrent Oculus
+134,T3_edh_partner,統率者戦で《眷者の神童、キナン》を使うデッキでよく一緒に使われるカードは？,"card=Kinnan, Bonder Prodigy"
+135,T4_legal_bare,ヴィンテージで一つの指輪はまだ使える？,card=The One Ring（裸の日本語名で問う）
+136,T5_en_question,Manifold Key はどのフォーマットのどんなデッキで使われてる？,card=Manifold Key
+137,T6_arch_lands,レガシーのStormでよく使われる土地を5枚挙げて,archetype=Storm
+138,T7_top_type,パウパーで今いちばん採用率の高いクリーチャーは？上位5枚,type=Creature
+139,T8_dfc,《月皇の古参兵》を使うデッキはパウパーでどれくらいある？主なカードも教えて,card=Lunarch Veteran // Luminous Phantom（両面/分割）
+140,T9_comma,パイオニアで《ドミナリアの英雄、テフェリー》と一緒によく使われるカードは？,"card=Teferi, Hero of Dominaria（読点入り）"
+141,T10_noja,Mox Ruby と一緒に使われるカードは？,card=Mox Ruby（日本語版なし）
+142,T1_arch_cards,パウパーのGrixis Affinityの主要なカードを教えて,archetype=Grixis Affinity decks=159
+143,T2_partner_ja,モダンで《真髄の針》と一緒に入るカードは？,card=Pithing Needle
+144,T3_edh_partner,統率者戦で《原初の飢え、ガルタ》を使うデッキでよく一緒に使われるカードは？,"card=Ghalta, Primal Hunger"
+145,T4_legal_bare,パイオニアで僧院の速槍はまだ使える？,card=Monastery Swiftspear（裸の日本語名で問う）
+146,T5_en_question,Dead // Gone はどのフォーマットのどんなデッキで使われてる？,card=Dead // Gone（日本語版なし）
+147,T6_arch_lands,ヴィンテージのCoveted Jewelでよく使われる土地を5枚挙げて,archetype=Coveted Jewel
+148,T7_top_type,モダンで今いちばん採用率の高いクリーチャーは？上位5枚,type=Creature
+149,T8_dfc,《秘密を掘り下げる者》を使うデッキはレガシーでどれくらいある？主なカードも教えて,card=Delver of Secrets // Insectile Aberration（両面/分割）
+150,T9_comma,モダンで《偉大なる統一者、アトラクサ》と一緒によく使われるカードは？,"card=Atraxa, Grand Unifier（読点入り）"
+151,T10_noja,"Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar と一緒に使われるカードは？","card=Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar（日本語版なし）"
+152,T1_arch_cards,レガシーのDeath & Taxesの主要なカードを教えて,archetype=Death & Taxes decks=75
+153,T2_partner_ja,スタンダードで《間の悪い爆発》と一緒に入るカードは？,card=Ill-Timed Explosion
+154,T3_edh_partner,統率者戦で《叛徒の見張り番、デューク》を使うデッキでよく一緒に使われるカードは？,"card=The Duke, Rebel Sentry"
+155,T4_legal_bare,レガシーで現実を砕くものはまだ使える？,card=Reality Smasher（裸の日本語名で問う）
+156,T5_en_question,Ensnaring Bridge はどのフォーマットのどんなデッキで使われてる？,card=Ensnaring Bridge
+157,T6_arch_lands,レガシーのDeath & Taxesでよく使われる土地を5枚挙げて,archetype=Death & Taxes
+158,T7_top_type,モダンで今いちばん採用率の高いアーティファクトは？上位5枚,type=Artifact
+159,T8_dfc,《鏡割りの寓話》を使うデッキはスタンダードでどれくらいある？主なカードも教えて,card=Fable of the Mirror-Breaker // Reflection of Kiki-Jiki（両面/分割）
+160,T9_comma,スタンダードで《策謀の予見者、ラフィーン》と一緒によく使われるカードは？,"card=Raffine, Scheming Seer（読点入り）"
+161,T10_noja,Timetwister と一緒に使われるカードは？,card=Timetwister（日本語版なし）
+162,T1_arch_cards,スタンダードのAzorius Aggroの主要なカードを教えて,archetype=Azorius Aggro decks=74
+163,T2_partner_ja,パイオニアで《ロクの伝説》と一緒に入るカードは？,card=The Legend of Roku // Avatar Roku
+164,T3_edh_partner,統率者戦で《異端聖戦士、サリア》を使うデッキでよく一緒に使われるカードは？,"card=Thalia, Heretic Cathar"
+165,T4_legal_bare,プレモダンでゴブリンの名手はまだ使える？,card=Goblin Sharpshooter（裸の日本語名で問う）
+166,T5_en_question,The One Ring はどのフォーマットのどんなデッキで使われてる？,card=The One Ring
+167,T6_arch_lands,レガシーのThe Fantasticarでよく使われる土地を5枚挙げて,archetype=The Fantasticar
+168,T7_top_type,プレモダンで今いちばん採用率の高いインスタントは？上位5枚,type=Instant
+169,T8_dfc,《鏡割りの寓話》を使うデッキはモダンでどれくらいある？主なカードも教えて,card=Fable of the Mirror-Breaker // Reflection of Kiki-Jiki（両面/分割）
+170,T9_comma,モダンで《大いなる創造者、カーン》と一緒によく使われるカードは？,"card=Karn, the Great Creator（読点入り）"
+171,T10_noja,Virtue of Loyalty // Ardenvale Fealty と一緒に使われるカードは？,card=Virtue of Loyalty // Ardenvale Fealty（日本語版なし）
+172,T1_arch_cards,ヴィンテージのMUDの主要なカードを教えて,archetype=MUD decks=59
+173,T2_partner_ja,パウパーで《サルーリの世話人》と一緒に入るカードは？,card=Saruli Caretaker
+174,T3_edh_partner,統率者戦で《約束された終末、エムラクール》を使うデッキでよく一緒に使われるカードは？,"card=Emrakul, the Promised End"
+175,T4_legal_bare,モダンで絡み根の霊はまだ使える？,card=Strangleroot Geist（裸の日本語名で問う）
+176,T5_en_question,Inquisition of Kozilek はどのフォーマットのどんなデッキで使われてる？,card=Inquisition of Kozilek
+177,T6_arch_lands,パウパーのGruul Aggroでよく使われる土地を5枚挙げて,archetype=Gruul Aggro
+178,T7_top_type,デュエルコマンダーで今いちばん採用率の高いアーティファクトは？上位5枚,type=Artifact
+179,T8_dfc,《砕骨の巨人》を使うデッキはパイオニアでどれくらいある？主なカードも教えて,card=Bonecrusher Giant // Stomp（両面/分割）
+180,T9_comma,パイオニアで《偉大なる統一者、アトラクサ》と一緒によく使われるカードは？,"card=Atraxa, Grand Unifier（読点入り）"
+181,T10_noja,Utrom Monitor と一緒に使われるカードは？,card=Utrom Monitor（日本語版なし）
+182,T1_arch_cards,ヴィンテージのBUG Midrangeの主要なカードを教えて,archetype=BUG Midrange decks=55
+183,T2_partner_ja,スタンダードで《咆哮する焼炉》と一緒に入るカードは？,card=Roaring Furnace // Steaming Sauna
+184,T3_edh_partner,統率者戦で《威名のソルジャー、セフィロス // 片翼の天使、セフィロス》を使うデッキでよく一緒に使われるカードは？,"card=Sephiroth, Fabled SOLDIER // Sephiroth, One-Winged Angel"
+185,T4_legal_bare,パイオニアで稲妻の斧はまだ使える？,card=Lightning Axe（裸の日本語名で問う）
+186,T5_en_question,Disruptor Flute はどのフォーマットのどんなデッキで使われてる？,card=Disruptor Flute
+187,T6_arch_lands,モダンのPinnacle Affinityでよく使われる土地を5枚挙げて,archetype=Pinnacle Affinity
+188,T7_top_type,デュエルコマンダーで今いちばん採用率の高いエンチャントは？上位5枚,type=Enchantment
+189,T8_dfc,《ロクの伝説》を使うデッキはパイオニアでどれくらいある？主なカードも教えて,card=The Legend of Roku // Avatar Roku（両面/分割）
+190,T9_comma,パイオニアで《跳ねる春、ベーザ》と一緒によく使われるカードは？,"card=Beza, the Bounding Spring（読点入り）"
+191,T10_noja,"Ajani, Nacatl Pariah // Ajani, Nacatl Avenger と一緒に使われるカードは？","card=Ajani, Nacatl Pariah // Ajani, Nacatl Avenger（日本語版なし）"
+192,T1_arch_cards,スタンダードのEsper Raffineの主要なカードを教えて,archetype=Esper Raffine decks=64
+193,T2_partner_ja,レガシーで《終末》と一緒に入るカードは？,card=Terminus
+194,T3_edh_partner,統率者戦で《敬虔な新米、デニック // 敬虔な心霊、デニック》を使うデッキでよく一緒に使われるカードは？,"card=Dennick, Pious Apprentice // Dennick, Pious Apparition"
+195,T4_legal_bare,レガシーで永劫のこだまはまだ使える？,card=Echo of Eons（裸の日本語名で問う）
+196,T5_en_question,"Hogaak, Arisen Necropolis はどのフォーマットのどんなデッキで使われてる？","card=Hogaak, Arisen Necropolis"
+197,T6_arch_lands,スタンダードのSelesnya Aggroでよく使われる土地を5枚挙げて,archetype=Selesnya Aggro
+198,T7_top_type,パイオニアで今いちばん採用率の高いエンチャントは？上位5枚,type=Enchantment
+199,T8_dfc,《厚かましい借り手》を使うデッキはレガシーでどれくらいある？主なカードも教えて,card=Brazen Borrower // Petty Theft（両面/分割）
+200,T9_comma,レガシーで《湖に潜む者、エムリー》と一緒によく使われるカードは？,"card=Emry, Lurker of the Loch（読点入り）"

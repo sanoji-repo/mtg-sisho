@@ -1,0 +1,101 @@
+id,template,question,note
+801,T3_edh_partner,統率者戦で《恐怖の神、ターグリッド // ターグリッドのランタン》を使うデッキでよく一緒に使われるカードは？,"card=Tergrid, God of Fright // Tergrid's Lantern"
+802,T4_legal_bare,モダンで猪の祟神、イルハグはまだ使える？,"card=Ilharg, the Raze-Boar（裸の日本語名で問う）"
+803,T5_en_question,Stormshriek Feral // Flush Out はどのフォーマットのどんなデッキで使われてる？,card=Stormshriek Feral // Flush Out（日本語版なし）
+804,T6_arch_lands,モダンのLiving Endでよく使われる土地を5枚挙げて,archetype=Living End
+805,T9_comma,モダンで《大いなる創造者、カーン》と一緒によく使われるカードは？,"card=Karn, the Great Creator（読点入り）"
+806,T1_arch_cards,スタンダードのMono Green Landfallの主要なカードを教えて,archetype=Mono Green Landfall decks=147
+807,T2_partner_ja,モダンで《巨像の鎚》と一緒に入るカードは？,card=Colossus Hammer
+808,T3_edh_partner,統率者戦で《厳格な者、コンラッド卿》を使うデッキでよく一緒に使われるカードは？,"card=Syr Konrad, the Grim"
+809,T4_legal_bare,スタンダードで水飛沫の門はまだ使える？,card=Splash Portal（裸の日本語名で問う）
+810,T5_en_question,Mox Sapphire はどのフォーマットのどんなデッキで使われてる？,card=Mox Sapphire（日本語版なし）
+811,T6_arch_lands,パイオニアのArclight Phoenixでよく使われる土地を5枚挙げて,archetype=Arclight Phoenix
+812,T9_comma,レガシーで《絶え間ない飢餓、ウラモグ》と一緒によく使われるカードは？,"card=Ulamog, the Ceaseless Hunger（読点入り）"
+813,T1_arch_cards,スタンダードのGruul Aggroの主要なカードを教えて,archetype=Gruul Aggro decks=58
+814,T2_partner_ja,モダンで《波起こし》と一緒に入るカードは？,card=Waker of Waves
+815,T3_edh_partner,統率者戦で《真実の解体者、コジレック》を使うデッキでよく一緒に使われるカードは？,"card=Kozilek, Butcher of Truth"
+816,T4_legal_bare,パウパーで幽霊のゆらめきはまだ使える？,card=Ghostly Flicker（裸の日本語名で問う）
+817,T5_en_question,Icetill Explorer はどのフォーマットのどんなデッキで使われてる？,card=Icetill Explorer
+818,T6_arch_lands,ヴィンテージのDimir Controlでよく使われる土地を5枚挙げて,archetype=Dimir Control
+819,T9_comma,モダンで《絶え間ない飢餓、ウラモグ》と一緒によく使われるカードは？,"card=Ulamog, the Ceaseless Hunger（読点入り）"
+820,T1_arch_cards,ヴィンテージのDimir Controlの主要なカードを教えて,archetype=Dimir Control decks=120
+821,T2_partner_ja,プレモダンで《幻視の魔除け》と一緒に入るカードは？,card=Vision Charm
+822,T3_edh_partner,統率者戦で《解き放たれし王、ブミ》を使うデッキでよく一緒に使われるカードは？,"card=Bumi, Unleashed"
+823,T4_legal_bare,モダンで発熱の儀式はまだ使える？,card=Pyretic Ritual（裸の日本語名で問う）
+824,T5_en_question,Time Vault はどのフォーマットのどんなデッキで使われてる？,card=Time Vault（日本語版なし）
+825,T6_arch_lands,レガシーのAlurenでよく使われる土地を5枚挙げて,archetype=Aluren
+826,T9_comma,モダンで《大いなる脳ミソ、クランゲ》と一緒によく使われるカードは？,"card=Krang, Master Mind（読点入り）"
+827,T1_arch_cards,ヴィンテージのBazaar Aggroの主要なカードを教えて,archetype=Bazaar Aggro decks=67
+828,T2_partner_ja,スタンダードで《重厚な世界踏破車》と一緒に入るカードは？,card=Lumbering Worldwagon
+829,T3_edh_partner,統率者戦で《原初の飢え、ガルタ》を使うデッキでよく一緒に使われるカードは？,"card=Ghalta, Primal Hunger"
+830,T4_legal_bare,プレモダンでゴブリンの女看守はまだ使える？,card=Goblin Matron（裸の日本語名で問う）
+831,T5_en_question,Reality Smasher はどのフォーマットのどんなデッキで使われてる？,card=Reality Smasher
+832,T6_arch_lands,スタンダードのIzzet Spellementalsでよく使われる土地を5枚挙げて,archetype=Izzet Spellementals
+833,T9_comma,モダンで《死の飢えのタイタン、クロクサ》と一緒によく使われるカードは？,"card=Kroxa, Titan of Death's Hunger（読点入り）"
+834,T1_arch_cards,スタンダードのMardu Aggroの主要なカードを教えて,archetype=Mardu Aggro decks=71
+835,T2_partner_ja,スタンダードで《キヨシ島の大ウナギ》と一緒に入るカードは？,card=The Unagi of Kyoshi Island
+836,T3_edh_partner,統率者戦で《再鍛の刃、ラエリア》を使うデッキでよく一緒に使われるカードは？,"card=Laelia, the Blade Reforged"
+837,T4_legal_bare,パイオニアで致命的な一押しはまだ使える？,card=Fatal Push（裸の日本語名で問う）
+838,T5_en_question,Goblin Sharpshooter はどのフォーマットのどんなデッキで使われてる？,card=Goblin Sharpshooter
+839,T6_arch_lands,レガシーのInitiative Stompyでよく使われる土地を5枚挙げて,archetype=Initiative Stompy
+840,T9_comma,ヴィンテージで《トラブルメーカー、ラフとマイキー》と一緒によく使われるカードは？,"card=Raph & Mikey, Troublemakers（読点入り）"
+841,T1_arch_cards,モダンのUR Aggroの主要なカードを教えて,archetype=UR Aggro decks=69
+842,T2_partner_ja,スタンダードで《デリアン・フェル教授》と一緒に入るカードは？,card=Professor Dellian Fel
+843,T3_edh_partner,統率者戦で《運命の大嵐、ドラゴンホーク》を使うデッキでよく一緒に使われるカードは？,"card=Dragonhawk, Fate's Tempest"
+844,T4_legal_bare,ヴィンテージで目くらましはまだ使える？,card=Daze（裸の日本語名で問う）
+845,T5_en_question,Tinker はどのフォーマットのどんなデッキで使われてる？,card=Tinker
+846,T6_arch_lands,スタンダードのRed Deck Winsでよく使われる土地を5枚挙げて,archetype=Red Deck Wins
+847,T9_comma,モダンで《スランの医師、ヨーグモス》と一緒によく使われるカードは？,"card=Yawgmoth, Thran Physician（読点入り）"
+848,T1_arch_cards,スタンダードのRakdos Aggroの主要なカードを教えて,archetype=Rakdos Aggro decks=51
+849,T2_partner_ja,パイオニアで《まどろみのトラッジ》と一緒に入るカードは？,card=Slumbering Trudge
+850,T3_edh_partner,統率者戦で《グリセルブランド》を使うデッキでよく一緒に使われるカードは？,card=Griselbrand
+851,T4_legal_bare,スタンダードで並外れた語り部はまだ使える？,card=Formidable Speaker（裸の日本語名で問う）
+852,T5_en_question,Sheltered by Ghosts はどのフォーマットのどんなデッキで使われてる？,card=Sheltered by Ghosts
+853,T6_arch_lands,レガシーのPainterでよく使われる土地を5枚挙げて,archetype=Painter
+854,T9_comma,スタンダードで《司書、ワン・シー・トン》と一緒によく使われるカードは？,"card=Wan Shi Tong, Librarian（読点入り）"
+855,T1_arch_cards,パウパーのGruul Aggroの主要なカードを教えて,archetype=Gruul Aggro decks=80
+856,T2_partner_ja,ヴィンテージで《アゾリウスの造反者、ラヴィニア》と一緒に入るカードは？,"card=Lavinia, Azorius Renegade"
+857,T3_edh_partner,統率者戦で《外交官、マンガラ》を使うデッキでよく一緒に使われるカードは？,"card=Mangara, the Diplomat"
+858,T4_legal_bare,モダンで魂標ランタンはまだ使える？,card=Soul-Guide Lantern（裸の日本語名で問う）
+859,T5_en_question,Portable Hole はどのフォーマットのどんなデッキで使われてる？,card=Portable Hole
+860,T6_arch_lands,パウパーのDimir Controlでよく使われる土地を5枚挙げて,archetype=Dimir Control
+861,T9_comma,モダンで《引き裂かれし永劫、エムラクール》と一緒によく使われるカードは？,"card=Emrakul, the Aeons Torn（読点入り）"
+862,T1_arch_cards,モダンのScepter Chantの主要なカードを教えて,archetype=Scepter Chant decks=43
+863,T2_partner_ja,プレモダンで《老練の探険者》と一緒に入るカードは？,card=Veteran Explorer
+864,T3_edh_partner,統率者戦で《第三の道のロラン》を使うデッキでよく一緒に使われるカードは？,card=Loran of the Third Path
+865,T4_legal_bare,モダンで血染めの月はまだ使える？,card=Blood Moon（裸の日本語名で問う）
+866,T5_en_question,Wonder はどのフォーマットのどんなデッキで使われてる？,card=Wonder
+867,T6_arch_lands,モダンのHollow Oneでよく使われる土地を5枚挙げて,archetype=Hollow One
+868,T9_comma,スタンダードで《脈の新学部長、モセオ》と一緒によく使われるカードは？,"card=Moseo, Vein's New Dean（読点入り）"
+869,T1_arch_cards,ヴィンテージのGifts Controlの主要なカードを教えて,archetype=Gifts Control decks=46
+870,T2_partner_ja,スタンダードで《峰の恐怖》と一緒に入るカードは？,card=Terror of the Peaks
+871,T3_edh_partner,統率者戦で《崖の暴君、カズール》を使うデッキでよく一緒に使われるカードは？,"card=Kazuul, Tyrant of the Cliffs"
+872,T4_legal_bare,モダンで大釜の使い魔はまだ使える？,card=Cauldron Familiar（裸の日本語名で問う）
+873,T5_en_question,"Narset, Parter of Veils はどのフォーマットのどんなデッキで使われてる？","card=Narset, Parter of Veils"
+874,T6_arch_lands,スタンダードのRakdos Aggroでよく使われる土地を5枚挙げて,archetype=Rakdos Aggro
+875,T9_comma,レガシーで《自然の怒りのタイタン、ウーロ》と一緒によく使われるカードは？,"card=Uro, Titan of Nature's Wrath（読点入り）"
+876,T1_arch_cards,パウパーのUrzatronの主要なカードを教えて,archetype=Urzatron decks=112
+877,T2_partner_ja,レガシーで《世界のるつぼ》と一緒に入るカードは？,card=Crucible of Worlds
+878,T3_edh_partner,統率者戦で《名うての殺人鬼、虐殺少女》を使うデッキでよく一緒に使われるカードは？,"card=Massacre Girl, Known Killer"
+879,T4_legal_bare,パウパーで探検の地図はまだ使える？,card=Expedition Map（裸の日本語名で問う）
+880,T5_en_question,Goblin Guide はどのフォーマットのどんなデッキで使われてる？,card=Goblin Guide
+881,T6_arch_lands,パイオニアのUW Controlでよく使われる土地を5枚挙げて,archetype=UW Control
+882,T9_comma,レガシーで《素早き救済者、アン》と一緒によく使われるカードは？,"card=Aang, Swift Savior // Aang and La, Ocean's Fury（読点入り）"
+883,T1_arch_cards,スタンダードのIzzet Spellementalsの主要なカードを教えて,archetype=Izzet Spellementals decks=165
+884,T2_partner_ja,スタンダードで《ロクの伝説》と一緒に入るカードは？,card=The Legend of Roku // Avatar Roku
+885,T3_edh_partner,統率者戦で《フェイに呪われた王、コルヴォルド》を使うデッキでよく一緒に使われるカードは？,"card=Korvold, Fae-Cursed King"
+886,T4_legal_bare,スタンダードでリバイアサンの腹のなかはまだ使える？,card=Swallowed by Leviathan（裸の日本語名で問う）
+887,T5_en_question,Meddling Mage はどのフォーマットのどんなデッキで使われてる？,card=Meddling Mage
+888,T6_arch_lands,パウパーのBalustrade Spyでよく使われる土地を5枚挙げて,archetype=Balustrade Spy
+889,T9_comma,モダンで《黙示録、シェオルドレッド》と一緒によく使われるカードは？,"card=Sheoldred, the Apocalypse（読点入り）"
+890,T1_arch_cards,パウパーのMono Blue Aggroの主要なカードを教えて,archetype=Mono Blue Aggro decks=79
+891,T2_partner_ja,パイオニアで《全知》と一緒に入るカードは？,card=Omniscience
+892,T3_edh_partner,統率者戦で《絞り取る徴税人、レヴ》を使うデッキでよく一緒に使われるカードは？,"card=Rev, Tithe Extractor"
+893,T4_legal_bare,プレモダンでゴブリン修繕屋はまだ使える？,card=Goblin Tinkerer（裸の日本語名で問う）
+894,T5_en_question,Hermit Druid はどのフォーマットのどんなデッキで使われてる？,card=Hermit Druid
+895,T6_arch_lands,モダンのYawgmothでよく使われる土地を5枚挙げて,archetype=Yawgmoth
+896,T9_comma,レガシーで《悪夢滅ぼし、魁渡》と一緒によく使われるカードは？,"card=Kaito, Bane of Nightmares（読点入り）"
+897,T1_arch_cards,レガシーのDoomsdayの主要なカードを教えて,archetype=Doomsday decks=83
+898,T2_partner_ja,パウパーで《爆破ゼリーの樽》と一緒に入るカードは？,card=Barrels of Blasting Jelly
+899,T3_edh_partner,統率者戦で《浄火の戦術家、デリーヴィー》を使うデッキでよく一緒に使われるカードは？,"card=Derevi, Empyrial Tactician"
+900,T4_legal_bare,モダンで毒物の侍臣、ハパチラはまだ使える？,"card=Hapatra, Vizier of Poisons（裸の日本語名で問う）"

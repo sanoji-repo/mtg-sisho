@@ -1,0 +1,420 @@
+low	on	A_no_ja	Afterlife Insurance		日本語版なし	correct	3
+low	on	A_no_ja	Ezio, Blade of Vengeance		日本語版なし	correct	3
+low	on	A_no_ja	Underground Sea		日本語版なし	correct	3
+low	on	A_no_ja	Shadow the Hedgehog		日本語版なし	correct	4
+low	on	A_no_ja	Clown Car		日本語版なし	correct	3
+low	on	A_no_ja	Nazgûl Battle-Mace		日本語版なし	correct	3
+low	on	A_no_ja	Greymond, Avacyn's Stalwart		日本語版なし	correct	3
+low	on	A_no_ja	Achilles Davenport		日本語版なし	correct	3
+low	on	A_no_ja	Aragorn, Hornburg Hero		日本語版なし	correct	3
+low	on	A_no_ja	Rooftop Bypass		日本語版なし	correct	3
+low	on	B_hob	Large Bear	大きな熊	大きな熊	correct	3
+low	on	B_hob	Dáin, Lord of the Iron Hills	くろがね連山の統治者、ダーイン	くろがね連山の統治者、ダーイン	correct	3
+low	on	B_hob	Elven Raft-Steerer	エルフのいかだの舵取り	エルフのいかだの舵取り	correct	3
+low	on	B_hob	Dwarven Mauler	ドワーフの打ち壊し屋	ドワーフの打ち壊し屋	correct	3
+low	on	B_hob	Goblin Plate Mail	ゴブリンの板金鎧	ゴブリンの板金鎧	correct	3
+low	on	B_hob	Wilderland Scrounger	荒れ地の国のたかり屋	荒れ地の国のたかり屋	correct	3
+low	on	B_hob	Old Fat Spider	でぶの年寄りクモ	でぶの年寄りクモ	correct	3
+low	on	B_hob	The Queen of Dale	谷間の国の王妃	谷間の国の王妃	correct	3
+low	on	B_hob	Warg Tactics	魔狼の戦術	魔狼の戦術	correct	3
+low	on	B_hob	Quarrel	押し問答	押し問答	correct	3
+low	on	C_multi	Thousand Moons Smithy // Barracks of the Thousand	千の月の鍛冶場 // 千の兵舎	千の月の鍛冶場 // 千の兵舎	correct	3
+low	on	C_multi	Razorgrass Ambush // Razorgrass Field	剃刀草の待ち伏せ // 剃刀草の原野	剃刀草の待ち伏せ // 剃刀草の原野	correct	3
+low	on	C_multi	Jwari Disruption // Jwari Ruins	ジュワー島の撹乱 // ジュワー島の遺跡	ジュワー島の撹乱 // ジュワー島の遺跡	correct	3
+low	on	C_multi	Wandering Archaic // Explore the Vastlands	さまようアルカイック // 大界の探検	さまようアルカイック // 大界の探検	correct	3
+low	on	C_multi	Riverglide Pathway // Lavaglide Pathway	河川滑りの小道 // 溶岩滑りの小道	河川滑りの小道 // 溶岩滑りの小道	correct	3
+low	on	C_multi	Waterlogged Teachings // Inundated Archive	水浸しの教え // 冠水した書庫	水浸しの教え // 冠水した書庫	correct	3
+low	on	C_multi	Shatterskull Smashing // Shatterskull, the Hammer Pass	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	correct	3
+low	on	C_multi	Etali, Primal Conqueror // Etali, Primal Sickness	原初の征服者、エターリ // 原初の病、エターリ	原初の征服者、エターリ // 原初の病、エターリ	correct	3
+low	on	D_famous	Skullclamp	頭蓋骨絞め	頭蓋骨絞め	correct	3
+low	on	D_famous	Steam Vents	蒸気孔	蒸気孔	correct	3
+low	on	D_famous	Garruk's Uprising	ガラクの蜂起	ガラクの蜂起	correct	3
+low	on	D_famous	Propaganda	プロパガンダ	プロパガンダ	correct	3
+low	on	D_famous	Deadly Rollick	致命的なはしゃぎ回り	致命的なはしゃぎ回り	correct	3
+low	on	D_famous	Nature's Lore	自然の知識	自然の知識	correct	3
+low	on	E_nonliteral	Cori-Steel Cutter	コーリ鋼の短刀	コーリ鋼の短刀	correct	1
+low	on	E_nonliteral	Fable of the Mirror-Breaker // Reflection of Kiki-Jiki	鏡割りの寓話 // キキジキの鏡像	鏡割りの寓話 // キキジキの鏡像	correct	3
+low	on	E_nonliteral	Psychic Frog	超能力蛙	超能力蛙	correct	3
+low	on	E_nonliteral	Up the Beanstalk	豆の木をのぼれ	豆の木をのぼれ	correct	3
+low	on	E_nonliteral	Ocelot Pride	オセロットの群れ	オセロットの群れ	correct	3
+low	on	E_nonliteral	Orcish Bowmasters	オークの弓使い	オークの弓使い	correct	3
+low	on	E_nonliteral	Sheoldred, the Apocalypse	黙示録、シェオルドレッド	黙示録、シェオルドレッド	correct	3
+low	on	E_nonliteral	Phlage, Titan of Fire's Fury	火の怒りのタイタン、フレージ	火の怒りのタイタン、フレージ	correct	3
+low	off	A_no_ja	Afterlife Insurance		不明	unknown	1
+low	off	A_no_ja	Ezio, Blade of Vengeance		復讐の刃、エツィオ	wrong	1
+low	off	A_no_ja	Underground Sea		Underground Sea	wrong	1
+low	off	A_no_ja	Shadow the Hedgehog		不明	unknown	1
+low	off	A_no_ja	Clown Car		日本語版なし	correct	1
+low	off	A_no_ja	Nazgûl Battle-Mace		ナズグルの戦鎚	wrong	1
+low	off	A_no_ja	Greymond, Avacyn's Stalwart		アヴァシンの堅牢、グレイモンド	wrong	1
+low	off	A_no_ja	Achilles Davenport		アキレス・ダヴェンポート	wrong	1
+low	off	A_no_ja	Aragorn, Hornburg Hero		ホルンバーグの英雄、アラゴルン	wrong	1
+low	off	A_no_ja	Rooftop Bypass		不明	unknown	1
+low	off	B_hob	Large Bear	大きな熊	大きな熊	correct	1
+low	off	B_hob	Dáin, Lord of the Iron Hills	くろがね連山の統治者、ダーイン	鉄の丘の王、ダイン	wrong	1
+low	off	B_hob	Elven Raft-Steerer	エルフのいかだの舵取り	不明	unknown	1
+low	off	B_hob	Dwarven Mauler	ドワーフの打ち壊し屋	ドワーフの殴り手	wrong	1
+low	off	B_hob	Goblin Plate Mail	ゴブリンの板金鎧	日本語版なし	noja_wrong	1
+low	off	B_hob	Wilderland Scrounger	荒れ地の国のたかり屋	不明	unknown	1
+low	off	B_hob	Old Fat Spider	でぶの年寄りクモ	不明	unknown	1
+low	off	B_hob	The Queen of Dale	谷間の国の王妃	不明	unknown	1
+low	off	B_hob	Warg Tactics	魔狼の戦術	不明	unknown	1
+low	off	B_hob	Quarrel	押し問答	不明	unknown	1
+low	off	C_multi	Thousand Moons Smithy // Barracks of the Thousand	千の月の鍛冶場 // 千の兵舎	千の月の鍛冶場 // 千の兵舎	correct	1
+low	off	C_multi	Razorgrass Ambush // Razorgrass Field	剃刀草の待ち伏せ // 剃刀草の原野	剃刀草の待ち伏せ // 剃刀草の草原	wrong	1
+low	off	C_multi	Jwari Disruption // Jwari Ruins	ジュワー島の撹乱 // ジュワー島の遺跡	ジュワー島の攪乱 // ジュワー島の遺跡	wrong	1
+low	off	C_multi	Wandering Archaic // Explore the Vastlands	さまようアルカイック // 大界の探検	遍歴の古代種 // 大地の探索	wrong	1
+low	off	C_multi	Riverglide Pathway // Lavaglide Pathway	河川滑りの小道 // 溶岩滑りの小道	河潜みの小道 // 熔滑りの小道	wrong	1
+low	off	C_multi	Waterlogged Teachings // Inundated Archive	水浸しの教え // 冠水した書庫	水浸しの教え // 水没した書庫	wrong	1
+low	off	C_multi	Shatterskull Smashing // Shatterskull, the Hammer Pass	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	髑髏砕きの一撃 // 髑髏砕きのハンマー峠	wrong	1
+low	off	C_multi	Etali, Primal Conqueror // Etali, Primal Sickness	原初の征服者、エターリ // 原初の病、エターリ	原初の征服者、エターリ // 原初の疫病、エターリ	wrong	1
+low	off	D_famous	Skullclamp	頭蓋骨絞め	頭蓋骨絞め	correct	1
+low	off	D_famous	Steam Vents	蒸気孔	蒸気孔	correct	1
+low	off	D_famous	Garruk's Uprising	ガラクの蜂起	ガラクの蜂起	correct	1
+low	off	D_famous	Propaganda	プロパガンダ	プロパガンダ	correct	1
+low	off	D_famous	Deadly Rollick	致命的なはしゃぎ回り	必殺の一撃	wrong	1
+low	off	D_famous	Nature's Lore	自然の知識	自然の知識	correct	1
+low	off	E_nonliteral	Cori-Steel Cutter	コーリ鋼の短刀	コリ鋼の切断者	wrong	1
+low	off	E_nonliteral	Fable of the Mirror-Breaker // Reflection of Kiki-Jiki	鏡割りの寓話 // キキジキの鏡像	鏡割りの寓話 // キキジキの鏡像	correct	1
+low	off	E_nonliteral	Psychic Frog	超能力蛙	精神接続のカエル	wrong	1
+low	off	E_nonliteral	Up the Beanstalk	豆の木をのぼれ	豆の木をのぼれ	correct	1
+low	off	E_nonliteral	Ocelot Pride	オセロットの群れ	オセロットの誇り	wrong	1
+low	off	E_nonliteral	Orcish Bowmasters	オークの弓使い	オークの弓使い	correct	1
+low	off	E_nonliteral	Sheoldred, the Apocalypse	黙示録、シェオルドレッド	黙示録、シェオルドレッド	correct	1
+low	off	E_nonliteral	Phlage, Titan of Fire's Fury	火の怒りのタイタン、フレージ	業火のタイタン、フレイジ	wrong	1
+medium	on	A_no_ja	Afterlife Insurance		日本語版なし	correct	3
+medium	on	A_no_ja	Ezio, Blade of Vengeance		日本語版なし	correct	3
+medium	on	A_no_ja	Underground Sea		日本語版なし	correct	3
+medium	on	A_no_ja	Shadow the Hedgehog		日本語版なし	correct	4
+medium	on	A_no_ja	Clown Car		日本語版なし	correct	3
+medium	on	A_no_ja	Nazgûl Battle-Mace		日本語版なし	correct	3
+medium	on	A_no_ja	Greymond, Avacyn's Stalwart		日本語版なし	correct	3
+medium	on	A_no_ja	Achilles Davenport		日本語版なし	correct	3
+medium	on	A_no_ja	Aragorn, Hornburg Hero		日本語版なし	correct	3
+medium	on	A_no_ja	Rooftop Bypass		日本語版なし	correct	3
+medium	on	B_hob	Large Bear	大きな熊	大きな熊	correct	3
+medium	on	B_hob	Dáin, Lord of the Iron Hills	くろがね連山の統治者、ダーイン	くろがね連山の統治者、ダーイン	correct	3
+medium	on	B_hob	Elven Raft-Steerer	エルフのいかだの舵取り	エルフのいかだの舵取り	correct	3
+medium	on	B_hob	Dwarven Mauler	ドワーフの打ち壊し屋	ドワーフの打ち壊し屋	correct	3
+medium	on	B_hob	Goblin Plate Mail	ゴブリンの板金鎧	ゴブリンの板金鎧	correct	3
+medium	on	B_hob	Wilderland Scrounger	荒れ地の国のたかり屋	荒れ地の国のたかり屋	correct	3
+medium	on	B_hob	Old Fat Spider	でぶの年寄りクモ	でぶの年寄りクモ	correct	3
+medium	on	B_hob	The Queen of Dale	谷間の国の王妃	谷間の国の王妃	correct	3
+medium	on	B_hob	Warg Tactics	魔狼の戦術	魔狼の戦術	correct	3
+medium	on	B_hob	Quarrel	押し問答	押し問答	correct	3
+medium	on	C_multi	Thousand Moons Smithy // Barracks of the Thousand	千の月の鍛冶場 // 千の兵舎	千の月の鍛冶場 // 千の兵舎	correct	3
+medium	on	C_multi	Razorgrass Ambush // Razorgrass Field	剃刀草の待ち伏せ // 剃刀草の原野	剃刀草の待ち伏せ // 剃刀草の原野	correct	3
+medium	on	C_multi	Jwari Disruption // Jwari Ruins	ジュワー島の撹乱 // ジュワー島の遺跡	ジュワー島の撹乱 // ジュワー島の遺跡	correct	3
+medium	on	C_multi	Wandering Archaic // Explore the Vastlands	さまようアルカイック // 大界の探検	さまようアルカイック // 大界の探検	correct	3
+medium	on	C_multi	Riverglide Pathway // Lavaglide Pathway	河川滑りの小道 // 溶岩滑りの小道	河川滑りの小道 // 溶岩滑りの小道	correct	3
+medium	on	C_multi	Waterlogged Teachings // Inundated Archive	水浸しの教え // 冠水した書庫	水浸しの教え // 冠水した書庫	correct	3
+medium	on	C_multi	Shatterskull Smashing // Shatterskull, the Hammer Pass	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	correct	3
+medium	on	C_multi	Etali, Primal Conqueror // Etali, Primal Sickness	原初の征服者、エターリ // 原初の病、エターリ	原初の征服者、エターリ // 原初の病、エターリ	correct	3
+medium	on	D_famous	Skullclamp	頭蓋骨絞め	頭蓋骨絞め	correct	3
+medium	on	D_famous	Steam Vents	蒸気孔	蒸気孔	correct	3
+medium	on	D_famous	Garruk's Uprising	ガラクの蜂起	ガラクの蜂起	correct	3
+medium	on	D_famous	Propaganda	プロパガンダ	プロパガンダ	correct	3
+medium	on	D_famous	Deadly Rollick	致命的なはしゃぎ回り	致命的なはしゃぎ回り	correct	3
+medium	on	D_famous	Nature's Lore	自然の知識	自然の知識	correct	3
+medium	on	E_nonliteral	Cori-Steel Cutter	コーリ鋼の短刀	コーリ鋼の短刀	correct	3
+medium	on	E_nonliteral	Fable of the Mirror-Breaker // Reflection of Kiki-Jiki	鏡割りの寓話 // キキジキの鏡像	鏡割りの寓話 // キキジキの鏡像	correct	3
+medium	on	E_nonliteral	Psychic Frog	超能力蛙	超能力蛙	correct	3
+medium	on	E_nonliteral	Up the Beanstalk	豆の木をのぼれ	豆の木をのぼれ	correct	3
+medium	on	E_nonliteral	Ocelot Pride	オセロットの群れ	オセロットの群れ	correct	3
+medium	on	E_nonliteral	Orcish Bowmasters	オークの弓使い	オークの弓使い	correct	3
+medium	on	E_nonliteral	Sheoldred, the Apocalypse	黙示録、シェオルドレッド	黙示録、シェオルドレッド	correct	3
+medium	on	E_nonliteral	Phlage, Titan of Fire's Fury	火の怒りのタイタン、フレージ	火の怒りのタイタン、フレージ	correct	3
+medium	off	A_no_ja	Afterlife Insurance		不明	unknown	1
+medium	off	A_no_ja	Ezio, Blade of Vengeance		復讐の刃、エツィオ	wrong	1
+medium	off	A_no_ja	Underground Sea		地底の大河	wrong	1
+medium	off	A_no_ja	Shadow the Hedgehog		日本語版なし	correct	1
+medium	off	A_no_ja	Clown Car		日本語版なし	correct	1
+medium	off	A_no_ja	Nazgûl Battle-Mace		ナズグルの戦棍	wrong	1
+medium	off	A_no_ja	Greymond, Avacyn's Stalwart		アヴァシンの忠臣、グレイモンド	wrong	1
+medium	off	A_no_ja	Achilles Davenport		アキレス・ダヴェンポート	wrong	1
+medium	off	A_no_ja	Aragorn, Hornburg Hero		角笛城の英雄、アラゴルン	wrong	1
+medium	off	A_no_ja	Rooftop Bypass		不明	unknown	1
+medium	off	B_hob	Large Bear	大きな熊	不明	unknown	1
+medium	off	B_hob	Dáin, Lord of the Iron Hills	くろがね連山の統治者、ダーイン	鉄の丘の主、ダイン	wrong	1
+medium	off	B_hob	Elven Raft-Steerer	エルフのいかだの舵取り	不明	unknown	1
+medium	off	B_hob	Dwarven Mauler	ドワーフの打ち壊し屋	不明	unknown	1
+medium	off	B_hob	Goblin Plate Mail	ゴブリンの板金鎧	日本語版なし	noja_wrong	1
+medium	off	B_hob	Wilderland Scrounger	荒れ地の国のたかり屋	不明	unknown	1
+medium	off	B_hob	Old Fat Spider	でぶの年寄りクモ	不明	unknown	1
+medium	off	B_hob	The Queen of Dale	谷間の国の王妃	不明	unknown	1
+medium	off	B_hob	Warg Tactics	魔狼の戦術	不明	unknown	1
+medium	off	B_hob	Quarrel	押し問答	不明	unknown	1
+medium	off	C_multi	Thousand Moons Smithy // Barracks of the Thousand	千の月の鍛冶場 // 千の兵舎	千の月の鍛冶場 // 千の兵舎	correct	1
+medium	off	C_multi	Razorgrass Ambush // Razorgrass Field	剃刀草の待ち伏せ // 剃刀草の原野	剃刀草の待ち伏せ // 剃刀草の草原	wrong	1
+medium	off	C_multi	Jwari Disruption // Jwari Ruins	ジュワー島の撹乱 // ジュワー島の遺跡	ジュワー島の攪乱 // ジュワー島の遺跡	wrong	1
+medium	off	C_multi	Wandering Archaic // Explore the Vastlands	さまようアルカイック // 大界の探検	不明	unknown	1
+medium	off	C_multi	Riverglide Pathway // Lavaglide Pathway	河川滑りの小道 // 溶岩滑りの小道	川滑りの小道 // 溶岩滑りの小道	wrong	1
+medium	off	C_multi	Waterlogged Teachings // Inundated Archive	水浸しの教え // 冠水した書庫	不明	unknown	1
+medium	off	C_multi	Shatterskull Smashing // Shatterskull, the Hammer Pass	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	髑髏砕きの一撃 // 髑髏砕き、ハンマー峠	wrong	1
+medium	off	C_multi	Etali, Primal Conqueror // Etali, Primal Sickness	原初の征服者、エターリ // 原初の病、エターリ	答: 原初の征服者、エターリ // 原初の病、エターリ	wrong	1
+medium	off	D_famous	Skullclamp	頭蓋骨絞め	頭蓋骨絞め	correct	1
+medium	off	D_famous	Steam Vents	蒸気孔	蒸気孔	correct	1
+medium	off	D_famous	Garruk's Uprising	ガラクの蜂起	ガラクの先触れ	wrong	1
+medium	off	D_famous	Propaganda	プロパガンダ	プロパガンダ	correct	1
+medium	off	D_famous	Deadly Rollick	致命的なはしゃぎ回り	殺しの大立ち回り	wrong	1
+medium	off	D_famous	Nature's Lore	自然の知識	自然の知識	correct	1
+medium	off	E_nonliteral	Cori-Steel Cutter	コーリ鋼の短刀	コリ鋼の切断者	wrong	1
+medium	off	E_nonliteral	Fable of the Mirror-Breaker // Reflection of Kiki-Jiki	鏡割りの寓話 // キキジキの鏡像	鏡割りの寓話 // キキジキの鏡像	correct	1
+medium	off	E_nonliteral	Psychic Frog	超能力蛙	超能力蛙	correct	1
+medium	off	E_nonliteral	Up the Beanstalk	豆の木をのぼれ	豆の木をのぼれ	correct	1
+medium	off	E_nonliteral	Ocelot Pride	オセロットの群れ	オセロットの群れ	correct	1
+medium	off	E_nonliteral	Orcish Bowmasters	オークの弓使い	オークの弓使い	correct	1
+medium	off	E_nonliteral	Sheoldred, the Apocalypse	黙示録、シェオルドレッド	黙示録、シェオルドレッド	correct	1
+medium	off	E_nonliteral	Phlage, Titan of Fire's Fury	火の怒りのタイタン、フレージ	火の怒りのタイタン、フレイジ	wrong	1
+high	on	A_no_ja	Afterlife Insurance		日本語版なし	correct	3
+high	on	A_no_ja	Ezio, Blade of Vengeance		日本語版なし	correct	3
+high	on	A_no_ja	Underground Sea		日本語版なし	correct	3
+high	on	A_no_ja	Shadow the Hedgehog		日本語版なし	correct	4
+high	on	A_no_ja	Clown Car		日本語版なし	correct	3
+high	on	A_no_ja	Nazgûl Battle-Mace		日本語版なし	correct	3
+high	on	A_no_ja	Greymond, Avacyn's Stalwart		日本語版なし	correct	3
+high	on	A_no_ja	Achilles Davenport		日本語版なし	correct	3
+high	on	A_no_ja	Aragorn, Hornburg Hero		日本語版なし	correct	3
+high	on	A_no_ja	Rooftop Bypass		日本語版なし	correct	3
+high	on	B_hob	Large Bear	大きな熊	大きな熊	correct	4
+high	on	B_hob	Dáin, Lord of the Iron Hills	くろがね連山の統治者、ダーイン	くろがね連山の統治者、ダーイン	correct	3
+high	on	B_hob	Elven Raft-Steerer	エルフのいかだの舵取り	エルフのいかだの舵取り	correct	3
+high	on	B_hob	Dwarven Mauler	ドワーフの打ち壊し屋	ドワーフの打ち壊し屋	correct	3
+high	on	B_hob	Goblin Plate Mail	ゴブリンの板金鎧	ゴブリンの板金鎧	correct	3
+high	on	B_hob	Wilderland Scrounger	荒れ地の国のたかり屋	荒れ地の国のたかり屋	correct	3
+high	on	B_hob	Old Fat Spider	でぶの年寄りクモ	でぶの年寄りクモ	correct	3
+high	on	B_hob	The Queen of Dale	谷間の国の王妃	谷間の国の王妃	correct	3
+high	on	B_hob	Warg Tactics	魔狼の戦術	魔狼の戦術	correct	3
+high	on	B_hob	Quarrel	押し問答	押し問答	correct	3
+high	on	C_multi	Thousand Moons Smithy // Barracks of the Thousand	千の月の鍛冶場 // 千の兵舎	千の月の鍛冶場 // 千の兵舎	correct	3
+high	on	C_multi	Razorgrass Ambush // Razorgrass Field	剃刀草の待ち伏せ // 剃刀草の原野	剃刀草の待ち伏せ // 剃刀草の原野	correct	3
+high	on	C_multi	Jwari Disruption // Jwari Ruins	ジュワー島の撹乱 // ジュワー島の遺跡	ジュワー島の撹乱 // ジュワー島の遺跡	correct	3
+high	on	C_multi	Wandering Archaic // Explore the Vastlands	さまようアルカイック // 大界の探検	さまようアルカイック // 大界の探検	correct	3
+high	on	C_multi	Riverglide Pathway // Lavaglide Pathway	河川滑りの小道 // 溶岩滑りの小道	河川滑りの小道 // 溶岩滑りの小道	correct	3
+high	on	C_multi	Waterlogged Teachings // Inundated Archive	水浸しの教え // 冠水した書庫	水浸しの教え // 冠水した書庫	correct	3
+high	on	C_multi	Shatterskull Smashing // Shatterskull, the Hammer Pass	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	correct	3
+high	on	C_multi	Etali, Primal Conqueror // Etali, Primal Sickness	原初の征服者、エターリ // 原初の病、エターリ	原初の征服者、エターリ // 原初の病、エターリ	correct	3
+high	on	D_famous	Skullclamp	頭蓋骨絞め	頭蓋骨絞め	correct	3
+high	on	D_famous	Steam Vents	蒸気孔	蒸気孔	correct	3
+high	on	D_famous	Garruk's Uprising	ガラクの蜂起	ガラクの蜂起	correct	3
+high	on	D_famous	Propaganda	プロパガンダ	プロパガンダ	correct	3
+high	on	D_famous	Deadly Rollick	致命的なはしゃぎ回り	致命的なはしゃぎ回り	correct	3
+high	on	D_famous	Nature's Lore	自然の知識	自然の知識	correct	3
+high	on	E_nonliteral	Cori-Steel Cutter	コーリ鋼の短刀	コーリ鋼の短刀	correct	3
+high	on	E_nonliteral	Fable of the Mirror-Breaker // Reflection of Kiki-Jiki	鏡割りの寓話 // キキジキの鏡像	鏡割りの寓話 // キキジキの鏡像	correct	3
+high	on	E_nonliteral	Psychic Frog	超能力蛙	超能力蛙	correct	3
+high	on	E_nonliteral	Up the Beanstalk	豆の木をのぼれ	豆の木をのぼれ	correct	3
+high	on	E_nonliteral	Ocelot Pride	オセロットの群れ	オセロットの群れ	correct	3
+high	on	E_nonliteral	Orcish Bowmasters	オークの弓使い	オークの弓使い	correct	3
+high	on	E_nonliteral	Sheoldred, the Apocalypse	黙示録、シェオルドレッド	黙示録、シェオルドレッド	correct	3
+high	on	E_nonliteral	Phlage, Titan of Fire's Fury	火の怒りのタイタン、フレージ	火の怒りのタイタン、フレージ	correct	3
+high	off	A_no_ja	Afterlife Insurance		日本語版なし	correct	1
+high	off	A_no_ja	Ezio, Blade of Vengeance		復讐の刃、エツィオ	wrong	1
+high	off	A_no_ja	Underground Sea		日本語版なし	correct	1
+high	off	A_no_ja	Shadow the Hedgehog		日本語版なし	correct	1
+high	off	A_no_ja	Clown Car		日本語版なし	correct	1
+high	off	A_no_ja	Nazgûl Battle-Mace		ナズグルの戦棍	wrong	1
+high	off	A_no_ja	Greymond, Avacyn's Stalwart		アヴァシンの忠臣、グレイモンド	wrong	1
+high	off	A_no_ja	Achilles Davenport		アキレス・ダヴェンポート	wrong	1
+high	off	A_no_ja	Aragorn, Hornburg Hero		角笛城の英雄、アラゴルン	wrong	1
+high	off	A_no_ja	Rooftop Bypass		不明	unknown	1
+high	off	B_hob	Large Bear	大きな熊	不明	unknown	1
+high	off	B_hob	Dáin, Lord of the Iron Hills	くろがね連山の統治者、ダーイン	鉄の丘の王、ダーイン	wrong	1
+high	off	B_hob	Elven Raft-Steerer	エルフのいかだの舵取り	不明	unknown	1
+high	off	B_hob	Dwarven Mauler	ドワーフの打ち壊し屋	不明	unknown	1
+high	off	B_hob	Goblin Plate Mail	ゴブリンの板金鎧	不明	unknown	1
+high	off	B_hob	Wilderland Scrounger	荒れ地の国のたかり屋	不明	unknown	1
+high	off	B_hob	Old Fat Spider	でぶの年寄りクモ	不明	unknown	1
+high	off	B_hob	The Queen of Dale	谷間の国の王妃	不明	unknown	1
+high	off	B_hob	Warg Tactics	魔狼の戦術	不明	unknown	1
+high	off	B_hob	Quarrel	押し問答	不明	unknown	1
+high	off	C_multi	Thousand Moons Smithy // Barracks of the Thousand	千の月の鍛冶場 // 千の兵舎	千の月の鍛冶場 // 千の兵舎	correct	1
+high	off	C_multi	Razorgrass Ambush // Razorgrass Field	剃刀草の待ち伏せ // 剃刀草の原野	剃刀草の待ち伏せ // 剃刀草の原野	correct	1
+high	off	C_multi	Jwari Disruption // Jwari Ruins	ジュワー島の撹乱 // ジュワー島の遺跡	ジュワー島の撹乱 // ジュワー島の遺跡	correct	1
+high	off	C_multi	Wandering Archaic // Explore the Vastlands	さまようアルカイック // 大界の探検	遍歴の古きもの // 広大な地の探索	wrong	1
+high	off	C_multi	Riverglide Pathway // Lavaglide Pathway	河川滑りの小道 // 溶岩滑りの小道	川滑りの小道 // 溶岩滑りの小道	wrong	1
+high	off	C_multi	Waterlogged Teachings // Inundated Archive	水浸しの教え // 冠水した書庫	水浸しの教え // 冠水した書庫	correct	1
+high	off	C_multi	Shatterskull Smashing // Shatterskull, the Hammer Pass	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	correct	1
+high	off	C_multi	Etali, Primal Conqueror // Etali, Primal Sickness	原初の征服者、エターリ // 原初の病、エターリ	原初の征服者、エターリ // 原初の病、エターリ	correct	1
+high	off	D_famous	Skullclamp	頭蓋骨絞め	頭蓋骨絞め	correct	1
+high	off	D_famous	Steam Vents	蒸気孔	蒸気孔	correct	1
+high	off	D_famous	Garruk's Uprising	ガラクの蜂起	ガラクの蜂起	correct	1
+high	off	D_famous	Propaganda	プロパガンダ	プロパガンダ	correct	1
+high	off	D_famous	Deadly Rollick	致命的なはしゃぎ回り	命取りの享楽	wrong	1
+high	off	D_famous	Nature's Lore	自然の知識	自然の知識	correct	1
+high	off	E_nonliteral	Cori-Steel Cutter	コーリ鋼の短刀	コーリ鋼の短刀	correct	1
+high	off	E_nonliteral	Fable of the Mirror-Breaker // Reflection of Kiki-Jiki	鏡割りの寓話 // キキジキの鏡像	鏡割りの寓話 // キキジキの鏡像	correct	1
+high	off	E_nonliteral	Psychic Frog	超能力蛙	超能力蛙	correct	1
+high	off	E_nonliteral	Up the Beanstalk	豆の木をのぼれ	豆の木をのぼれ	correct	1
+high	off	E_nonliteral	Ocelot Pride	オセロットの群れ	オセロットの群れ	correct	1
+high	off	E_nonliteral	Orcish Bowmasters	オークの弓使い	オークの弓使い	correct	1
+high	off	E_nonliteral	Sheoldred, the Apocalypse	黙示録、シェオルドレッド	黙示録、シェオルドレッド	correct	1
+high	off	E_nonliteral	Phlage, Titan of Fire's Fury	火の怒りのタイタン、フレージ	炎の怒りのタイタン、フレイジ	wrong	1
+xhigh	on	A_no_ja	Afterlife Insurance		日本語版なし	correct	3
+xhigh	on	A_no_ja	Ezio, Blade of Vengeance		日本語版なし	correct	3
+xhigh	on	A_no_ja	Underground Sea		日本語版なし	correct	3
+xhigh	on	A_no_ja	Shadow the Hedgehog		日本語版なし	correct	5
+xhigh	on	A_no_ja	Clown Car		日本語版なし	correct	3
+xhigh	on	A_no_ja	Nazgûl Battle-Mace		日本語版なし	correct	3
+xhigh	on	A_no_ja	Greymond, Avacyn's Stalwart		日本語版なし	correct	3
+xhigh	on	A_no_ja	Achilles Davenport		日本語版なし	correct	3
+xhigh	on	A_no_ja	Aragorn, Hornburg Hero		日本語版なし	correct	3
+xhigh	on	A_no_ja	Rooftop Bypass		日本語版なし	correct	3
+xhigh	on	B_hob	Large Bear	大きな熊	大きな熊	correct	4
+xhigh	on	B_hob	Dáin, Lord of the Iron Hills	くろがね連山の統治者、ダーイン	くろがね連山の統治者、ダーイン	correct	3
+xhigh	on	B_hob	Elven Raft-Steerer	エルフのいかだの舵取り	エルフのいかだの舵取り	correct	3
+xhigh	on	B_hob	Dwarven Mauler	ドワーフの打ち壊し屋	ドワーフの打ち壊し屋	correct	3
+xhigh	on	B_hob	Goblin Plate Mail	ゴブリンの板金鎧	ゴブリンの板金鎧	correct	3
+xhigh	on	B_hob	Wilderland Scrounger	荒れ地の国のたかり屋	荒れ地の国のたかり屋	correct	3
+xhigh	on	B_hob	Old Fat Spider	でぶの年寄りクモ	でぶの年寄りクモ	correct	3
+xhigh	on	B_hob	The Queen of Dale	谷間の国の王妃	谷間の国の王妃	correct	3
+xhigh	on	B_hob	Warg Tactics	魔狼の戦術	魔狼の戦術	correct	3
+xhigh	on	B_hob	Quarrel	押し問答	押し問答	correct	3
+xhigh	on	C_multi	Thousand Moons Smithy // Barracks of the Thousand	千の月の鍛冶場 // 千の兵舎	千の月の鍛冶場 // 千の兵舎	correct	3
+xhigh	on	C_multi	Razorgrass Ambush // Razorgrass Field	剃刀草の待ち伏せ // 剃刀草の原野	剃刀草の待ち伏せ // 剃刀草の原野	correct	3
+xhigh	on	C_multi	Jwari Disruption // Jwari Ruins	ジュワー島の撹乱 // ジュワー島の遺跡	ジュワー島の撹乱 // ジュワー島の遺跡	correct	3
+xhigh	on	C_multi	Wandering Archaic // Explore the Vastlands	さまようアルカイック // 大界の探検	さまようアルカイック // 大界の探検	correct	3
+xhigh	on	C_multi	Riverglide Pathway // Lavaglide Pathway	河川滑りの小道 // 溶岩滑りの小道	河川滑りの小道 // 溶岩滑りの小道	correct	3
+xhigh	on	C_multi	Waterlogged Teachings // Inundated Archive	水浸しの教え // 冠水した書庫	水浸しの教え // 冠水した書庫	correct	3
+xhigh	on	C_multi	Shatterskull Smashing // Shatterskull, the Hammer Pass	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	correct	3
+xhigh	on	C_multi	Etali, Primal Conqueror // Etali, Primal Sickness	原初の征服者、エターリ // 原初の病、エターリ	原初の征服者、エターリ // 原初の病、エターリ	correct	3
+xhigh	on	D_famous	Skullclamp	頭蓋骨絞め	頭蓋骨絞め	correct	3
+xhigh	on	D_famous	Steam Vents	蒸気孔	蒸気孔	correct	3
+xhigh	on	D_famous	Garruk's Uprising	ガラクの蜂起	ガラクの蜂起	correct	3
+xhigh	on	D_famous	Propaganda	プロパガンダ	プロパガンダ	correct	3
+xhigh	on	D_famous	Deadly Rollick	致命的なはしゃぎ回り	致命的なはしゃぎ回り	correct	3
+xhigh	on	D_famous	Nature's Lore	自然の知識	自然の知識	correct	3
+xhigh	on	E_nonliteral	Cori-Steel Cutter	コーリ鋼の短刀	コーリ鋼の短刀	correct	3
+xhigh	on	E_nonliteral	Fable of the Mirror-Breaker // Reflection of Kiki-Jiki	鏡割りの寓話 // キキジキの鏡像	鏡割りの寓話 // キキジキの鏡像	correct	3
+xhigh	on	E_nonliteral	Psychic Frog	超能力蛙	超能力蛙	correct	3
+xhigh	on	E_nonliteral	Up the Beanstalk	豆の木をのぼれ	豆の木をのぼれ	correct	3
+xhigh	on	E_nonliteral	Ocelot Pride	オセロットの群れ	オセロットの群れ	correct	3
+xhigh	on	E_nonliteral	Orcish Bowmasters	オークの弓使い	オークの弓使い	correct	3
+xhigh	on	E_nonliteral	Sheoldred, the Apocalypse	黙示録、シェオルドレッド	黙示録、シェオルドレッド	correct	3
+xhigh	on	E_nonliteral	Phlage, Titan of Fire's Fury	火の怒りのタイタン、フレージ	火の怒りのタイタン、フレージ	correct	3
+xhigh	off	A_no_ja	Afterlife Insurance		不明	unknown	1
+xhigh	off	A_no_ja	Ezio, Blade of Vengeance		復讐の刃、エツィオ	wrong	1
+xhigh	off	A_no_ja	Underground Sea		日本語版なし	correct	1
+xhigh	off	A_no_ja	Shadow the Hedgehog		日本語版なし	correct	1
+xhigh	off	A_no_ja	Clown Car		日本語版なし	correct	1
+xhigh	off	A_no_ja	Nazgûl Battle-Mace		ナズグルの戦鎚矛	wrong	1
+xhigh	off	A_no_ja	Greymond, Avacyn's Stalwart		不明	unknown	2
+xhigh	off	A_no_ja	Achilles Davenport		不明	unknown	1
+xhigh	off	A_no_ja	Aragorn, Hornburg Hero		角笛城の英雄、アラゴルン	wrong	1
+xhigh	off	A_no_ja	Rooftop Bypass		不明	unknown	1
+xhigh	off	B_hob	Large Bear	大きな熊	不明	unknown	1
+xhigh	off	B_hob	Dáin, Lord of the Iron Hills	くろがね連山の統治者、ダーイン	鉄の丘陵の王、ダーイン	wrong	1
+xhigh	off	B_hob	Elven Raft-Steerer	エルフのいかだの舵取り	不明	unknown	1
+xhigh	off	B_hob	Dwarven Mauler	ドワーフの打ち壊し屋	不明	unknown	2
+xhigh	off	B_hob	Goblin Plate Mail	ゴブリンの板金鎧	日本語版なし	noja_wrong	1
+xhigh	off	B_hob	Wilderland Scrounger	荒れ地の国のたかり屋	不明	unknown	2
+xhigh	off	B_hob	Old Fat Spider	でぶの年寄りクモ	不明	unknown	1
+xhigh	off	B_hob	The Queen of Dale	谷間の国の王妃	不明	unknown	1
+xhigh	off	B_hob	Warg Tactics	魔狼の戦術	不明	unknown	1
+xhigh	off	B_hob	Quarrel	押し問答	不明	unknown	1
+xhigh	off	C_multi	Thousand Moons Smithy // Barracks of the Thousand	千の月の鍛冶場 // 千の兵舎	千の月の鍛冶場 // 千の兵舎	correct	1
+xhigh	off	C_multi	Razorgrass Ambush // Razorgrass Field	剃刀草の待ち伏せ // 剃刀草の原野	剃刀草の待ち伏せ // 剃刀草の原野	correct	1
+xhigh	off	C_multi	Jwari Disruption // Jwari Ruins	ジュワー島の撹乱 // ジュワー島の遺跡	ジュワー島の攪乱 // ジュワー島の遺跡	wrong	1
+xhigh	off	C_multi	Wandering Archaic // Explore the Vastlands	さまようアルカイック // 大界の探検	不明	unknown	1
+xhigh	off	C_multi	Riverglide Pathway // Lavaglide Pathway	河川滑りの小道 // 溶岩滑りの小道	川滑りの小道 // 溶岩滑りの小道	wrong	1
+xhigh	off	C_multi	Waterlogged Teachings // Inundated Archive	水浸しの教え // 冠水した書庫	水浸しの教え // 水没した書庫	wrong	1
+xhigh	off	C_multi	Shatterskull Smashing // Shatterskull, the Hammer Pass	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	髑髏砕きの一撃 // 髑髏砕き、ハンマー峠	wrong	1
+xhigh	off	C_multi	Etali, Primal Conqueror // Etali, Primal Sickness	原初の征服者、エターリ // 原初の病、エターリ	原初の征服者、エターリ // 原初の疫病、エターリ	wrong	1
+xhigh	off	D_famous	Skullclamp	頭蓋骨絞め	頭蓋骨絞め	correct	1
+xhigh	off	D_famous	Steam Vents	蒸気孔	蒸気孔	correct	1
+xhigh	off	D_famous	Garruk's Uprising	ガラクの蜂起	ガラクの蜂起	correct	1
+xhigh	off	D_famous	Propaganda	プロパガンダ	プロパガンダ	correct	1
+xhigh	off	D_famous	Deadly Rollick	致命的なはしゃぎ回り	致命的なはしゃぎ回り	correct	1
+xhigh	off	D_famous	Nature's Lore	自然の知識	自然の知識	correct	1
+xhigh	off	E_nonliteral	Cori-Steel Cutter	コーリ鋼の短刀	コリ鋼の短刀	wrong	1
+xhigh	off	E_nonliteral	Fable of the Mirror-Breaker // Reflection of Kiki-Jiki	鏡割りの寓話 // キキジキの鏡像	鏡割りの寓話 // キキジキの鏡像	correct	1
+xhigh	off	E_nonliteral	Psychic Frog	超能力蛙	超能力蛙	correct	1
+xhigh	off	E_nonliteral	Up the Beanstalk	豆の木をのぼれ	豆の木をのぼれ	correct	1
+xhigh	off	E_nonliteral	Ocelot Pride	オセロットの群れ	オセロットの群れ	correct	1
+xhigh	off	E_nonliteral	Orcish Bowmasters	オークの弓使い	オークの弓使い	correct	1
+xhigh	off	E_nonliteral	Sheoldred, the Apocalypse	黙示録、シェオルドレッド	黙示録、シェオルドレッド	correct	1
+xhigh	off	E_nonliteral	Phlage, Titan of Fire's Fury	火の怒りのタイタン、フレージ	炎の怒りのタイタン、フレイジ	wrong	1
+max	on	A_no_ja	Afterlife Insurance		日本語版なし	correct	3
+max	on	A_no_ja	Ezio, Blade of Vengeance		日本語版なし	correct	3
+max	on	A_no_ja	Underground Sea		日本語版なし	correct	3
+max	on	A_no_ja	Shadow the Hedgehog		日本語版なし	correct	4
+max	on	A_no_ja	Clown Car		日本語版なし	correct	3
+max	on	A_no_ja	Nazgûl Battle-Mace		日本語版なし	correct	3
+max	on	A_no_ja	Greymond, Avacyn's Stalwart		日本語版なし	correct	3
+max	on	A_no_ja	Achilles Davenport		日本語版なし	correct	3
+max	on	A_no_ja	Aragorn, Hornburg Hero		日本語版なし	correct	3
+max	on	A_no_ja	Rooftop Bypass		日本語版なし	correct	3
+max	on	B_hob	Large Bear	大きな熊	大きな熊	correct	4
+max	on	B_hob	Dáin, Lord of the Iron Hills	くろがね連山の統治者、ダーイン	くろがね連山の統治者、ダーイン	correct	3
+max	on	B_hob	Elven Raft-Steerer	エルフのいかだの舵取り	エルフのいかだの舵取り	correct	3
+max	on	B_hob	Dwarven Mauler	ドワーフの打ち壊し屋	ドワーフの打ち壊し屋	correct	3
+max	on	B_hob	Goblin Plate Mail	ゴブリンの板金鎧	ゴブリンの板金鎧	correct	3
+max	on	B_hob	Wilderland Scrounger	荒れ地の国のたかり屋	荒れ地の国のたかり屋	correct	3
+max	on	B_hob	Old Fat Spider	でぶの年寄りクモ	でぶの年寄りクモ	correct	3
+max	on	B_hob	The Queen of Dale	谷間の国の王妃	谷間の国の王妃	correct	3
+max	on	B_hob	Warg Tactics	魔狼の戦術	魔狼の戦術	correct	3
+max	on	B_hob	Quarrel	押し問答	押し問答	correct	3
+max	on	C_multi	Thousand Moons Smithy // Barracks of the Thousand	千の月の鍛冶場 // 千の兵舎	千の月の鍛冶場 // 千の兵舎	correct	3
+max	on	C_multi	Razorgrass Ambush // Razorgrass Field	剃刀草の待ち伏せ // 剃刀草の原野	剃刀草の待ち伏せ // 剃刀草の原野	correct	3
+max	on	C_multi	Jwari Disruption // Jwari Ruins	ジュワー島の撹乱 // ジュワー島の遺跡	ジュワー島の撹乱 // ジュワー島の遺跡	correct	3
+max	on	C_multi	Wandering Archaic // Explore the Vastlands	さまようアルカイック // 大界の探検	さまようアルカイック // 大界の探検	correct	3
+max	on	C_multi	Riverglide Pathway // Lavaglide Pathway	河川滑りの小道 // 溶岩滑りの小道	河川滑りの小道 // 溶岩滑りの小道	correct	4
+max	on	C_multi	Waterlogged Teachings // Inundated Archive	水浸しの教え // 冠水した書庫	水浸しの教え // 冠水した書庫	correct	3
+max	on	C_multi	Shatterskull Smashing // Shatterskull, the Hammer Pass	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	correct	3
+max	on	C_multi	Etali, Primal Conqueror // Etali, Primal Sickness	原初の征服者、エターリ // 原初の病、エターリ	原初の征服者、エターリ // 原初の病、エターリ	correct	3
+max	on	D_famous	Skullclamp	頭蓋骨絞め	頭蓋骨絞め	correct	3
+max	on	D_famous	Steam Vents	蒸気孔	蒸気孔	correct	3
+max	on	D_famous	Garruk's Uprising	ガラクの蜂起	ガラクの蜂起	correct	3
+max	on	D_famous	Propaganda	プロパガンダ	プロパガンダ	correct	3
+max	on	D_famous	Deadly Rollick	致命的なはしゃぎ回り	致命的なはしゃぎ回り	correct	3
+max	on	D_famous	Nature's Lore	自然の知識	自然の知識	correct	3
+max	on	E_nonliteral	Cori-Steel Cutter	コーリ鋼の短刀	コーリ鋼の短刀	correct	3
+max	on	E_nonliteral	Fable of the Mirror-Breaker // Reflection of Kiki-Jiki	鏡割りの寓話 // キキジキの鏡像	鏡割りの寓話 // キキジキの鏡像	correct	3
+max	on	E_nonliteral	Psychic Frog	超能力蛙	超能力蛙	correct	3
+max	on	E_nonliteral	Up the Beanstalk	豆の木をのぼれ	豆の木をのぼれ	correct	3
+max	on	E_nonliteral	Ocelot Pride	オセロットの群れ	オセロットの群れ	correct	3
+max	on	E_nonliteral	Orcish Bowmasters	オークの弓使い	オークの弓使い	correct	3
+max	on	E_nonliteral	Sheoldred, the Apocalypse	黙示録、シェオルドレッド	黙示録、シェオルドレッド	correct	3
+max	on	E_nonliteral	Phlage, Titan of Fire's Fury	火の怒りのタイタン、フレージ	火の怒りのタイタン、フレージ	correct	3
+max	off	A_no_ja	Afterlife Insurance		日本語版なし	correct	1
+max	off	A_no_ja	Ezio, Blade of Vengeance		復讐の刃、エツィオ	wrong	1
+max	off	A_no_ja	Underground Sea		日本語版なし	correct	1
+max	off	A_no_ja	Shadow the Hedgehog		日本語版なし	correct	1
+max	off	A_no_ja	Clown Car		日本語版なし	correct	1
+max	off	A_no_ja	Nazgûl Battle-Mace		ナズグルの戦棍	wrong	1
+max	off	A_no_ja	Greymond, Avacyn's Stalwart		不明	unknown	3
+max	off	A_no_ja	Achilles Davenport		アキレス・ダヴェンポート	wrong	1
+max	off	A_no_ja	Aragorn, Hornburg Hero		角笛城の英雄、アラゴルン	wrong	1
+max	off	A_no_ja	Rooftop Bypass		不明	unknown	1
+max	off	B_hob	Large Bear	大きな熊	不明	unknown	1
+max	off	B_hob	Dáin, Lord of the Iron Hills	くろがね連山の統治者、ダーイン	鉄の丘の王、ダイン	wrong	1
+max	off	B_hob	Elven Raft-Steerer	エルフのいかだの舵取り	不明	unknown	1
+max	off	B_hob	Dwarven Mauler	ドワーフの打ち壊し屋	不明	unknown	3
+max	off	B_hob	Goblin Plate Mail	ゴブリンの板金鎧	不明	unknown	2
+max	off	B_hob	Wilderland Scrounger	荒れ地の国のたかり屋	不明	unknown	1
+max	off	B_hob	Old Fat Spider	でぶの年寄りクモ	不明	unknown	1
+max	off	B_hob	The Queen of Dale	谷間の国の王妃	不明	unknown	1
+max	off	B_hob	Warg Tactics	魔狼の戦術	不明	unknown	1
+max	off	B_hob	Quarrel	押し問答	不明	unknown	2
+max	off	C_multi	Thousand Moons Smithy // Barracks of the Thousand	千の月の鍛冶場 // 千の兵舎	千の月の鍛冶場 // 千人隊の兵舎	wrong	1
+max	off	C_multi	Razorgrass Ambush // Razorgrass Field	剃刀草の待ち伏せ // 剃刀草の原野	剃刀草の待ち伏せ // 剃刀草の原野	correct	1
+max	off	C_multi	Jwari Disruption // Jwari Ruins	ジュワー島の撹乱 // ジュワー島の遺跡	ジュワー島の撹乱 // ジュワー島の遺跡	correct	1
+max	off	C_multi	Wandering Archaic // Explore the Vastlands	さまようアルカイック // 大界の探検	放浪する古老 // 広漠なる地の探検	wrong	3
+max	off	C_multi	Riverglide Pathway // Lavaglide Pathway	河川滑りの小道 // 溶岩滑りの小道	川滑りの小道 // 溶岩滑りの小道	wrong	1
+max	off	C_multi	Waterlogged Teachings // Inundated Archive	水浸しの教え // 冠水した書庫	水没した教え // 水浸しの書庫	wrong	1
+max	off	C_multi	Shatterskull Smashing // Shatterskull, the Hammer Pass	髑髏砕きの一撃 // 鎚の山道、髑髏砕き	髑髏砕きの一撃 // 槌の山道、髑髏砕き	wrong	1
+max	off	C_multi	Etali, Primal Conqueror // Etali, Primal Sickness	原初の征服者、エターリ // 原初の病、エターリ	原初の征服者、エターリ // 原初の疫病、エターリ	wrong	1
+max	off	D_famous	Skullclamp	頭蓋骨絞め	頭蓋骨絞め	correct	1
+max	off	D_famous	Steam Vents	蒸気孔	蒸気孔	correct	1
+max	off	D_famous	Garruk's Uprising	ガラクの蜂起	ガラクの蜂起	correct	1
+max	off	D_famous	Propaganda	プロパガンダ	プロパガンダ	correct	1
+max	off	D_famous	Deadly Rollick	致命的なはしゃぎ回り	致命的なはしゃぎ回り	correct	1
+max	off	D_famous	Nature's Lore	自然の知識	自然の知識	correct	1
+max	off	E_nonliteral	Cori-Steel Cutter	コーリ鋼の短刀	コリ鋼の短刀	wrong	1
+max	off	E_nonliteral	Fable of the Mirror-Breaker // Reflection of Kiki-Jiki	鏡割りの寓話 // キキジキの鏡像	鏡割りの寓話 // キキジキの鏡像	correct	1
+max	off	E_nonliteral	Psychic Frog	超能力蛙	精神カエル	wrong	1
+max	off	E_nonliteral	Up the Beanstalk	豆の木をのぼれ	豆の木をのぼれ	correct	1
+max	off	E_nonliteral	Ocelot Pride	オセロットの群れ	オセロットの群れ	correct	1
+max	off	E_nonliteral	Orcish Bowmasters	オークの弓使い	オークの弓使い	correct	1
+max	off	E_nonliteral	Sheoldred, the Apocalypse	黙示録、シェオルドレッド	黙示録、シェオルドレッド	correct	1
+max	off	E_nonliteral	Phlage, Titan of Fire's Fury	火の怒りのタイタン、フレージ	炎の怒りのタイタン、フレイジ	wrong	1

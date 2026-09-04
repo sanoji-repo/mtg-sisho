@@ -1,0 +1,101 @@
+id,template,question,note
+701,T1_arch_cards,パウパーのGolgari / Jund Gardenの主要なカードを教えて,archetype=Golgari / Jund Garden decks=50
+702,T2_partner_ja,レガシーで《ミシュラのガラクタ》と一緒に入るカードは？,card=Mishra's Bauble
+703,T3_edh_partner,統率者戦で《ロノムの発掘家、フェルドン》を使うデッキでよく一緒に使われるカードは？,"card=Feldon, Ronom Excavator"
+704,T4_legal_bare,スタンダードで鳴り渡る龍哮の征服者はまだ使える？,card=Clarion Conqueror（裸の日本語名で問う）
+705,T5_en_question,Duress はどのフォーマットのどんなデッキで使われてる？,card=Duress
+706,T6_arch_lands,レガシーのCradle Controlでよく使われる土地を5枚挙げて,archetype=Cradle Control
+707,T9_comma,スタンダードで《沼地のハンター、レザーヘッド》と一緒によく使われるカードは？,"card=Leatherhead, Swamp Stalker（読点入り）"
+708,T1_arch_cards,パウパーのAffinityの主要なカードを教えて,archetype=Affinity decks=52
+709,T2_partner_ja,パイオニアで《砂時計の侍臣》と一緒に入るカードは？,card=Vizier of Tumbling Sands
+710,T3_edh_partner,統率者戦で《偉大なる統一者、アトラクサ》を使うデッキでよく一緒に使われるカードは？,"card=Atraxa, Grand Unifier"
+711,T4_legal_bare,スタンダードでグリスレンチのゴブリンはまだ使える？,card=Greasewrench Goblin（裸の日本語名で問う）
+712,T5_en_question,Dress Down はどのフォーマットのどんなデッキで使われてる？,card=Dress Down
+713,T6_arch_lands,パイオニアのRed Deck Winsでよく使われる土地を5枚挙げて,archetype=Red Deck Wins
+714,T9_comma,レガシーで《覆いを割く者、ナーセット》と一緒によく使われるカードは？,"card=Narset, Parter of Veils（読点入り）"
+715,T1_arch_cards,パウパーのMono Blue Delverの主要なカードを教えて,archetype=Mono Blue Delver decks=101
+716,T2_partner_ja,パウパーで《ビッグ・ブラザー、レオナルド》と一緒に入るカードは？,"card=Leonardo, Big Brother"
+717,T3_edh_partner,統率者戦で《造物の学者、ヴェンセール》を使うデッキでよく一緒に使われるカードは？,"card=Venser, Shaper Savant"
+718,T4_legal_bare,モダンで量子の謎かけ屋はまだ使える？,card=Quantum Riddler（裸の日本語名で問う）
+719,T5_en_question,"Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar はどのフォーマットのどんなデッキで使われてる？","card=Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar（日本語版なし）"
+720,T6_arch_lands,モダンのUR Aggroでよく使われる土地を5枚挙げて,archetype=UR Aggro
+721,T9_comma,パイオニアで《領事の旗艦、スカイソブリン》と一緒によく使われるカードは？,"card=Skysovereign, Consul Flagship（読点入り）"
+722,T1_arch_cards,スタンダードのMono Green Aggroの主要なカードを教えて,archetype=Mono Green Aggro decks=52
+723,T2_partner_ja,スタンダードで《ぶっとび全開、ミケランジェロ》と一緒に入るカードは？,"card=Michelangelo, Weirdness to 11"
+724,T3_edh_partner,統率者戦で《放浪の吟遊詩人、イーサーン》を使うデッキでよく一緒に使われるカードは？,"card=Yisan, the Wanderer Bard"
+725,T4_legal_bare,パウパーでミシディアの長老はまだ使える？,card=Mysidian Elder（裸の日本語名で問う）
+726,T5_en_question,Hexing Squelcher はどのフォーマットのどんなデッキで使われてる？,card=Hexing Squelcher
+727,T6_arch_lands,ヴィンテージのDoomsdayでよく使われる土地を5枚挙げて,archetype=Doomsday
+728,T9_comma,スタンダードで《悪夢滅ぼし、魁渡》と一緒によく使われるカードは？,"card=Kaito, Bane of Nightmares（読点入り）"
+729,T1_arch_cards,モダンのRuby Stormの主要なカードを教えて,archetype=Ruby Storm decks=106
+730,T2_partner_ja,ヴィンテージで《イラクサ嚢胞》と一緒に入るカードは？,card=Nettlecyst
+731,T3_edh_partner,統率者戦で《大渦の放浪者》を使うデッキでよく一緒に使われるカードは？,card=Maelstrom Wanderer
+732,T4_legal_bare,モダンで気前のよいエントはまだ使える？,card=Generous Ent（裸の日本語名で問う）
+733,T5_en_question,Stifle はどのフォーマットのどんなデッキで使われてる？,card=Stifle
+734,T6_arch_lands,スタンダードのMardu Aggroでよく使われる土地を5枚挙げて,archetype=Mardu Aggro
+735,T9_comma,モダンで《覆いを割く者、ナーセット》と一緒によく使われるカードは？,"card=Narset, Parter of Veils（読点入り）"
+736,T1_arch_cards,ヴィンテージのParadoxical Outcomeの主要なカードを教えて,archetype=Paradoxical Outcome decks=72
+737,T2_partner_ja,パウパーで《気ままな紙片、ページ》と一緒に入るカードは？,"card=Page, Loose Leaf"
+738,T3_edh_partner,"統率者戦でTamiyo, Inquisitive Student // Tamiyo, Seasoned Scholarを使うデッキでよく一緒に使われるカードは？","card=Tamiyo, Inquisitive Student // Tamiyo, Seasoned Scholar"
+739,T4_legal_bare,レガシーでトラブルメーカー、ラフとマイキーはまだ使える？,"card=Raph & Mikey, Troublemakers（裸の日本語名で問う）"
+740,T5_en_question,Deafening Clarion はどのフォーマットのどんなデッキで使われてる？,card=Deafening Clarion
+741,T6_arch_lands,パウパーのMono Blue Delverでよく使われる土地を5枚挙げて,archetype=Mono Blue Delver
+742,T9_comma,ヴィンテージで《大いなる創造者、カーン》と一緒によく使われるカードは？,"card=Karn, the Great Creator（読点入り）"
+743,T1_arch_cards,モダンのLiving Endの主要なカードを教えて,archetype=Living End decks=90
+744,T2_partner_ja,レガシーで《定業》と一緒に入るカードは？,card=Preordain
+745,T3_edh_partner,統率者戦で《ネファリアのグール呼び、ジャダー》を使うデッキでよく一緒に使われるカードは？,"card=Jadar, Ghoulcaller of Nephalia"
+746,T4_legal_bare,スタンダードで欺瞞はまだ使える？,card=Deceit（裸の日本語名で問う）
+747,T5_en_question,Copy Artifact はどのフォーマットのどんなデッキで使われてる？,card=Copy Artifact（日本語版なし）
+748,T6_arch_lands,スタンダードのDimir Aggroでよく使われる土地を5枚挙げて,archetype=Dimir Aggro
+749,T9_comma,パイオニアで《太陽の執事長、インティ》と一緒によく使われるカードは？,"card=Inti, Seneschal of the Sun（読点入り）"
+750,T1_arch_cards,パイオニアのGreasefang Parhelionの主要なカードを教えて,archetype=Greasefang Parhelion decks=158
+751,T2_partner_ja,パイオニアで《永劫の無垢》と一緒に入るカードは？,card=Enduring Innocence
+752,T3_edh_partner,統率者戦で《空召喚士ターランド》を使うデッキでよく一緒に使われるカードは？,"card=Talrand, Sky Summoner"
+753,T4_legal_bare,パウパーでギックスの潜入者はまだ使える？,card=Gixian Infiltrator（裸の日本語名で問う）
+754,T5_en_question,Goblin Charbelcher はどのフォーマットのどんなデッキで使われてる？,card=Goblin Charbelcher
+755,T6_arch_lands,ヴィンテージのParadoxical Outcomeでよく使われる土地を5枚挙げて,archetype=Paradoxical Outcome
+756,T9_comma,スタンダードで《敬虔な新米、デニック》と一緒によく使われるカードは？,"card=Dennick, Pious Apprentice // Dennick, Pious Apparition（読点入り）"
+757,T1_arch_cards,モダンのChord Toolboxの主要なカードを教えて,archetype=Chord Toolbox decks=50
+758,T2_partner_ja,パウパーで《アルマジロの外套》と一緒に入るカードは？,card=Armadillo Cloak
+759,T3_edh_partner,統率者戦で《メレティスの兵士、ブリゴニー》を使うデッキでよく一緒に使われるカードは？,"card=Brigone, Soldier of Meletis"
+760,T4_legal_bare,プレモダンで浅すぎる墓穴はまだ使える？,card=Shallow Grave（裸の日本語名で問う）
+761,T5_en_question,Arboreal Grazer はどのフォーマットのどんなデッキで使われてる？,card=Arboreal Grazer
+762,T6_arch_lands,ヴィンテージのInitiative Hatebearでよく使われる土地を5枚挙げて,archetype=Initiative Hatebear
+763,T9_comma,モダンで《現実の設計者、タメシ》と一緒によく使われるカードは？,"card=Tameshi, Reality Architect（読点入り）"
+764,T1_arch_cards,レガシーのUR Delverの主要なカードを教えて,archetype=UR Delver decks=77
+765,T2_partner_ja,モダンで《絶望の力》と一緒に入るカードは？,card=Force of Despair
+766,T3_edh_partner,統率者戦で《太陽の執事長、インティ》を使うデッキでよく一緒に使われるカードは？,"card=Inti, Seneschal of the Sun"
+767,T4_legal_bare,パウパーでエネルギー屈折体はまだ使える？,card=Energy Refractor（裸の日本語名で問う）
+768,T5_en_question,Bloodghast はどのフォーマットのどんなデッキで使われてる？,card=Bloodghast
+769,T6_arch_lands,モダンのCreatures Toolboxでよく使われる土地を5枚挙げて,archetype=Creatures Toolbox
+770,T9_comma,スタンダードで《星界を呼ぶ者、ゾラリーネ》と一緒によく使われるカードは？,"card=Zoraline, Cosmos Caller（読点入り）"
+771,T1_arch_cards,スタンダードのSultai Controlの主要なカードを教えて,archetype=Sultai Control decks=56
+772,T2_partner_ja,ヴィンテージで《祖先の回想》と一緒に入るカードは？,card=Ancestral Recall
+773,T3_edh_partner,統率者戦で《大衆扇動者、ブリーナ》を使うデッキでよく一緒に使われるカードは？,"card=Breena, the Demagogue"
+774,T4_legal_bare,スタンダードで星界を呼ぶ者、ゾラリーネはまだ使える？,"card=Zoraline, Cosmos Caller（裸の日本語名で問う）"
+775,T5_en_question,Unearth はどのフォーマットのどんなデッキで使われてる？,card=Unearth
+776,T6_arch_lands,パイオニアのSelesnya Companyでよく使われる土地を5枚挙げて,archetype=Selesnya Company
+777,T9_comma,パイオニアで《空飛ぶ友だち、モモ》と一緒によく使われるカードは？,"card=Momo, Friendly Flier（読点入り）"
+778,T1_arch_cards,ヴィンテージのBUG Midrangeの主要なカードを教えて,archetype=BUG Midrange decks=55
+779,T2_partner_ja,モダンで《撹乱する群れ》と一緒に入るカードは？,card=Disrupting Shoal
+780,T3_edh_partner,統率者戦で《発明の領事、パディーム》を使うデッキでよく一緒に使われるカードは？,"card=Padeem, Consul of Innovation"
+781,T4_legal_bare,スタンダードでスーペリア・スパイダーマンはまだ使える？,card=Superior Spider-Man（裸の日本語名で問う）
+782,T5_en_question,Splatter Technique はどのフォーマットのどんなデッキで使われてる？,card=Splatter Technique
+783,T6_arch_lands,スタンダードのAzorius Momoでよく使われる土地を5枚挙げて,archetype=Azorius Momo
+784,T9_comma,スタンダードで《黙示録、シェオルドレッド》と一緒によく使われるカードは？,"card=Sheoldred, the Apocalypse（読点入り）"
+785,T1_arch_cards,スタンダードのIzzet Lessonの主要なカードを教えて,archetype=Izzet Lesson decks=157
+786,T2_partner_ja,モダンで《頭蓋割り》と一緒に入るカードは？,card=Skullcrack
+787,T3_edh_partner,統率者戦で《第三の道のロラン》を使うデッキでよく一緒に使われるカードは？,card=Loran of the Third Path
+788,T4_legal_bare,パイオニアでひよっこ捜査員はまだ使える？,card=Novice Inspector（裸の日本語名で問う）
+789,T5_en_question,Archon of Emeria はどのフォーマットのどんなデッキで使われてる？,card=Archon of Emeria
+790,T6_arch_lands,レガシーのUB Reanimatorでよく使われる土地を5枚挙げて,archetype=UB Reanimator
+791,T9_comma,パウパーで《ウェブスリンガー、スパイダーマン》と一緒によく使われるカードは？,"card=Spider-Man, Web-Slinger（読点入り）"
+792,T1_arch_cards,レガシーのUWx Controlの主要なカードを教えて,archetype=UWx Control decks=96
+793,T2_partner_ja,パイオニアで《タッサの神託者》と一緒に入るカードは？,card=Thassa's Oracle
+794,T3_edh_partner,統率者戦で《鋭い目の守護者、セヌ》を使うデッキでよく一緒に使われるカードは？,"card=Senu, Keen-Eyed Protector"
+795,T4_legal_bare,モダンで対抗呪文はまだ使える？,card=Counterspell（裸の日本語名で問う）
+796,T5_en_question,Mana Tithe はどのフォーマットのどんなデッキで使われてる？,card=Mana Tithe
+797,T6_arch_lands,レガシーのArtifacts Blueでよく使われる土地を5枚挙げて,archetype=Artifacts Blue
+798,T9_comma,レガシーで《湖に潜む者、エムリー》と一緒によく使われるカードは？,"card=Emry, Lurker of the Loch（読点入り）"
+799,T1_arch_cards,パイオニアのUR Cutterの主要なカードを教えて,archetype=UR Cutter decks=78
+800,T2_partner_ja,レガシーで《攪乱のフルート》と一緒に入るカードは？,card=Disruptor Flute

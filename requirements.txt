@@ -1,0 +1,9 @@
+# Sisho — 直接依存（Python 3.12・作者の開発環境に固定）
+# PostgreSQL 側の拡張 pg_trgm は Python パッケージではない。
+psycopg2-binary==2.9.11
+requests==2.33.1
+beautifulsoup4==4.14.3
+tqdm==4.67.3
+ijson==3.5.0
+# MCP サーバー（src/mcp_server.py）。
+mcp==2.0.0
