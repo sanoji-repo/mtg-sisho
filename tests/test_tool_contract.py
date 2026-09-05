@@ -70,6 +70,10 @@ def capture() -> dict:
     return out
 
 
+def _cleandoc(doc):
+    return inspect.cleandoc(doc) if doc else doc
+
+
 def load_snapshot() -> dict:
     with open(SNAPSHOT_PATH, encoding="utf-8") as f:
         return json.load(f)
@@ -110,7 +114,9 @@ def test_tool_contract(name):
     assert got["function_name"] == exp["function_name"], f"{name}: 関数名"
     assert got["signature"] == exp["signature"], f"{name}: 引数の名前・型注釈・既定値"
     assert got["parameters"] == exp["parameters"], f"{name}: 引数の JSON Schema"
-    assert got["doc"] == exp["doc"], f"{name}: docstring は移動しても消さない・変えない"
+    # Python 3.13+ はコンパイル時に docstring の共通インデントを剥がす（3.12 の snapshot と箱 3.14 で
+    # 空白だけ違う・2026-09-05 箱で実測）→ 両側を inspect.cleandoc で揃えて比べる
+    assert _cleandoc(got["doc"]) == _cleandoc(exp["doc"]), f"{name}: docstring は移動しても消さない・変えない"
 
 
 def test_no_extra_tools():
