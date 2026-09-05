@@ -107,11 +107,26 @@ def test_search_two_faced_card_faces():
 
 
 def test_search_empty_and_no_hit():
-    """空の検索語と一致ゼロは、道を示す文字列（JSON でない）で返る。"""
-    assert f("   ", None, 5) == "検索語が空です。"
-    r = f("zzzqqqxxxyyy", None, 5)
-    assert r.startswith("該当なし: zzzqqqxxxyyy"), "一致ゼロは該当なし"
-    assert "query_mtg_database" in r, "次の一手（SQL を書く）を返り値に載せる"
+    """空の検索語と一致ゼロは、error＋error_kind の JSON で返る（Step 6 作業 3 で素の文字列から統一）。"""
+    d = json.loads(f("   ", None, 5))
+    assert d["error_kind"] == "empty_query" and d["error"].startswith("検索語が空です"), d
+    assert "query" in d["error"] and "呼び直す" in d["error"], f"次に何を試すかを言う（{d['error']}）"
+    assert "cards" not in d, "検索していない"
+
+    d = json.loads(f("zzzqqqxxxyyy", None, 5))
+    assert d["error_kind"] == "no_match", "『入力が不正』でなく『該当なし』（分けて名付ける）"
+    assert d["error"].startswith("該当なし: zzzqqqxxxyyy"), d
+    assert "query_mtg_database" in d["error"], "次の一手（SQL を書く）を返り値に載せる"
+
+
+def test_search_error_kinds_are_registered():
+    """search が返す error_kind は 4 種類とも sisho/errors.py の一覧にある名前。"""
+    from sisho import errors
+    kinds = {json.loads(f(*a))["error_kind"] for a in
+             (("   ", None, 5), ("zzzqqqxxxyyy", None, 5),
+              ("Lightning Bolt", "xyz", 3), ("Lightning Bolt", "standardbrwl", 3))}
+    assert kinds == {"empty_query", "no_match", "unknown_format", "ambiguous_format"}, kinds
+    assert kinds <= set(errors.KINDS), "一覧に無い名前を返さない"
 
 
 def test_search_fuzzy_route_on_typo():
@@ -203,9 +218,10 @@ def test_search_unknown_format_without_candidate_lists_valid():
 
 def test_search_format_note_is_kept_when_zero_hits():
     """解釈し直した format は、結果が 0 件でも返り値に載せる（脳が『鍵が無い』と読めるように）。"""
-    r = f("Ragavan, Nimble Pilferer", "standrad", 3)
-    assert r.startswith("該当なし: "), "standard 不合法なので 0 件"
-    assert "standrad" in r and "standard" in r, f"0 件でも解釈し直したことを言う（{r[-200:]}）"
+    d = json.loads(f("Ragavan, Nimble Pilferer", "standrad", 3))
+    assert d["error"].startswith("該当なし: ") and d["error_kind"] == "no_match", "standard 不合法なので 0 件"
+    assert "standrad" in d["format_note"] and "standard" in d["format_note"], (
+        f"0 件でも解釈し直したことを言う（{d.get('format_note')}）")
 
 
 def test_search_format_check_is_skipped_when_list_unavailable(monkeypatch):

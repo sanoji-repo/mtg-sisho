@@ -88,6 +88,11 @@ def test_probability_color_sources():
 def test_probability_errors():
     assert "error" in call(kind="foo"), "不明な kind は error"
     assert "error" in call(kind="at_least", deck_size=60, copies=70), "範囲外は error"
+    # error_kind（Step 6 作業 3）: 「一覧に無い値」と「範囲外」を名前で分ける
+    from sisho import errors
+    assert call(kind="foo")["error_kind"] == "unknown_option"
+    assert call(kind="at_least", deck_size=60, copies=70)["error_kind"] == "out_of_range"
+    assert {"unknown_option", "out_of_range"} <= set(errors.KINDS), "一覧に無い名前を返さない"
     assert "error" in call(kind="combo_by_turn", deck_size=60, copies=40, copies_b=30, turn=2), (
         "A+B > deck は定義不能の error"
     )

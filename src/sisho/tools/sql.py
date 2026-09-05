@@ -6,7 +6,7 @@ QUERY_MTG_DATABASE_DESCRIPTION・DESCRIBE_MTG_TABLES_DESCRIPTION と名前を分
 先頭コメントの札（#セット記号）の解決は search 側の道具（sisho/tools/cards.py の
 _resolve_draft_set・_archetype_lines）を借りる＝セットの解決は 1 箇所に置く。
 """
-from sisho.db import _db, _db_readonly
+from sisho.db import DBBusy, _db, _db_readonly
 from sisho.sets_blurb import _SETS_BLURB
 from sisho.toollog import TOOL_LOG_MAX, _log_tool
 from sisho.tools.cards import _archetype_lines, _resolve_draft_set
@@ -49,7 +49,10 @@ def query_mtg_database(sql: str, max_rows: int = 30) -> str:
         return f"拒否: SELECT / WITH で始まる読み取りクエリのみ実行できます（先頭語: {head}）。"
     try:
         cols, rows = _db_readonly(stripped, max_rows)
+    except DBBusy as e:
+        return str(e)          # 混雑は SQL の誤りでない＝「SQL エラー」に丸めない（errors.BUSY）
     except Exception as e:
+        # 想定外の例外は丸めず素通し（PostgreSQL のエラー文がそのまま次の一手になる・errors.DB_ERROR）
         return f"SQL エラー: {str(e)[:400]}"
     if not rows:
         return "0 行（クエリは成功）。"
@@ -267,5 +270,7 @@ def describe_mtg_tables(table_name: str | None = None) -> str:
                     if extra:
                         out.append(extra)
         return "\n".join(out)
+    except DBBusy as e:
+        return str(e)          # 混雑（errors.BUSY）
     except Exception as e:
-        return f"エラー: {str(e)[:300]}"
+        return f"エラー: {str(e)[:300]}"        # 想定外は素通し（errors.DB_ERROR）
