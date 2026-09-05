@@ -5,6 +5,7 @@
 LOOKUP_MTG_RULE_DESCRIPTION・GET_CARD_RULINGS_DESCRIPTION と名前を分ける。
 """
 from sisho.db import _db
+from sisho.names import resolve_face_name
 from sisho.toollog import _log_tool
 
 
@@ -90,11 +91,12 @@ def get_card_rulings(card_name: str, limit: int = 20) -> str:
         " WHERE card_name = %s ORDER BY published_at, id LIMIT %s",
         (card_name.strip(), limit))
     if not rows:                                   # 面の名前（表・裏）→ 正式名に解決して引く（2026-08-31 R3-4）
-        full = _db("SELECT card_name FROM mtg_cards_v2 WHERE name_en_front = %s OR name_en_back = %s ORDER BY (name_en_front = %s) DESC LIMIT 1",
-                   (card_name.strip(), card_name.strip(), card_name.strip()))
+        # 名前の解決は sisho/names.py に 1 つ（2026-09-05 Step 6 作業 1・以前はここに同じ SQL を直書きしていた）。
+        # 候補は表面一致が先＝裏面名が別の本物のカード名と同じ 21 枚では本物のカードが勝つ（DESIGN 12）。
+        full = resolve_face_name(card_name)
         if full:
             rows = _db("SELECT card_name, published_at, comment FROM card_rulings WHERE card_name = %s ORDER BY published_at, id LIMIT %s",
-                       (full[0][0], limit))
+                       (full[0], limit))
     if not rows:
         rows = _db(
             "SELECT card_name, published_at, comment FROM card_rulings"
