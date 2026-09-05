@@ -120,13 +120,47 @@ def test_verify_removes_duplicate_english_gloss():
 
 
 def test_verify_collapses_double_brackets():
-    """《《X》》の二重囲みは 1 重に戻す。
+    """《《X》》の二重囲みは照合の前に 1 重へ畳み、完成形まで上げる（Step 5 修正 1）。
 
-    注意（Step 4 で気づいた実装の癖・直していない）: 二重囲みは《》の中身の抽出で
-    『《稲妻』（開き括弧つき）として拾われるため、同じ答案が「未確認 1 件」としても
-    報告される。ここでは修正版が 1 重に戻ることだけを縫う。
+    Step 4 まで: 抽出の正規表現 [^》]+ が開き括弧を中身に含めて『《稲妻』を拾い、
+    (1)「未確認 1 件」と誤報し (2) 修正版も《稲妻》止まりで完成形に上がらなかった。
+    ここで縫うのは「未確認ゼロ・完成形に上がる・畳んだことを返り値で言う」の三点。
     """
-    assert _fixed("《《稲妻》》は強い。") == "《稲妻》は強い。"
+    r = v("《《稲妻》》は強い。")
+    assert r.split(MARK, 1)[1] == "《稲妻/Lightning Bolt》は強い。", "二重囲みでも完成形まで上がる"
+    assert "未確認の名前: なし" in r, "二重囲みを未確認として誤報しない"
+    assert "二重の囲み《《…》》を 1 箇所" in r, "何をしたか（畳んだこと）を返り値に書く"
+
+    r = v("《《Lightning Bolt》》は強い。")
+    assert r.split(MARK, 1)[1] == "《稲妻/Lightning Bolt》は強い。", "英語名の二重囲みも同じ"
+    assert "未確認の名前: なし" in r
+
+
+def test_verify_collapses_triple_brackets():
+    """三重《《《X》》》も畳んで完成形へ（畳みは収束するまで回す）。"""
+    r = v("《《《稲妻》》》は強い。")
+    assert r.split(MARK, 1)[1] == "《稲妻/Lightning Bolt》は強い。"
+    assert "未確認の名前: なし" in r
+    assert "二重の囲み《《…》》を 2 箇所" in r, "三重は 2 箇所ぶん畳む"
+
+
+def test_verify_double_bracketed_unknown_name_is_reported_singly():
+    """DB に無い名前が二重囲みでも、未確認の行は 1 重の名前で挙げる（開き括弧を混ぜない）。"""
+    assert _unknown("《《精鋼の魔女》》は強い。") == [
+        "《精鋼の魔女》 → 候補: （近い名前なし・日本語版なしなら英語名のまま）"]
+    assert _fixed("《《精鋼の魔女》》は強い。") == "《精鋼の魔女》は強い。", (
+        "未確認は畳むだけで、別のカードへ直さない（誤発動＝有害）")
+
+
+def test_verify_stray_open_bracket_does_not_swallow_the_name():
+    """迷子の《（対になっていない開き括弧）が、後ろの名前を飲み込まない（Step 5 修正 1 の抽出側）。
+
+    抽出が `《([^》]+)》` だと『の話。《稲妻』（前の迷子の《から）を 1 つの名前として拾い、
+    未確認 1 件と誤報したうえ完成形にも上げない。`[^《》]+` にすると直前の《から拾う。
+    """
+    r = v("記号《の話。《稲妻》は強い。")
+    assert r.split(MARK, 1)[1] == "記号《の話。《稲妻/Lightning Bolt》は強い。"
+    assert "未確認の名前: なし" in r
 
 
 def test_verify_report_shape():
