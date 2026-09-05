@@ -157,6 +157,66 @@ def test_search_limited_stats_elsewhere():
     assert "draft_set" in d["limited_stats_elsewhere_note"], "呼び直し方を書く"
 
 
+def test_search_valid_formats_covers_arena_formats():
+    """legalities の鍵の一覧を実測で採り、Arena の形式の集合と突き合わせる。
+
+    2026-09-05 実測: explorer だけ legalities に鍵が無い（ARENA_FORMATS には入っている）。
+    増える分には落とさず、explorer 以外が欠けたら落ちる置き方にする。
+    """
+    valid = cards._valid_formats()
+    assert {"standard", "modern", "commander", "pauper"} <= set(valid), f"主要な鍵（{valid}）"
+    assert set(cards.ARENA_FORMATS) - set(valid) <= {"explorer"}, (
+        f"Arena の形式は explorer 以外すべて legalities の鍵にある（欠け: {set(cards.ARENA_FORMATS) - set(valid)}）")
+
+
+def test_search_unknown_format_unique_candidate_is_corrected():
+    """打ち間違いの format は、候補が一意なら直して検索し、直したことを返り値に必ず書く（Step 5 修正 4）。"""
+    d = _j("Lightning Bolt", "modrn", 3)
+    assert d["cards"][0]["card_name"] == "Lightning Bolt", "modern として検索できている"
+    note = d["format_note"]
+    assert "modrn" in note and "modern" in note, f"何をしたかを返り値に書く（{note}）"
+    assert "legalities" in note and "standard" in note, "有効な鍵の一覧も添える"
+
+    assert "format_note" not in _j("Lightning Bolt", "modern", 3), "正しい鍵のときは注記を出さない"
+    assert "format_note" not in _j("Lightning Bolt", None, 3), "format 無しでも出さない"
+
+
+def test_search_unknown_format_ambiguous_is_not_guessed():
+    """近い鍵が複数あるときは検索せず選ばせる（誤って別のフォーマットで引くのが最悪）。"""
+    d = _j("Lightning Bolt", "standardbrwl", 3)
+    assert "cards" not in d, "推測して検索しない"
+    assert "standardbrwl" in d["error"] and "standardbrawl" in d["error"] and "standard" in d["error"], (
+        f"候補を並べて選ばせる（{d['error']}）")
+    assert "modern" in d["valid_formats"] and "standard" in d["valid_formats"], "有効な鍵の一覧を返す"
+
+
+def test_search_unknown_format_without_candidate_lists_valid():
+    """何にも似ていない format は検索せず一覧を返す（『鍵が無い』と『合法な札が無い』を区別する）。"""
+    d = _j("Lightning Bolt", "xyz", 3)
+    assert "cards" not in d and "xyz" in d["error"]
+    assert "standard" in d["valid_formats"]
+
+    for other in ("edh", "explorer", "limited"):     # 別のフォーマットの名前は勝手に読み替えない
+        d = _j("Lightning Bolt", other, 3)
+        assert "error" in d and "cards" not in d, f"{other} を近い鍵（predh 等）に読み替えない: {d}"
+
+
+def test_search_format_note_is_kept_when_zero_hits():
+    """解釈し直した format は、結果が 0 件でも返り値に載せる（脳が『鍵が無い』と読めるように）。"""
+    r = f("Ragavan, Nimble Pilferer", "standrad", 3)
+    assert r.startswith("該当なし: "), "standard 不合法なので 0 件"
+    assert "standrad" in r and "standard" in r, f"0 件でも解釈し直したことを言う（{r[-200:]}）"
+
+
+def test_search_format_check_is_skipped_when_list_unavailable(monkeypatch):
+    """鍵の一覧が引けない環境では検査しない（従来どおり素通り＝新しい失敗を作らない）。"""
+    monkeypatch.setitem(cards._FORMATS_CACHE, "keys", [])
+    monkeypatch.setattr(cards, "_db", lambda sql, params: (_ for _ in ()).throw(RuntimeError("boom"))
+                        if "jsonb_object_keys" in sql else [])
+    assert cards._valid_formats() == [], "引けなければ空"
+    assert cards._check_format("modrn") == ("modrn", "", None), "空なら検査しない（素通り）"
+
+
 def test_search_survives_missing_limited_tables(monkeypatch):
     """17Lands の表が無い環境（旧 VM 等）でも検索そのものは落ちない。"""
     real = cards._db
