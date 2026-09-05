@@ -5,6 +5,9 @@
 箱は 2 コアで readonly_ai の上限 6 と席取り 5 に重ねると管理が二重になる）。
 """
 import os
+import time
+
+from sisho.toollog import record_db_call
 
 # ─── DB の席取り（2026-08-29・本人「6 本で弾くより順番待ち」）───
 # readonly_ai の接続上限（6）にぶつかると「too many connections」で即失敗する。代わりに
@@ -44,6 +47,9 @@ def _db(sql: str, params: tuple) -> list[tuple]:
     import psycopg2
     from db_config import DB_CONFIG
     with _db_slot():
+        # 計時は席を取った後から（順番待ちは DB の仕事でない＝道具の所要秒と DB 累計秒の
+        # 差として見える・2026-09-06 Step 7）。接続・実行・取得の全部を 1 回として数える。
+        t0 = time.perf_counter()
         conn = psycopg2.connect(**DB_CONFIG)
         try:
             with conn.cursor() as cur:
@@ -51,6 +57,7 @@ def _db(sql: str, params: tuple) -> list[tuple]:
                 return cur.fetchall()
         finally:
             conn.close()
+            record_db_call(time.perf_counter() - t0, sql)
 
 
 # ─── 自由 SQL の口（2026-08-11・本人発案「エージェント自身が SQL を叩く路線」）───
@@ -67,6 +74,7 @@ def _db_readonly(sql: str, max_rows: int) -> tuple[list[str], list[tuple]]:
     cfg["password"] = os.environ.get("DB_PASS_ROAI") or ""
     cfg["options"] = "-c statement_timeout=10000"
     with _db_slot():
+        t0 = time.perf_counter()               # 計時は席を取った後から（_db と同じ物差し）
         conn = psycopg2.connect(**cfg)
         try:
             with conn.cursor() as cur:
@@ -75,3 +83,4 @@ def _db_readonly(sql: str, max_rows: int) -> tuple[list[str], list[tuple]]:
                 return cols, cur.fetchmany(max_rows)
         finally:
             conn.close()
+            record_db_call(time.perf_counter() - t0, sql)
