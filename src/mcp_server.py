@@ -22,6 +22,11 @@ import os
 
 from mcp.server import MCPServer
 
+# 役目ごとの包み（2026-09-05 Step 2 で切り出し）。旧名で受けるのは tests と外の脚本が
+# m._RateLimiter・m._db・m._log_tool のまま触れるようにするため（再輸出）。
+from sisho.db import _db, _db_readonly, _db_slot          # noqa: F401（_db_slot は再輸出のみ）
+from sisho.toollog import TOOL_LOG, TOOL_LOG_MAX, _log_tool   # noqa: F401（TOOL_LOG は再輸出のみ）
+
 # 収録概況は「絶対に嘘にならない下限」で書く（2026-08-25 本人裁定・単調増加する量は下限表記）。
 # 旧 _data_stamp（2026-08-11・起動時実測の焼き込み）は claude.ai がコネクタ登録時のキャッシュを
 # 持ち続けて 12 時間で 4 万件ずれた（Sisho 59,866 vs mtg-rag 99,827 事件・Opus 検証 2026-08-25）
@@ -78,11 +83,6 @@ server = MCPServer(
 )
 
 
-TOOL_LOG = os.environ.get(
-    "MCP_TOOL_LOG", "/mnt/mtg_rag/logs/mcp_tools.log")
-TOOL_LOG_MAX = int(os.environ.get("MCP_TOOL_LOG_MAX", "200"))   # 引数の記録の上限（ベンチは 2000 にして SQL の表名まで採る・2026-09-03）
-
-
 def _startup_sets_blurb() -> str:
     """道具の説明に載せる収録セットの一覧（起動時に DB から 1 回・失敗したら空）。
     発端（2026-09-03 追試 A）: Sonnet が MSH／SOS（知識の切れ目の後のセット）を「MTG でない（Marvel Snap の話）」と
@@ -122,20 +122,6 @@ _SETS_HEAD = ((lambda m: f"【まず読む】このデータベースは MTG の
 # Arena の形式。これを名指しされたときだけ digital（Arena 専用札・2026-08-31 合流）を検索に含める。
 # 既定の検索は紙＝WHERE NOT digital（列 → 並べ方の掟: 紙と Arena 専用を混ぜて並べない）。
 ARENA_FORMATS = {"historic", "alchemy", "timeless", "brawl", "standardbrawl", "gladiator", "explorer"}
-
-
-def _log_tool(name: str, args: dict) -> None:
-    """道具の呼び出し履歴（2026-08-11・「彼はどう MCP を使ったか」に query_log だけでは
-    答えられなかった観測穴の修理）。search 以外はローカル DB 直結で足跡が無かった。"""
-    import datetime
-    try:
-        os.makedirs(os.path.dirname(TOOL_LOG), exist_ok=True)
-        with open(TOOL_LOG, "a", encoding="utf-8") as f:
-            ts = datetime.datetime.now().strftime("%m-%d %H:%M:%S")
-            arg_s = json.dumps(args, ensure_ascii=False)[:TOOL_LOG_MAX]
-            f.write(f"{ts}\t{name}\t{arg_s}\n")
-    except Exception:
-        pass                     # ログ失敗で道具を殺さない
 
 
 @server.tool(
@@ -614,42 +600,8 @@ def find_combos(card_names: list[str], commanders: list[str] | None = None, limi
 # Aurora 未搬入）に直接手が届く。恒久版ではこの 2 本のデータを搬入 or 焼き込みする
 # （工程表 v0 の 1 番・Aurora/イメージ/VPS の裁定とセット）。読み取り専用クエリのみ。
 
-# ─── DB の席取り（2026-08-29・本人「6 本で弾くより順番待ち」）───
-# readonly_ai の接続上限（6）にぶつかると「too many connections」で即失敗する。代わりに
-# 同時に DB へ行ける道具を MCP_DB_SLOTS（既定 5・1 本は健全性確認と手動 psql 用に残す）に
-# 絞り、空きが無ければ MCP_DB_WAIT_SEC（既定 20 秒＝statement_timeout 10 秒 × 2）まで待つ。
-# 待ちきれなければ「混雑」を返す（失敗でなく待たせるのが目的）。MCP は 1 プロセスなので
-# プロセス内セマフォで足りる。DB を叩く物が MCP 以外に増えたら pgbouncer に格上げ。
-import threading as _threading
-_DB_SLOTS = _threading.BoundedSemaphore(int(os.environ.get("MCP_DB_SLOTS", "5")))
-_DB_WAIT_SEC = float(os.environ.get("MCP_DB_WAIT_SEC", "20"))
-
-
-class _db_slot:
-    """with _db_slot(): の間だけ DB の席を 1 つ占有する。"""
-
-    def __enter__(self):
-        if not _DB_SLOTS.acquire(timeout=_DB_WAIT_SEC):
-            raise RuntimeError(
-                f"混雑: DB の順番待ちが {_DB_WAIT_SEC:.0f} 秒を超えました。少し待ってからもう一度呼んでください。")
-        return self
-
-    def __exit__(self, *exc):
-        _DB_SLOTS.release()
-        return False
-
-
-def _db(sql: str, params: tuple) -> list[tuple]:
-    import psycopg2
-    from db_config import DB_CONFIG
-    with _db_slot():
-        conn = psycopg2.connect(**DB_CONFIG)
-        try:
-            with conn.cursor() as cur:
-                cur.execute(sql, params)
-                return cur.fetchall()
-        finally:
-            conn.close()
+# DB の席取りと接続（_db_slot／_db／_db_readonly）は sisho/db.py へ切り出した
+# （2026-09-05 Step 2）。設計の経緯（readonly_ai の上限 6・席 5・待ち 20 秒）はそちらの注記に。
 
 
 @server.tool(
@@ -889,27 +841,9 @@ def find_partner_cards(card_name: str, scope: str = "edh",
 
 
 # ─── 自由 SQL の口（2026-08-11・本人発案「エージェント自身が SQL を叩く路線」）───
-# 鞘は三重: (1) readonly_ai ロール（GRANT SELECT のみ＝書き込みは権限層で不可能・
-# 実証済み） (2) statement_timeout 10 秒 (3) 入口で SELECT/WITH 以外と複文を拒否＋
-# 行数・セル長の上限で応答を制限（コンテキスト爆発防止）。
-
-def _db_readonly(sql: str, max_rows: int) -> tuple[list[str], list[tuple]]:
-    import os
-    import psycopg2
-    from db_config import DB_CONFIG
-    cfg = dict(DB_CONFIG)
-    cfg["user"] = "readonly_ai"
-    cfg["password"] = os.environ.get("DB_PASS_ROAI") or ""
-    cfg["options"] = "-c statement_timeout=10000"
-    with _db_slot():
-        conn = psycopg2.connect(**cfg)
-        try:
-            with conn.cursor() as cur:
-                cur.execute(sql)
-                cols = [d[0] for d in cur.description] if cur.description else []
-                return cols, cur.fetchmany(max_rows)
-        finally:
-            conn.close()
+# 鞘は三重: (1) readonly_ai ロールと (2) statement_timeout 10 秒は sisho/db.py の
+# _db_readonly（原文の注記もそちらへ一緒に移した）・(3) 入口で SELECT/WITH 以外と複文を
+# 拒否＋行数・セル長の上限で応答を制限（コンテキスト爆発防止）は下の query_mtg_database。
 
 
 @server.tool(
