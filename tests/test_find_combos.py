@@ -11,6 +11,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import mcp_server as m
+import sisho.tools.combos as combos      # _spellbook_post の差し替え先（2026-09-05 Step 3 で
+                                         # find_combos がこのモジュールへ移った。mcp_server の
+                                         # 再輸出 m._spellbook_post を差し替えても道具には届かない）
 from conftest import DB_AVAILABLE, requires_db
 
 f = m.find_combos.fn if hasattr(m.find_combos, "fn") else m.find_combos
@@ -54,7 +57,7 @@ def test_find_combos_timeout_error(monkeypatch):
     def boom(payload):
         raise TimeoutError("timed out")
 
-    monkeypatch.setattr(m, "_spellbook_post", boom)
+    monkeypatch.setattr(combos, "_spellbook_post", boom)
     d = json.loads(f(["Thassa's Oracle"], None, 10))
     assert "届かない" in d.get("error", ""), "届かないときは error（他の道具に影響なし）"
 
@@ -68,7 +71,7 @@ def test_find_combos_mocked(monkeypatch):
         captured["payload"] = payload
         return FAKE
 
-    monkeypatch.setattr(m, "_spellbook_post", fake_post)
+    monkeypatch.setattr(combos, "_spellbook_post", fake_post)
 
     d = json.loads(f(["タッサの神託者", "Demonic Consultation"], None, 10))
     assert captured["payload"]["main"][0]["card"] == "Thassa's Oracle", (
