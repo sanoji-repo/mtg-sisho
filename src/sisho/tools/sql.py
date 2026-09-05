@@ -232,16 +232,27 @@ def describe_mtg_tables(table_name: str | None = None) -> str:
                             lines.append(extra)
             return "\n".join(lines)
         # 列一覧。「スキーマ名.表名」でも表名だけでも受ける（スキーマ無しなら該当する全スキーマを出す）
-        sch, _, tbl = table_name.strip().rpartition(".")
-        sch, tbl = _ident(sch), _ident(tbl)
+        sch_in, _, tbl_in = table_name.strip().rpartition(".")
+        sch, tbl = _ident(sch_in), _ident(tbl_in)
+        # 2026-09-05（Step 6 作業 2）: 削った結果が元と違うなら**検索せずに断る**。
+        # _ident は使えない文字を黙って捨てるので、`deck-list` は `decklist` に化けて
+        # 「テーブルなし: deck-list」＝「そんな表は無い」と嘘をつく（実際は表名の書き方の問題）。
+        # 無害化そのものは残す（_db_readonly はプレースホルダを受けない＝文字種で守る鞘）。
+        # 返り値の形はテキストのまま（この道具はもともとテキストを返す・error_kind は
+        # sisho/errors.py の INVALID_IDENTIFIER＝棚卸し上の名前で、返り値には載せない）。
+        if tbl != tbl_in or sch != sch_in:
+            bad = tbl_in if tbl != tbl_in else sch_in
+            what = "表名" if tbl != tbl_in else "スキーマ名"
+            return (f"{what}に使えない文字: 「{bad}」（英数字と _ のみ）。"
+                    "describe_mtg_tables() を引数なしで呼ぶと一覧が出る")
         if not tbl:
-            return f"テーブルなし: {table_name}"
+            return f"テーブルなし: {table_name}（describe_mtg_tables() を引数なしで呼ぶと一覧が出る）"
         where = f"table_name = '{tbl}'" + (f" AND table_schema = '{sch}'" if sch else "")
         cols, rows = _db_readonly(
             "SELECT table_schema, column_name, data_type FROM information_schema.columns"
             f" WHERE {where} ORDER BY table_schema, ordinal_position", 160)
         if not rows:
-            return f"テーブルなし: {table_name}"
+            return f"テーブルなし: {table_name}（describe_mtg_tables() を引数なしで呼ぶと一覧が出る）"
         out = []
         for schema in dict.fromkeys(r[0] for r in rows):
             qname = tbl if schema == "public" else f"{schema}.{tbl}"
