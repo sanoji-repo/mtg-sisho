@@ -145,7 +145,9 @@ def test_describe_one_table():
 
 
 def test_describe_unknown_table():
-    assert dt("no_such_table_xyz") == "テーブルなし: no_such_table_xyz"
+    r = dt("no_such_table_xyz")
+    assert r.startswith("テーブルなし: no_such_table_xyz"), f"無い表は『テーブルなし』（{r}）"
+    assert "引数なし" in r, "次の一手（一覧の出し方）を返り値に載せる"
 
 
 def test_describe_identifier_is_sanitized():
@@ -154,9 +156,27 @@ def test_describe_identifier_is_sanitized():
     assert sqltool._ident("a;b'c d-1") == "abcd1", "記号・空白は落ちる（_ だけ残る）"
     assert sqltool._ident("limited_card_stats") == "limited_card_stats"
     r = dt("mtg_rules'; DROP TABLE x; --")
-    assert r.startswith("テーブルなし:"), f"注入は識別子の無害化で落ちる（{r[:60]}）"
+    assert r.startswith("表名に使えない文字:"), f"注入は識別子の検査で落ちる（{r[:60]}）"
     assert sqltool._db_readonly("SELECT to_regclass('public.mtg_rules') IS NOT NULL", 1)[1][0][0] is True, (
         "mtg_rules は消えていない")
+
+
+def test_describe_rejects_invalid_identifier_instead_of_silently_dropping():
+    """使えない文字は黙って削らず断る（Step 6 作業 2）。
+
+    Step 5 まで `deck-list` は `decklist` に化けて「テーブルなし: deck-list」＝
+    「そんな表は無い」と嘘をついていた（本当は表名の書き方の問題）。
+    """
+    r = dt("deck-list")
+    assert r.startswith("表名に使えない文字: 「deck-list」"), f"何が分からなかったかを言う（{r}）"
+    assert "英数字と _" in r and "引数なし" in r, f"次に何を試すかを言う（{r}）"
+    assert "テーブルなし" not in r, "『表が無い』と混同しない"
+
+    r = dt("pub-lic.mtg_rules")
+    assert r.startswith("スキーマ名に使えない文字: 「pub-lic」"), f"スキーマ名も同じ（{r}）"
+
+    assert dt("mtg_rules").startswith("mtg_rules の列:"), "正しい表名は従来どおり（public の表名は全部 [a-z0-9_]）"
+    assert dt("public.mtg_rules").startswith("mtg_rules の列:"), "スキーマ付きも従来どおり"
 
 
 def test_describe_survives_db_error(monkeypatch):
