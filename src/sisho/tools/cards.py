@@ -16,6 +16,57 @@ from sisho.toollog import _log_tool
 # 既定の検索は紙＝WHERE NOT digital（列 → 並べ方の掟: 紙と Arena 専用を混ぜて並べない）。
 ARENA_FORMATS = {"historic", "alchemy", "timeless", "brawl", "standardbrawl", "gladiator", "explorer"}
 
+# 不明な format の扱い（2026-09-05 Step 5 修正 4・本人裁定「一意で近いなら直して再検索・返り値に必ず書く／
+# 複数候補なら直さず選ばせる／遠ければ一覧」）。Step 4 まで legalities->>'modrn' を引くだけだったので、
+# 「そんな鍵は無い」と「その鍵で合法な札が無い」が同じ「該当なし」に潰れていた。
+_FORMATS_CACHE: dict = {"keys": []}
+# 一意判定のしきい値。difflib.SequenceMatcher の比（0〜1）で 0.8。実物（DB の鍵 23 個）で決めた:
+#   打ち間違い（modrn 0.909・standrad 0.875・brwl 0.889・comander 0.941・bralw 0.800・modren 0.833）は
+#   すべて 0.800 以上で、次点は 0.750 以下（mordern→premodern 0.750・standar→standardbrawl 0.700）。
+#   一方「別のフォーマットの名前」は 0.783 以下に落ちる（duel commander→commander 0.783・edh→predh 0.750・
+#   canlander→commander 0.667・explorer→premodern 0.471・limited 0.429）＝ここが誤発動の境目。
+#   有効な鍵どうしの最大の近さも modern/premodern 0.800 なので、1 語が二つの鍵に 0.8 以上で並ぶのは稀。
+#   並んだとき（standardbrwl → standardbrawl 0.960・standard 0.800）は自動解釈せず選ばせる側に倒す。
+_FORMAT_CUTOFF = 0.8
+
+
+def _valid_formats() -> list[str]:
+    """legalities の鍵の一覧（プロセスに 1 回だけ引く）。引けなければ空＝format の検査をしない。"""
+    if _FORMATS_CACHE["keys"]:
+        return _FORMATS_CACHE["keys"]
+    try:
+        rows = _db("SELECT DISTINCT jsonb_object_keys(legalities) FROM mtg_cards_v2 ORDER BY 1", ())
+    except Exception:
+        return []
+    _FORMATS_CACHE["keys"] = [r[0] for r in rows]
+    return _FORMATS_CACHE["keys"]
+
+
+def _check_format(fmt: str) -> tuple[str, str, str | None]:
+    """format の鍵を検査する。返り値は (使う鍵, 返り値に載せる注記, 断りの JSON か None)。
+
+    - 一覧にある → そのまま（注記なし）
+    - 一覧に無く、十分近い候補が **1 つだけ** → その鍵で検索し、何をしたかを注記で必ず言う
+    - 候補が複数 → 検索せず選ばせる（誤って別のフォーマットで引くのが最悪＝誤発動は有害）
+    - 何にも似ていない → 検索せず一覧を返す
+    """
+    import difflib
+    valid = _valid_formats()
+    if not fmt or not valid or fmt in valid:
+        return fmt, "", None
+    listing = "・".join(valid)
+    cands = difflib.get_close_matches(fmt, valid, n=5, cutoff=_FORMAT_CUTOFF)
+    if len(cands) == 1:
+        return cands[0], (f"format「{fmt}」は legalities の鍵に無いので「{cands[0]}」と解釈して検索した"
+                          f"（有効な鍵: {listing}）。違うなら正しい鍵で呼び直す"), None
+    if cands:
+        err = (f"format が不明: 「{fmt}」。近い鍵が複数あるので推測しない（候補: {'・'.join(cands)}）。"
+               "どれかを指定して呼び直す")
+    else:
+        err = (f"format が不明: 「{fmt}」（legalities にその鍵は無い＝『合法な札が無い』のではなく『鍵が無い』）。"
+               "有効な鍵から選んで呼び直すか、format を外して検索する")
+    return fmt, "", json.dumps({"error": err, "valid_formats": valid}, ensure_ascii=False, indent=1)
+
 
 DESCRIPTION = (
     _SETS_HEAD +
@@ -48,6 +99,9 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
         return "検索語が空です。"
     top_k = max(1, min(int(top_k), 20))
     fmt = (format or "").strip().lower()
+    fmt, format_note, fmt_err = _check_format(fmt)
+    if fmt_err:
+        return fmt_err
     fmt_sql = " AND legalities->>%s = 'legal'" if fmt else ""
     if fmt not in ARENA_FORMATS:
         fmt_sql += " AND NOT digital"          # 既定は紙。Arena の形式を名指しされたときだけ Arena 専用札も
@@ -135,7 +189,8 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     if not cards:
         return (f"該当なし: {q}"
                 "（語を減らす・言い換える・または query_mtg_database で SQL を書く。"
-                "日本語名が分からないカードは英語名で引き直すこと＝訳名を推測しない）")
+                "日本語名が分からないカードは英語名で引き直すこと＝訳名を推測しない）"
+                + (f"\n※ {format_note}" if format_note else ""))   # 解釈し直した format は 0 件でも必ず言う
     # 17Lands の同伴（2026-09-03 本人「同伴は速さの道具＝高確率で当たる分だけ付ける」）:
     #   draft_set あり → そのセットだけ／不明な記号 → 数字は付けず一覧を返す／なし → 最新 N セット（既定 2）だけ。
     #   それ以外のセットにしか無い札は、一行の道しるべ（limited_stats_elsewhere）に留める。
@@ -154,6 +209,8 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     out = {"route": route,
            "naming_rule": "name_display（完成形《日本語名/英語名》）を一字も変えずに使う。略称・通称・省略は冗長でも禁止（2 回目以降も）。「英語名（日本語版なし）」「英語名（日本語名未収録）」もそのまま（翻訳禁止・組み立て禁止）",
            "cards": cards}
+    if format_note:
+        out["format_note"] = format_note
     if draft_set and not requested:
         out["draft_set_note"] = (f"draft_set「{draft_set}」は手持ちに無いセット＝数字は付けていない。"
                                  f"手持ち（新しい順・記号（名前））: {_sets_line()}。正しい記号で呼び直す")
