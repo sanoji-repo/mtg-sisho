@@ -15,7 +15,7 @@
 - mcp SDK は /home/claude/pylibs（boto3 と同じ流儀）。
 
 起動: PYTHONPATH=/home/claude/pylibs \
-      /mnt/new_hdd/my_rag_env/bin/python /mnt/mtg_rag/src/mcp_server.py
+      /mnt/new_hdd/my_rag_env/bin/python <リポジトリ>/src/mcp_server.py
 """
 import json
 import os

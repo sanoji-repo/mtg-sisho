@@ -32,12 +32,13 @@ import_rules.py — MTG 総合ルール（Comprehensive Rules）の搬入（2026
       --file data/rules/MagicCompRules_20260619.txt --version 2026-06-19
 """
 import argparse
+import os
 import re
 import sys
 
 import psycopg2
 
-sys.path.insert(0, '/mnt/mtg_rag/src')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/（2026-09-05 Step 3・旧: 作者の工場の絶対パス）
 from db_config import DB_CONFIG
 
 DDL = """

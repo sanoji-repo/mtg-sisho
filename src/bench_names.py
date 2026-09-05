@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 MCP_ON = {"mcpServers": {"mtg-rag": {
     "command": "/mnt/new_hdd/my_rag_env/bin/python",
-    "args": ["/mnt/mtg_rag/src/mcp_server.py"],
+    "args": [os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp_server.py")],   # 自分と同じ src/（2026-09-05 Step 3）
     "env": {"PYTHONPATH": "/home/claude/pylibs"}}}}
 MCP_OFF = {"mcpServers": {}}
 
