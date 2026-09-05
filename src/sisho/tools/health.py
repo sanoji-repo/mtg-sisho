@@ -4,7 +4,7 @@
 """
 import json
 
-from sisho.db import _db
+from sisho.db import DBBusy, _db
 from sisho.toollog import _log_tool
 
 
@@ -37,5 +37,7 @@ def mtg_rag_health(deep: bool = False) -> str:
             "draft_stat_sets": n_l17,
             "draft_stat_note": "17Lands 集計・表 limited_card_stats・セット一覧は describe_mtg_tables"},
             ensure_ascii=False)
+    except DBBusy as e:
+        return str(e)          # 混雑は DB の故障でない＝「health 失敗」に丸めない（errors.BUSY）
     except Exception as e:
-        return f"health 失敗: {e}"
+        return f"health 失敗: {e}"        # 想定外は素通し（errors.DB_ERROR）

@@ -7,6 +7,7 @@
 import json
 import os
 
+from sisho import errors
 from sisho.db import _db
 from sisho.sets_blurb import _SETS_BLURB, _SETS_HEAD
 from sisho.toollog import _log_tool
@@ -60,12 +61,14 @@ def _check_format(fmt: str) -> tuple[str, str, str | None]:
         return cands[0], (f"format「{fmt}」は legalities の鍵に無いので「{cands[0]}」と解釈して検索した"
                           f"（有効な鍵: {listing}）。違うなら正しい鍵で呼び直す"), None
     if cands:
+        kind = errors.AMBIGUOUS_FORMAT
         err = (f"format が不明: 「{fmt}」。近い鍵が複数あるので推測しない（候補: {'・'.join(cands)}）。"
                "どれかを指定して呼び直す")
     else:
+        kind = errors.UNKNOWN_FORMAT
         err = (f"format が不明: 「{fmt}」（legalities にその鍵は無い＝『合法な札が無い』のではなく『鍵が無い』）。"
                "有効な鍵から選んで呼び直すか、format を外して検索する")
-    return fmt, "", json.dumps({"error": err, "valid_formats": valid}, ensure_ascii=False, indent=1)
+    return fmt, "", errors.err_json(kind, err, valid_formats=valid)
 
 
 DESCRIPTION = (
@@ -96,7 +99,13 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     _log_tool("search_mtg_cards", {"query": query, "format": format, "top_k": top_k, "draft_set": draft_set})
     q = query.strip()
     if not q:
-        return "検索語が空です。"
+        # 2026-09-05（Step 6 作業 3）: この道具の答えは JSON なので error も JSON に揃える
+        # （素の文字列と JSON が混ざると脳が読み方を切り替えられない）。文言には
+        # 「何が分からなかったか」と「次に何を試すか」の両方を入れる。
+        return errors.err_json(
+            errors.EMPTY_QUERY,
+            "検索語が空です。query にカード名（日本語名・英語名どちらでも・部分一致可）か"
+            "機能語（例:「飛行 吸血鬼」「draw two cards」）を入れて呼び直す")
     top_k = max(1, min(int(top_k), 20))
     fmt = (format or "").strip().lower()
     fmt, format_note, fmt_err = _check_format(fmt)
@@ -187,10 +196,14 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
             " LIMIT %s", tuple(p3))
         cards = [_row(r) for r in fuzzy_rows]
     if not cards:
-        return (f"該当なし: {q}"
-                "（語を減らす・言い換える・または query_mtg_database で SQL を書く。"
-                "日本語名が分からないカードは英語名で引き直すこと＝訳名を推測しない）"
-                + (f"\n※ {format_note}" if format_note else ""))   # 解釈し直した format は 0 件でも必ず言う
+        # 「該当なし」は入力の誤りでなく引き当てゼロ＝error_kind を分ける（no_match）。
+        # 解釈し直した format は 0 件でも必ず言う（成功時と同じ format_note の鍵で）。
+        return errors.err_json(
+            errors.NO_MATCH,
+            f"該当なし: {q}"
+            "（語を減らす・言い換える・または query_mtg_database で SQL を書く。"
+            "日本語名が分からないカードは英語名で引き直すこと＝訳名を推測しない）",
+            **({"format_note": format_note} if format_note else {}))
     # 17Lands の同伴（2026-09-03 本人「同伴は速さの道具＝高確率で当たる分だけ付ける」）:
     #   draft_set あり → そのセットだけ／不明な記号 → 数字は付けず一覧を返す／なし → 最新 N セット（既定 2）だけ。
     #   それ以外のセットにしか無い札は、一行の道しるべ（limited_stats_elsewhere）に留める。

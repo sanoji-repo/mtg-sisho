@@ -46,6 +46,28 @@ FAKE = {
 }
 
 
+def test_find_combos_error_kinds():
+    """空・多すぎ・外部 API 不達で error_kind を分ける（Step 6 作業 3）。"""
+    from sisho import errors
+    d = json.loads(f([]))
+    assert d["error_kind"] == "empty_query" and "呼び直す" in d["error"], f"次に何を試すかを言う（{d}）"
+    d = json.loads(f(["Sol Ring"] * 121))
+    assert d["error_kind"] == "out_of_range" and "121" in d["error"], f"何枚渡したかを言う（{d}）"
+
+    def boom(payload):
+        raise TimeoutError("timed out")
+    import pytest as _pytest
+    mp = _pytest.MonkeyPatch()
+    mp.setattr(combos, "_spellbook_post", boom)
+    try:
+        d = json.loads(f(["Sol Ring"]))
+    finally:
+        mp.undo()
+    assert d["error_kind"] == "upstream_unreachable" and "TimeoutError" in d["error"], (
+        f"生の例外の型と文を素通し（{d}）")
+    assert {"empty_query", "out_of_range", "upstream_unreachable"} <= set(errors.KINDS)
+
+
 def test_find_combos_empty_error():
     """空のカード名指定は error"""
     d = json.loads(f([], None, 10))

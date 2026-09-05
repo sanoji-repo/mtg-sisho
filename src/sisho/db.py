@@ -17,12 +17,21 @@ _DB_SLOTS = _threading.BoundedSemaphore(int(os.environ.get("MCP_DB_SLOTS", "5"))
 _DB_WAIT_SEC = float(os.environ.get("MCP_DB_WAIT_SEC", "20"))
 
 
+class DBBusy(RuntimeError):
+    """DB の席が空かなかった＝混雑（2026-09-05 Step 6 作業 3）。
+
+    RuntimeError の子なので、これを知らない受け手は従来どおり例外として扱える。
+    知っている道具（query_mtg_database・describe_mtg_tables・mtg_rag_health）は
+    「SQL エラー」「health 失敗」に丸めず、混雑としてそのまま返す
+    （失敗ではなく待てば通る＝次の一手が違う・errors.BUSY）。"""
+
+
 class _db_slot:
     """with _db_slot(): の間だけ DB の席を 1 つ占有する。"""
 
     def __enter__(self):
         if not _DB_SLOTS.acquire(timeout=_DB_WAIT_SEC):
-            raise RuntimeError(
+            raise DBBusy(
                 f"混雑: DB の順番待ちが {_DB_WAIT_SEC:.0f} 秒を超えました。少し待ってからもう一度呼んでください。")
         return self
 

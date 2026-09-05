@@ -7,6 +7,7 @@
 import json
 import os
 
+from sisho import errors
 from sisho.db import _db
 from sisho.toollog import _log_tool
 
@@ -56,9 +57,14 @@ def find_combos(card_names: list[str], commanders: list[str] | None = None, limi
     names = [n.strip() for n in (card_names or []) if n and n.strip()]
     cmds = [n.strip() for n in (commanders or []) if n and n.strip()]
     if not names:
-        return json.dumps({"error": "card_names が空"}, ensure_ascii=False)
+        return errors.err_json(
+            errors.EMPTY_QUERY,
+            "card_names が空です。コンボを探したいカード名（英語名・日本語名どちらでも）を"
+            " 1 枚以上入れて呼び直す（デッキ 1 本ぶん・最大 120 枚を渡すのが本来の使い方）")
     if len(names) > 120:
-        return json.dumps({"error": "card_names は 120 枚まで"}, ensure_ascii=False)
+        return errors.err_json(
+            errors.OUT_OF_RANGE,
+            f"card_names が多すぎます: {len(names)} 枚（上限 120 枚）。デッキ 1 本ぶんに絞って呼び直す")
     limit = max(1, min(int(limit), 30))
     # 日本語名 → 英語名（DB）。英語名はそのまま。見つからない名前はそのまま送る（Spellbook 側で無視される）
     resolved: dict[str, str] = {}
@@ -78,7 +84,10 @@ def find_combos(card_names: list[str], commanders: list[str] | None = None, limi
     try:
         data = _spellbook_post(payload)
     except Exception as e:
-        return json.dumps({"error": f"Commander Spellbook に届かない（{type(e).__name__}: {str(e)[:120]}）。少し待って再試行。この道具以外は影響なし"}, ensure_ascii=False)
+        # 外の世界の障害は生の例外の型と文をそのまま載せる（丸めない）
+        return errors.err_json(
+            errors.UPSTREAM_UNREACHABLE,
+            f"Commander Spellbook に届かない（{type(e).__name__}: {str(e)[:120]}）。少し待って再試行。この道具以外は影響なし")
     res = data.get("results", data) if isinstance(data, dict) else {}
     sections = {"included": "いま組める", "almostIncluded": "あと 1 枚で組める", "almostIncludedByAddingColors": "色を足せば組める"}
     all_names: set[str] = set()

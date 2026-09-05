@@ -4,6 +4,7 @@
 """
 import json
 
+from sisho import errors
 from sisho.db import _db
 from sisho.toollog import _log_tool
 
@@ -32,7 +33,8 @@ def mtg_probability(kind: str, deck_size: int = 60, copies: int = 4, copies_b: i
     _log_tool("mtg_probability", {"kind": kind, "deck_size": deck_size, "copies": copies, "copies_b": copies_b,
                                   "draws": draws, "turn": turn, "on_play": on_play, "at_least": at_least, "mulligans": mulligans})
     if kind not in _PROB_KINDS:
-        return json.dumps({"error": f"kind は {', '.join(_PROB_KINDS)} のどれか（受け取った値: {kind!r}）"}, ensure_ascii=False)
+        return errors.err_json(errors.UNKNOWN_OPTION,
+                               f"kind は {', '.join(_PROB_KINDS)} のどれか（受け取った値: {kind!r}）")
     bad = []
     if not (1 <= deck_size <= 500): bad.append("deck_size は 1〜500")
     if not (0 <= copies <= deck_size): bad.append("copies は 0〜deck_size")
@@ -42,7 +44,7 @@ def mtg_probability(kind: str, deck_size: int = 60, copies: int = 4, copies_b: i
     if not (0 <= at_least <= deck_size): bad.append("at_least は 0〜deck_size")
     if not (0 <= mulligans <= 6): bad.append("mulligans は 0〜6")
     if bad:
-        return json.dumps({"error": "引数の範囲外: " + "・".join(bad)}, ensure_ascii=False)
+        return errors.err_json(errors.OUT_OF_RANGE, "引数の範囲外: " + "・".join(bad))
     premise = f"先手（{turn} ターン目までの引き {max(turn - 1, 0)} 回）" if on_play else f"後手（{turn} ターン目までの引き {turn} 回）"
     if mulligans:
         premise += f"・マリガン {mulligans} 回（初手 {7 - mulligans} 枚）"
@@ -67,10 +69,12 @@ def mtg_probability(kind: str, deck_size: int = 60, copies: int = 4, copies_b: i
             seen = rows[0][1]
             formula = f"見る枚数 {seen}・1 − P(A なし) − P(B なし) ＋ P(両方なし)（包除・A={copies} 枚・B={copies_b} 枚・N={deck_size}）"
     except Exception as e:
-        return json.dumps({"error": f"計算に失敗: {str(e)[:200]}（SQL 関数 mtg_* が無い環境の可能性）"}, ensure_ascii=False)
+        # 想定外は丸めず素通し（生の例外文の先頭 200 字）
+        return errors.err_json(errors.DB_ERROR, f"計算に失敗: {str(e)[:200]}（SQL 関数 mtg_* が無い環境の可能性）")
     p = rows[0][0]
     if p is None:
-        return json.dumps({"error": "この入力では定義できない（枚数の整合を確認: copies+copies_b ≤ deck_size 等）"}, ensure_ascii=False)
+        return errors.err_json(errors.OUT_OF_RANGE,
+                               "この入力では定義できない（枚数の整合を確認: copies+copies_b ≤ deck_size 等）")
     p = float(p)
     out = {"kind": kind, "inputs": {"deck_size": deck_size, "copies": copies, "copies_b": copies_b if kind == "combo_by_turn" else None,
                                     "draws": draws if kind == "at_least" else None, "turn": None if kind == "at_least" else turn,
