@@ -45,3 +45,19 @@ requires_db = pytest.mark.skipif(
     not DB_AVAILABLE,
     reason="PostgreSQL データベースに接続できないためスキップ（DB 稼働・認証が必要）",
 )
+
+
+@pytest.fixture(autouse=True)
+def isolate_tool_log(tmp_path, monkeypatch):
+    """道具ログを試験ごとの tmp_path へ逃がす（2026-09-05 Step 3）。
+
+    試験は道具を実呼びするので、既定の出力先（リポジトリ直下 logs/mcp_tools.log・
+    工場側では /mnt/mtg_rag/logs/mcp_tools.log）に試験由来の行が混ざる実害があった
+    （Step 2 で 72 行）。sisho.toollog.TOOL_LOG は import 時に環境変数を読んで固定される
+    ので、環境変数だけでなくモジュール属性そのものを差し替える。
+    """
+    log = tmp_path / "mcp_tools.log"
+    monkeypatch.setenv("MCP_TOOL_LOG", str(log))
+    import sisho.toollog
+    monkeypatch.setattr(sisho.toollog, "TOOL_LOG", str(log))
+    yield
