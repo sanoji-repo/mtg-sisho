@@ -26,7 +26,7 @@ from mcp.server import MCPServer
 from sisho.db import _db, _db_readonly, _db_slot          # noqa: F401（再輸出のみ）
 from sisho.ratelimit import RateLimiter as _RateLimiter, RateLimitASGI as _RateLimitASGI
 from sisho.sets_blurb import _SETS_BLURB, _SETS_HEAD, _startup_sets_blurb   # noqa: F401（道具の説明に埋まる・契約試験が読む）
-from sisho.toollog import TOOL_LOG, TOOL_LOG_MAX, _log_tool   # noqa: F401（再輸出のみ）
+from sisho.toollog import TOOL_LOG, TOOL_LOG_MAX, _log_tool, observed   # noqa: F401（_log_tool は再輸出のみ）
 from sisho.tools import cards as _tool_cards
 from sisho.tools import combos as _tool_combos
 from sisho.tools import health as _tool_health
@@ -96,54 +96,60 @@ server = MCPServer(
 # 中身は sisho/tools/*.py。ここに残すのは「どの道具が・どの順で・どの説明で載るか」だけ
 # （2026-09-05 Step 2〜3 の分割）。名前・説明・引数・登録順は契約試験
 # tests/test_tool_contract.py が snapshot と突き合わせて縫っている。
+#
+# observed(...) は計時と出口の道具ログだけを足す薄い包み（2026-09-06 Step 7・sisho/toollog.py）。
+# 返り値・例外は素通し、名前・docstring・署名は functools.wraps で保つので、相手側に見える
+# 契約（description・引数の JSON Schema）は包む前と 1 ビットも変わらない
+# ＝契約試験が包み越しの inspect.signature と JSON Schema を snapshot と突き合わせている。
+# 入口の行（道具名と引数）は従来どおり道具の本体が先頭で書く。
 
 # カード検索（素の一致検索＋17Lands 同伴）= sisho/tools/cards.py
 search_mtg_cards = server.tool(
     name="search_mtg_cards",
-    description=_tool_cards.DESCRIPTION)(_tool_cards.search_mtg_cards)
+    description=_tool_cards.DESCRIPTION)(observed(_tool_cards.search_mtg_cards))
 
 # 確率計算の入口（2026-09-04 本人「あらゆる確率計算をどこかに格納して…」）= sisho/tools/probability.py
 mtg_probability = server.tool(
     name="mtg_probability",
-    description=_tool_probability.DESCRIPTION)(_tool_probability.mtg_probability)
+    description=_tool_probability.DESCRIPTION)(observed(_tool_probability.mtg_probability))
 
 # Commander Spellbook（2026-09-04 本人 GO・外部 API を都度照会）= sisho/tools/combos.py
 find_combos = server.tool(
     name="find_combos",
-    description=_tool_combos.DESCRIPTION)(_tool_combos.find_combos)
+    description=_tool_combos.DESCRIPTION)(observed(_tool_combos.find_combos))
 
 # 総合ルールと公式裁定（ローカル DB 直結・2026-08-10）= sisho/tools/rules.py
 lookup_mtg_rule = server.tool(
     name="lookup_mtg_rule",
-    description=_tool_rules.LOOKUP_MTG_RULE_DESCRIPTION)(_tool_rules.lookup_mtg_rule)
+    description=_tool_rules.LOOKUP_MTG_RULE_DESCRIPTION)(observed(_tool_rules.lookup_mtg_rule))
 get_card_rulings = server.tool(
     name="get_card_rulings",
-    description=_tool_rules.GET_CARD_RULINGS_DESCRIPTION)(_tool_rules.get_card_rulings)
+    description=_tool_rules.GET_CARD_RULINGS_DESCRIPTION)(observed(_tool_rules.get_card_rulings))
 
 # 共起（実デッキ集計・Phase 2 のデッキ壁打ち用）= sisho/tools/partners.py
 find_partner_cards = server.tool(
     name="find_partner_cards",
-    description=_tool_partners.DESCRIPTION)(_tool_partners.find_partner_cards)
+    description=_tool_partners.DESCRIPTION)(observed(_tool_partners.find_partner_cards))
 
 # 自由 SQL の口（2026-08-11 本人発案）= sisho/tools/sql.py
 query_mtg_database = server.tool(
     name="query_mtg_database",
-    description=_tool_sql.QUERY_MTG_DATABASE_DESCRIPTION)(_tool_sql.query_mtg_database)
+    description=_tool_sql.QUERY_MTG_DATABASE_DESCRIPTION)(observed(_tool_sql.query_mtg_database))
 
 # 答案検査（2026-08-22 夕・本人裁定「選択肢 1」）= sisho/tools/verify.py
 verify_answer = server.tool(
     name="verify_answer",
-    description=_tool_verify.DESCRIPTION)(_tool_verify.verify_answer)
+    description=_tool_verify.DESCRIPTION)(observed(_tool_verify.verify_answer))
 
 # スキーマの窓（SQL を書く前に列を確認する口）= sisho/tools/sql.py
 describe_mtg_tables = server.tool(
     name="describe_mtg_tables",
-    description=_tool_sql.DESCRIBE_MTG_TABLES_DESCRIPTION)(_tool_sql.describe_mtg_tables)
+    description=_tool_sql.DESCRIBE_MTG_TABLES_DESCRIPTION)(observed(_tool_sql.describe_mtg_tables))
 
 # 健全性確認（DB 実疎通・行数・鮮度）= sisho/tools/health.py
 mtg_rag_health = server.tool(
     name="mtg_rag_health",
-    description=_tool_health.DESCRIPTION)(_tool_health.mtg_rag_health)
+    description=_tool_health.DESCRIPTION)(observed(_tool_health.mtg_rag_health))
 
 
 # ─── 旧名の再輸出（tests と外の脚本が mcp_server 越しに触る名前）───────────
