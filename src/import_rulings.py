@@ -31,12 +31,13 @@ Gatherer を直接スクレイプする必要はない（source='wotc' が公式
 import argparse
 import gzip
 import json
+import os
 import sys
 
 import ijson
 import psycopg2
 
-sys.path.insert(0, '/mnt/mtg_rag/src')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/（2026-09-05 Step 3・旧: 作者の工場の絶対パス）
 from db_config import DB_CONFIG
 
 CARDS_BULK = '/mnt/new_hdd/all_cards_scryfall.json'

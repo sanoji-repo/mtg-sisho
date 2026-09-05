@@ -62,8 +62,11 @@ _COMMON = {
 DB_CONFIG_PRIMARY = {**_COMMON, "port": int(os.environ.get("DB_PORT", "5435"))}
 DB_CONFIG_STANDBY = {**_COMMON, "port": int(os.environ.get("DB_PORT_STANDBY", "5436"))}
 
-# reembed・共起集計等の重い更新処理中に作成するフラグファイル
-FLAG_FILE = os.environ.get("DB_FLAG_FILE", "/mnt/mtg_rag/.primary_updating")
+# reembed・共起集計等の重い更新処理中に作成するフラグファイル。
+# 既定はリポジトリ直下（2026-09-05 Step 3 で作者の工場の絶対パス /mnt/mtg_rag/.primary_updating から置き換え）。
+# この脚本は sh/ からも素で使われるので sisho 包みを import せず自前で位置を解く。
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FLAG_FILE = os.environ.get("DB_FLAG_FILE", os.path.join(_REPO_ROOT, ".primary_updating"))
 
 
 def get_db_config() -> dict:

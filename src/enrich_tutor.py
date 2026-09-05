@@ -54,13 +54,14 @@ Cartographer's Survey（濾過型だが grade 2）が落ちて採点と正面衝
 4. 対戦相手のライブラリを見る/サーチする効果は**数えない**（自分の掘削でない）
 """
 import json
+import os
 import re
 import sys
 
 import psycopg2
 from psycopg2.extras import execute_batch, Json
 
-sys.path.insert(0, '/mnt/mtg_rag/src')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/（2026-09-05 Step 3・旧: 作者の工場の絶対パス）
 from db_config import get_db_config
 from enrich_removal import strip_reminder, castable_oracle
 
