@@ -61,9 +61,19 @@ def verify_answer(text: str) -> str:
     _log_tool("verify_answer", {"len": len(text)})
     N = _names()
     ja_full, en_ja, ja_en = N["ja"], N["en"], N["ja_en"]
-    brackets = re.findall(r"《([^》]+)》", text)
+    # 二重・三重の囲み《《X》》は照合の**前に**畳む（2026-09-05 Step 5 修正 1）。
+    # 以前は末尾でだけ畳んでいたため、抽出の正規表現 [^》]+ が開き括弧を中身に含めて
+    # 《稲妻 を拾い、(1)「未確認 1 件」と誤報し (2) 修正版も《稲妻》止まりで完成形に上がらなかった。
+    # 抽出側の [^《》]+ と合わせて二重（三重以上も）の囲みを掟の内側に戻す。
+    n_collapse = 0
+    while True:
+        text, k = re.subn(r"《《([^《》]*)》》", r"《\1》", text)
+        if not k:
+            break
+        n_collapse += k
+    brackets = re.findall(r"《([^《》]+)》", text)
     # 《X》（English）の English（初出添え）を控える＝X が DB に無いとき正式名を引く最強の手がかり
-    en_after = {b.strip(): e.strip() for b, e in re.findall(r"《([^》]+)》\s*[（(]([A-Za-z][^）)]*)[）)]", text)}
+    en_after = {b.strip(): e.strip() for b, e in re.findall(r"《([^《》]+)》\s*[（(]([A-Za-z][^）)]*)[）)]", text)}
     unknown, fixed, n_fix = [], text, 0
     def _disp(ja, en):
         return f"《{ja}/{en}》"
@@ -119,7 +129,7 @@ def verify_answer(text: str) -> str:
     # (2) 裸の英語名（日本語名あり）→《日本語名》（英語名）。《》の中・括弧の中は触らない
     # 日本語版なしの英語名（Volcanic Island 等）は正しい表記なので保護域に入れる（中の Island を拾わない）
     noja_in = [e for e, j in en_ja.items() if not j and (len(e) >= 5 or " " in e) and e in fixed]
-    prot_src = r"《[^》]*》|[（(][^）)]*[）)]|\*[^*\n]+\*"
+    prot_src = r"《[^《》]*》|[（(][^）)]*[）)]|\*[^*\n]+\*"
     if noja_in:
         prot_src += "|" + "|".join(re.escape(e) for e in sorted(noja_in, key=len, reverse=True))
     protected = re.compile(prot_src)
@@ -140,8 +150,8 @@ def verify_answer(text: str) -> str:
         n_fix += (new != fixed); fixed = new
     # 完成形《ja/en》の直後に重複の（en）が残っていれば削る
     fixed = re.sub(r"(《[^》/]+/([^》]+)》)\s*[（(]\2[）)]", r"\1", fixed)
-    # 二重に囲んでしまった箇所（《《X》》）を戻す
-    fixed = re.sub(r"《《([^》]+)》》", r"《\1》", fixed)
+    # 機械修正の途中で二重に囲んだ箇所（《《X》》）が生じていれば戻す（入口の畳みで残った分の保険）
+    fixed = re.sub(r"《《([^《》]+)》》", r"《\1》", fixed)
     lines = []
     if unknown:
         lines.append(f"未確認の名前 {len(unknown)} 件（DB のどのカード名にも一致しない＝自分で訳した/誤字/略記の疑い。"
@@ -150,6 +160,8 @@ def verify_answer(text: str) -> str:
             lines.append(f"  - 《{b}》 → 候補: " + ("／".join(c) if c else "（近い名前なし・日本語版なしなら英語名のまま）"))
     else:
         lines.append("未確認の名前: なし（《》の中身はすべて DB の正式名）。")
+    if n_collapse:
+        lines.append(f"二重の囲み《《…》》を {n_collapse} 箇所 1 重に畳んでから照合した（畳んだ上で完成形に直す）。")
     lines.append(f"機械修正 {n_fix} 箇所（裸の英語名・《英語名》・《日本語名》・裸の日本語名 → 完成形《日本語名/英語名》）。")
     lines.append("---- 修正版（未確認ゼロならこのまま使う） ----")
     lines.append(fixed)
