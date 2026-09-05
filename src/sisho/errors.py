@@ -51,6 +51,61 @@ KINDS: dict[str, str] = {
 }
 
 
+#: 返り値がテキストの道具の error を、文頭で上の名前に対応づける表（2026-09-06 Step 7）。
+#: **返り値には載せない**（テキストの道具の形は変えない・Step 6 の裁定）。道具ログの出口の行に
+#: 書く outcome を決めるためだけに使う。並びは長い頭語が先（"SQL エラー:" と "エラー:" は
+#: startswith なので衝突しないが、読む人のために特定的な方から並べる）。
+TEXT_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("混雑:", BUSY),                          # _db_slot → query・describe・health
+    ("拒否:", SQL_REJECTED),                   # query（複文・SELECT/WITH 以外）
+    ("SQL エラー:", DB_ERROR),                 # query
+    ("health 失敗:", DB_ERROR),                # health
+    ("エラー:", DB_ERROR),                     # describe
+    ("該当なし", NO_MATCH),                    # lookup_mtg_rule
+    ("裁定なし", NO_MATCH),                    # get_card_rulings
+    ("共起なし", NO_MATCH),                    # find_partner_cards
+    ("テーブルなし:", UNKNOWN_TABLE),           # describe
+    ("表名に使えない", INVALID_IDENTIFIER),      # describe
+    ("スキーマ名に使えない", INVALID_IDENTIFIER),  # describe
+    ("order_by が不正", UNKNOWN_OPTION),        # find_partner_cards
+    ("scope が不正", UNKNOWN_OPTION),           # find_partner_cards
+)
+
+#: 道具ログの出口の行に書く outcome のうち、error_kind でないもの（error_kind の語彙＝KINDS を
+#: 汚さないよう、ここは定数にしない＝KINDS と定数の一致を縫う試験の対象外）。
+#:   ok        … error でない返り値
+#:   error     … JSON の error だが error_kind が載っていない（＝載せ忘れの発見器）
+#:   exception … 道具が例外を投げた（包みが記録してから再送出する）
+
+
+def outcome_of(result) -> str:
+    """道具の返り値から道具ログの outcome を決める（"ok" か error_kind か "error"）。
+
+    返り値がもともと JSON の道具は `error_kind` をそのまま読む。テキストの道具は
+    TEXT_PREFIXES で文頭を対応づける（返り値は変えない・読み取るだけ）。
+    どちらでもなければ "ok"。**この関数は返り値に触らない**（観測専用）。
+    """
+    if not isinstance(result, str):
+        return "ok"
+    head = result.lstrip()[:400]
+    if head.startswith("{"):
+        if '"error' not in head:          # 成功の JSON（大多数）は解析しない
+            return "ok"
+        try:
+            import json
+            obj = json.loads(result)
+        except Exception:
+            return "ok"
+        if isinstance(obj, dict) and "error" in obj:
+            kind = obj.get("error_kind")
+            return kind if isinstance(kind, str) and kind in KINDS else "error"
+        return "ok"
+    for prefix, kind in TEXT_PREFIXES:
+        if head.startswith(prefix):
+            return kind
+    return "ok"
+
+
 def err_json(kind: str, message: str, **extra) -> str:
     """JSON で返す道具の error の形を 1 箇所に（error・error_kind・道具ごとの追加の鍵）。
 
