@@ -119,7 +119,7 @@ sudo chown -R sanoji:mcp /opt/mtg-sisho && sudo chmod -R g+rX,g-w,o-rwx /opt/mtg
 
 以下は旧手順（運用者のユーザー unit で動かす形・sudo 持ちのユーザーで動くので上の形を推奨）。
 
-`deploy/mtg-rag-mcp.service` を `~/.config/systemd/user/` に置き、`WorkingDirectory`・`ExecStart` のパスを売り場のものに直す（`~/mtg-sisho`・`.venv/bin/python`）。`EnvironmentFile` で `.env` を読ませる。 venv に mcp が入るので `Environment=PYTHONPATH=...` の行は消す（作者環境の都合）。`ExecStartPre` の待ち受けポートは売り場の PostgreSQL（5432）に直す。`.env` の `DB_USER` は `readonly_ai`・`DB_PASSWORD` は `DB_PASS_ROAI` と同じ値でよい（MCP は書き込みをしないので全道具を読み取り専用ロールで動かす）。`DB_FLAG_FILE` は作者環境の既定パスを指すので存在しないパスに上書きしておく。
+`deploy/mtg-rag-mcp.service` を `~/.config/systemd/user/` に置き、`WorkingDirectory`・`ExecStart` のパスを売り場のものに直す（`~/mtg-sisho`・`.venv/bin/python`）。`EnvironmentFile` で `.env` を読ませる。 venv に mcp が入るので `Environment=PYTHONPATH=...` の行は消す（作者環境の都合）。`ExecStartPre` の待ち受けポートは売り場の PostgreSQL（5432）に直す。`.env` の `DB_USER` は `readonly_ai`・`DB_PASSWORD` は `DB_PASS_ROAI` と同じ値でよい（MCP は書き込みをしないので全道具を読み取り専用ロールで動かす）。`DB_FLAG_FILE` の既定はリポジトリ直下の `.primary_updating`（2026-09-05 以降・以前は作者環境の絶対パス）。売り場では更新処理を走らせないので、存在しないパスに上書きしておくと確実。
 
 ```bash
 sudo loginctl enable-linger $USER
