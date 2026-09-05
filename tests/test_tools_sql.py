@@ -60,10 +60,44 @@ def test_query_attaches_display_next_to_name_column():
 
 
 def test_query_display_not_attached_twice():
-    """すでに完成形の列（*_display）があるときは同伴しない。"""
+    """すでに完成形が同じ行にある列には同伴しない（値で判定・列名では見ない）。"""
     r = q("SELECT card_name, name_display FROM mtg_cards_v2 WHERE card_name = 'Sol Ring'", 5)
     assert r.split("\n")[0] == "card_name | name_display", "列を増やさない"
     assert "card_name_display" not in r
+
+
+def test_query_display_survives_unrelated_display_column():
+    """無関係な列名（*_display）があっても同伴は止まらない（Step 5 修正 3）。
+
+    Step 4 まで: 入口が「列名が *_display で終わる列が一つでもあれば全停止」だったため、
+    脳が `AS foo_display` と名付けた瞬間に完成形の同伴が丸ごと消えていた
+    （構造で塞いだ穴が、脳の名前の付け方で開く）。
+    """
+    r = q("SELECT card_name, 1 AS foo_display FROM mtg_cards_v2"
+          " WHERE card_name = 'Lightning Bolt'", 5)
+    assert r.split("\n")[0] == "card_name | card_name_display | foo_display", (
+        f"無関係な *_display で止まらない（{r.split(chr(10))[0]}）")
+    assert "Lightning Bolt | 《稲妻/Lightning Bolt》 | 1" in r, "完成形をそのまま同伴"
+
+    r = q("SELECT card_name, count(*) AS n_display FROM mtg_cards_v2"
+          " WHERE card_name IN ('Sol Ring','Lightning Bolt') GROUP BY 1", 5)
+    assert r.split("\n")[0] == "card_name | card_name_display | n_display", "集計列でも同じ"
+
+
+def test_query_display_does_not_collide_with_existing_column():
+    """脳が自分で `AS card_name_display` を作っていたら、その名前の列を二つにしない。"""
+    r = q("SELECT card_name, name_display AS card_name_display FROM mtg_cards_v2"
+          " WHERE card_name = 'Sol Ring'", 5)
+    assert r.split("\n")[0] == "card_name | card_name_display", "同名の列を増やさない"
+    assert r.split("\n")[0].count("card_name_display") == 1
+
+
+def test_query_display_is_decided_per_column():
+    """同伴の判断は結果全体でなく列ごと（片方だけ完成形が付いている結果）。"""
+    r = q("SELECT a.card_name AS x, b.card_name AS y, a.name_display FROM mtg_cards_v2 a, mtg_cards_v2 b"
+          " WHERE a.card_name = 'Sol Ring' AND b.card_name = 'Lightning Bolt'", 5)
+    assert r.split("\n")[0] == "x | y | y_display | name_display", (
+        f"x は完成形が同じ行にある＝添えない・y には添える（{r.split(chr(10))[0]}）")
 
 
 def test_query_no_display_for_non_name_columns():
