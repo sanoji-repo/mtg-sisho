@@ -108,7 +108,10 @@ def find_partner_cards(card_name: str, scope: str = "edh",
         resolve = (
             "SELECT cc.id AS pid, sum(x.cnt) AS n_ab FROM (" + pair_sql + ") x"
             " JOIN mtg_cards_v2 cc"
-            "  ON (cc.card_name = x.pname OR split_part(cc.card_name,' // ',1) = x.pname)"
+            # 2026-09-05: split_part(card_name) → 列 name_en_front（全行で同値・実測 0 差）。関数を掛けた式は
+            # 索引に無く OR で前半の索引も死んで 32,730×1,821 の全比較（VM 5.9 秒・箱は 10 秒で timeout）だった。
+            # name_en_front に索引（mtg_cards_v2_name_en_front_idx・VM と箱の両方に張る）→ BitmapOr で 0.6 秒。
+            "  ON (cc.card_name = x.pname OR cc.name_en_front = x.pname)"
             " GROUP BY cc.id")
     rows = _db(
         "WITH pool AS (SELECT id FROM deck_list WHERE source = ANY(%(dsrc)s)),"
