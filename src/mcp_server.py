@@ -17,17 +17,23 @@
 起動: PYTHONPATH=/home/claude/pylibs \
       /mnt/new_hdd/my_rag_env/bin/python <リポジトリ>/src/mcp_server.py
 """
-import json
 import os
 
 from mcp.server import MCPServer
 
-# 役目ごとの包み（2026-09-05 Step 2 で切り出し）。旧名で受けるのは tests と外の脚本が
+# 役目ごとの包み（2026-09-05 Step 2・Step 3 で切り出し）。旧名で受けるのは tests と外の脚本が
 # m._RateLimiter・m._db・m._log_tool のまま触れるようにするため（再輸出）。
-from sisho.db import _db, _db_readonly, _db_slot          # noqa: F401（_db_slot は再輸出のみ）
+from sisho.db import _db, _db_readonly, _db_slot          # noqa: F401（再輸出のみ）
 from sisho.ratelimit import RateLimiter as _RateLimiter, RateLimitASGI as _RateLimitASGI
-from sisho.toollog import TOOL_LOG, TOOL_LOG_MAX, _log_tool   # noqa: F401（TOOL_LOG は再輸出のみ）
+from sisho.sets_blurb import _SETS_BLURB, _SETS_HEAD, _startup_sets_blurb   # noqa: F401（道具の説明に埋まる・契約試験が読む）
+from sisho.toollog import TOOL_LOG, TOOL_LOG_MAX, _log_tool   # noqa: F401（再輸出のみ）
+from sisho.tools import cards as _tool_cards
+from sisho.tools import combos as _tool_combos
+from sisho.tools import health as _tool_health
+from sisho.tools import partners as _tool_partners
 from sisho.tools import probability as _tool_probability
+from sisho.tools import rules as _tool_rules
+from sisho.tools import sql as _tool_sql
 from sisho.tools import verify as _tool_verify
 
 # 収録概況は「絶対に嘘にならない下限」で書く（2026-08-25 本人裁定・単調増加する量は下限表記）。
@@ -86,976 +92,85 @@ server = MCPServer(
 )
 
 
-def _startup_sets_blurb() -> str:
-    """道具の説明に載せる収録セットの一覧（起動時に DB から 1 回・失敗したら空）。
-    発端（2026-09-03 追試 A）: Sonnet が MSH／SOS（知識の切れ目の後のセット）を「MTG でない（Marvel Snap の話）」と
-    決めつけ、道具を一度も呼ばず記憶で答えた（30 問中 3・B でも 2）。説明文は claude.ai が脳に見せるので、ここに
-    一覧と「知らないセットでも必ず引く」を置く（instructions は届かない・8/22 裁定）。"""
-    try:
-        import psycopg2
-        from db_config import DB_CONFIG
-        conn = psycopg2.connect(**DB_CONFIG)
-        try:
-            cur = conn.cursor()
-            cur.execute(
-                "SELECT s.expansion, m.set_name, extract(year from m.released_at)::int"
-                " FROM (SELECT DISTINCT expansion FROM limited_card_stats) s"
-                " LEFT JOIN mtg_sets m ON lower(m.set_code) = lower(s.expansion)"
-                " WHERE s.expansion NOT ILIKE 'cube%%' ORDER BY m.released_at DESC NULLS LAST, s.expansion")
-            rows = cur.fetchall()
-        finally:
-            conn.close()
-    except Exception:
-        return ""
-    if not rows:
-        return ""
-    items = "・".join(f"{c}（{n} {y}）" if n else c for c, n, y in rows)
-    return (f"【収録セット（リミテッド統計あり・新しい順・記号（名前 発売年））】{items}。"
-            "知らないセット名・記号（例 MSH・SOS・TLA）でも MTG のセットなので、記憶で『MTG ではない』と判断せず必ずこの道具で引く。"
-            "記号はこの一覧から取り、推測しない。紛れ: STX は 2021 のストリクスヘイヴン・SOS は 2026 の Secrets of Strixhaven。")
+# ─── 道具の登録（この順で相手側の一覧に並ぶ）─────────────────────────────
+# 中身は sisho/tools/*.py。ここに残すのは「どの道具が・どの順で・どの説明で載るか」だけ
+# （2026-09-05 Step 2〜3 の分割）。名前・説明・引数・登録順は契約試験
+# tests/test_tool_contract.py が snapshot と突き合わせて縫っている。
 
-
-_SETS_BLURB = _startup_sets_blurb()
-# 冒頭用の短い版（2026-09-03 追試: 末尾の一覧では Sonnet の「Marvel は MTG でない」の先入観に勝てず、MSH の問いで道具を呼ばなかった。
-# 説明文は全文届いていた（1,961 字を脳が引用できた）ので、位置の問題＝最初の一文に置く）
-_SETS_HEAD = ((lambda m: f"【まず読む】このデータベースは MTG の最新セット {m} まで収録（Marvel Super Heroes＝MSH・Secrets of Strixhaven＝SOS も MTG の正式セット）。"
-              "知らないセット名・記号・カード名は『MTG ではない』と決めつけず、必ずこの道具で引いてから答える。")(
-    _SETS_BLURB.split("】", 1)[1].split("。", 1)[0].split("・")[0] if _SETS_BLURB else "") if _SETS_BLURB else "")
-
-# Arena の形式。これを名指しされたときだけ digital（Arena 専用札・2026-08-31 合流）を検索に含める。
-# 既定の検索は紙＝WHERE NOT digital（列 → 並べ方の掟: 紙と Arena 専用を混ぜて並べない）。
-ARENA_FORMATS = {"historic", "alchemy", "timeless", "brawl", "standardbrawl", "gladiator", "explorer"}
-
-
-@server.tool(
+# カード検索（素の一致検索＋17Lands 同伴）= sisho/tools/cards.py
+search_mtg_cards = server.tool(
     name="search_mtg_cards",
-    description=(
-        _SETS_HEAD +
-        "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
-        "【カードを探すときはまずこれ。Web 検索より先に使う】"
-        "カード名（日本語/英語・部分一致可）や機能語で MTG カードを検索する"
-        "（例:「コーリ鋼の短刀」「飛行 吸血鬼」「draw two cards」）。"
-        "仕組みは素の一致検索＝空白区切りの語をすべて含むカードを返す（AND）。"
-        "並びは名前一致優先→EDHREC 人気順。format 指定でそのフォーマットで"
-        "合法なカードに絞れる（standard/pioneer/modern/legacy/vintage/pauper/"
-        "commander 等）。色・マナ総量・採用率などの複雑な条件は、この道具でなく"
-        " query_mtg_database で SQL を書くこと。"
-        "返り値の name_display をそのまま使う。「英語名（日本語版なし）」もそのまま。"
-        "【draft_set（リミテッドの掟）】ドラフト・シールド・リミテッドの問いで、ユーザーがセットを示したら"
-        "（#SOS のようなタグ・「SOS のクイックドラフト」・セット名 Secrets of Strixhaven 等）、"
-        "そのセット記号（例 SOS）を draft_set に必ず入れる。以後その会話でセットが変わるまで毎回入れる。"
-        "入れると 17Lands の統計と色の組み合わせ表がそのセットの分だけ同伴する（他セットは付かない）。"
-        "構築（スタンダード・モダン等）の問いでは入れない。セットが分からないリミテの問いは空のまま＝最新セットの分が付く。"
-        + _SETS_BLURB))
-def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, draft_set: str | None = None) -> str:
-    """query: 検索語（空白区切りは AND）。format: legalities の鍵名。top_k: 1〜20。
+    description=_tool_cards.DESCRIPTION)(_tool_cards.search_mtg_cards)
 
-    2026-08-21 裁定「ルーター・門・腕の全撤廃」後の姿。旧実装は API(:8000) の
-    ハイブリッド検索を叩いていたが、実運用でこの道具に来るのはほぼ名前引き
-    （8/11〜8/20 の 7 件中 6 件）で、ルーター経由 6〜86 秒の待ちだけが残っていた。
-    素の一致検索＝決定的・LLM ゼロ・1 秒未満に置き換える。"""
-    _log_tool("search_mtg_cards", {"query": query, "format": format, "top_k": top_k, "draft_set": draft_set})
-    q = query.strip()
-    if not q:
-        return "検索語が空です。"
-    top_k = max(1, min(int(top_k), 20))
-    fmt = (format or "").strip().lower()
-    fmt_sql = " AND legalities->>%s = 'legal'" if fmt else ""
-    if fmt not in ARENA_FORMATS:
-        fmt_sql += " AND NOT digital"          # 既定は紙。Arena の形式を名指しされたときだけ Arena 専用札も
-    cols = ("card_name, japanese_name, type_line, mana_cost, power, toughness,"
-            " rarity, oracle_text, japanese_oracle_text, edhrec_rank, name_display, digital,"
-            " name_en_front, name_en_back, name_ja_front, name_ja_back")
-
-    # 1) 名前ヒット: クエリ全体を名前に部分一致（完全一致を先頭へ）
-    p1 = [f"%{q}%", f"%{q}%"] + ([fmt] if fmt else []) + [q, q, top_k]
-    name_rows = _db(
-        f"SELECT {cols} FROM mtg_cards_v2"
-        " WHERE (card_name ILIKE %s OR japanese_name ILIKE %s)" + fmt_sql +
-        " ORDER BY (card_name ILIKE %s OR japanese_name ILIKE %s) DESC,"
-        "          edhrec_rank ASC NULLS LAST, card_name LIMIT %s", tuple(p1))
-
-    # 2) 本文ヒット: 各語が名前・タイプ行・オラクル文（日英）のどこかに載る AND
-    terms = q.split()
-    cond = ("(card_name ILIKE %s OR japanese_name ILIKE %s OR type_line ILIKE %s"
-            " OR oracle_text ILIKE %s OR japanese_oracle_text ILIKE %s)")
-    p2: list = []
-    for t in terms:
-        p2 += [f"%{t}%"] * 5
-    p2 += ([fmt] if fmt else []) + [top_k]
-    text_rows = _db(
-        f"SELECT {cols} FROM mtg_cards_v2 WHERE " +
-        " AND ".join([cond] * len(terms)) + fmt_sql +
-        " ORDER BY edhrec_rank ASC NULLS LAST, card_name LIMIT %s", tuple(p2))
-
-    keep = ("card_name", "japanese_name", "type_line", "mana_cost", "power",
-            "toughness", "rarity", "oracle_text", "japanese_oracle_text",
-            "edhrec_rank", "name_display", "digital", "name_en_front", "name_en_back", "name_ja_front", "name_ja_back")
-    def _row(r: tuple) -> dict:
-        """japanese_name だけは None でも落とさず明示する（2026-08-21 本人指摘:
-        脳が Helm of Obedience のような日本語版の無いカードに勝手な訳名を作った。
-        「無い」を返り値で言わないと、脳は無言を「自分で訳してよい」と読む）。"""
-        d = {k: v for k, v in zip(keep, r) if v is not None}
-        if d.get("japanese_name") is None:
-            d["japanese_name"] = None
-            d["name_note"] = ("日本語名未収録（Arena には日本語版あり）＝name_display をそのまま使う（訳名を作らない）" if d.get("digital")
-                              else "日本語版なし＝name_display をそのまま使う（訳名を作らない）")
-        # 面（2026-08-31 R3-4）: 多面札は faces を同伴し、裏面で当たったときはその面の完成形も返す（name_display は表面固定）
-        enb = d.pop("name_en_back", None); jab = d.pop("name_ja_back", None)
-        enf = d.pop("name_en_front", None); jaf = d.pop("name_ja_front", None)
-        def _face_disp(en, ja):
-            return f"《{ja}/{en}》" if ja else f"{en}（{'日本語名未収録' if d.get('digital') else '日本語版なし'}）"
-        if enb:
-            d["faces"] = [{"en": enf, "ja": jaf, "display": _face_disp(enf, jaf)}, {"en": enb, "ja": jab, "display": _face_disp(enb, jab)}]
-            ql = q.lower()
-            hit_back = ql in enb.lower() or (jab and q in jab)
-            hit_front = ql in (enf or "").lower() or (jaf and q in jaf)
-            if hit_back and not hit_front:
-                d["matched_face"] = "back"
-                d["face_display"] = _face_disp(enb, jab)
-                d["face_note"] = "検索語は裏面（出来事・変身後・分割の片方）に当たった。その面を指すときは face_display を使う"
-        if d.get("digital"):
-            d["digital_note"] = "Arena 専用の札（アルケミー・A- リバランス等）＝紙には存在しない。紙の話では挙げない"
-        else:
-            d.pop("digital", None)
-        return d
-
-    seen, cards = set(), []
-    for r in list(name_rows) + list(text_rows):
-        if r[0] in seen:
-            continue
-        seen.add(r[0])
-        cards.append(_row(r))
-        if len(cards) >= top_k:
-            break
-    # 3) 一致ゼロのときだけ、曖昧名（pg_trgm 類似度・しきい値 0.3）で救う。
-    #    実例: 「孤光のフェニックス」（正しくは弓へんの「弧光」・類似度 0.54）。
-    #    旧・名前直行門が持っていた打ち間違い耐性の、SQL 一本での置き換え（2026-08-21）。
-    route = "simple_match"
-    if not cards:
-        route = "fuzzy_name"
-        p3 = [q, q, 0.3] + ([fmt] if fmt else []) + [q, q, top_k]
-        fuzzy_rows = _db(
-            f"SELECT {cols} FROM mtg_cards_v2"
-            " WHERE greatest(similarity(card_name, %s),"
-            "                similarity(coalesce(japanese_name,''), %s)) > %s"
-            + fmt_sql +
-            " ORDER BY greatest(similarity(card_name, %s),"
-            "                   similarity(coalesce(japanese_name,''), %s)) DESC"
-            " LIMIT %s", tuple(p3))
-        cards = [_row(r) for r in fuzzy_rows]
-    if not cards:
-        return (f"該当なし: {q}"
-                "（語を減らす・言い換える・または query_mtg_database で SQL を書く。"
-                "日本語名が分からないカードは英語名で引き直すこと＝訳名を推測しない）")
-    # 17Lands の同伴（2026-09-03 本人「同伴は速さの道具＝高確率で当たる分だけ付ける」）:
-    #   draft_set あり → そのセットだけ／不明な記号 → 数字は付けず一覧を返す／なし → 最新 N セット（既定 2）だけ。
-    #   それ以外のセットにしか無い札は、一行の道しるべ（limited_stats_elsewhere）に留める。
-    requested = _resolve_draft_set(draft_set) if draft_set else None
-    constructed = bool(fmt) and not requested and fmt.lower() not in ("limited", "draft", "sealed")
-    if constructed:
-        allowed: list[str] = []      # 構築の format 指定（modern 等）はドラフトの問いでない＝同伴なし（道しるべだけ）
-    elif draft_set and not requested:
-        allowed = []
-    elif requested:
-        allowed = [requested]
-    else:
-        allowed = [x["code"] for x in _limited_sets()[:_DRAFT_RECENT_N]]
-    elsewhere = _attach_limited_stats(cards, allowed)
-    archetypes = _limited_archetypes(sorted({s["set"] for c in cards for s in c.get("limited_stats", [])})) if allowed else {}
-    out = {"route": route,
-           "naming_rule": "name_display（完成形《日本語名/英語名》）を一字も変えずに使う。略称・通称・省略は冗長でも禁止（2 回目以降も）。「英語名（日本語版なし）」「英語名（日本語名未収録）」もそのまま（翻訳禁止・組み立て禁止）",
-           "cards": cards}
-    if draft_set and not requested:
-        out["draft_set_note"] = (f"draft_set「{draft_set}」は手持ちに無いセット＝数字は付けていない。"
-                                 f"手持ち（新しい順・記号（名前））: {_sets_line()}。正しい記号で呼び直す")
-    if elsewhere:
-        out["limited_stats_elsewhere"] = elsewhere
-        out["limited_stats_elsewhere_note"] = ("これらの札には別のセットの 17Lands 統計がある（記号のみ列挙）。"
-                                               "そのセットのドラフトの問いなら draft_set=<記号> で呼び直す。構築の問いなら無視してよい")
-    if any("limited_stats" in c for c in cards):
-        scope = (f"対象セット: {'・'.join(allowed)}（" + ("draft_set で指定" if requested else f"既定＝手持ちの最新 {_DRAFT_RECENT_N} セット。別のセットの問いなら draft_set を指定") + "）。")
-        out["limited_stats_note"] = (scope + "limited_stats は 17Lands 公開データのセット別 Bo1 ドラフト統計（集計元は Premier Draft＝人間対面。Quick Draft の問いにもカードの強さの物差しとしてそのまま使う＝『Quick Draft のデータが無い』と言って使わないのは誤り。alsa/ata の流れ方だけは人間対面の値で、ボット相手の Quick Draft ではレアが早く消えるなどずれる）。"
-                                     "gih_wr=手札に来たゲームの勝率・alsa=最後に見えたピック番号の平均（小さいほど早く消える）・"
-                                     "ata=取られたピック番号の平均・gih_games は母数（500 未満はぶれる）。"
-                                     "答えに出典「17Lands」を添える。無いセットの数字は書かない。"
-                                     "他の列・セット横断の集計は表 limited_card_stats を query_mtg_database で。"
-                                     "色の組み合わせ別の勝率は limited_color_stats・相性は limited_matchup_stats・"
-                                     "ランク帯別は limited_card_rank_stats／limited_format_stats・ピック側は limited_card_pick_stats（describe_mtg_tables で列を確認）。"
-                                     "ドラフトの助言（ピック・デッキの色）は limited_archetypes＝そのセットの 2 色の組み合わせ（タッチ無し・プレイ数 games の多い順・share_pct はセット内の割合・wr は勝率・baseline_wr はセット全体の勝率）を先に見る。"
-                                     "share_pct が小さい（目安 1% 未満）組み合わせはそのセットでは成立していないアーキタイプ＝そのデッキを勧めない。成立している組み合わせの中で wr の高いものを軸に考える。"
-                                     "3 色が主役のセット（2 色の share がどれも低い）やタッチ有りは limited_color_stats を SQL で（main_colors が 3 文字の行・splash=true）")
-        if archetypes:
-            out["limited_archetypes"] = archetypes
-    return json.dumps(out, ensure_ascii=False, indent=1)
-
-
-def _attach_limited_stats(cards: list[dict], sets: list[str] | None = None) -> dict[str, list[str]]:
-    """検索結果の各札に、17Lands 集計（limited_card_stats）があればセット別に同伴する（2026-09-02）。
-
-    発端: 脳が SOS の札の GIH WR を聞かれ、mtg_cards_v2 と information_schema を手探りしたまま
-    表に辿り着かなかった（instructions は claude.ai に届かない＝返り値に載っていないものは無いのと同じ）。
-    行が無い札にはキーを出さない（不在は無言でなく、脳が「無い」と読めるように limited_stats_note で線引き）。
-    表が無い環境（旧 VM 等）では何もしない。
-    2026-09-03: sets（記号の一覧）に入るセットの行だけ同伴し、それ以外のセットは card_name→[記号] で返す（道しるべ用）。"""
-    names = [c["card_name"] for c in cards if c.get("card_name")]
-    if not names:
-        return {}
-    try:
-        rows = _db(
-            "SELECT db_card_name, expansion, event_type, gih_games, gih_wr, oh_wr, gd_wr, alsa, ata"
-            " FROM limited_card_stats WHERE db_card_name = ANY(%s)"
-            " ORDER BY db_card_name, expansion", (names,))
-    except Exception:
-        return {}
-    by: dict[str, list] = {}
-    elsewhere: dict[str, list[str]] = {}
-    for n, ex, ev, g, gih, oh, gd, alsa, ata in rows:
-        if sets is not None and ex not in sets:
-            if not ex.lower().startswith("cube"):
-                elsewhere.setdefault(n, []).append(ex)
-            continue
-        by.setdefault(n, []).append({
-            "set": ex, "event": ev, "gih_games": g,
-            "gih_wr": float(gih) if gih is not None else None,
-            "oh_wr": float(oh) if oh is not None else None,
-            "gd_wr": float(gd) if gd is not None else None,
-            "alsa": float(alsa) if alsa is not None else None,
-            "ata": float(ata) if ata is not None else None,
-            "source": "17Lands"})
-    for c in cards:
-        if c.get("card_name") in by:
-            c["limited_stats"] = by[c["card_name"]]
-    return elsewhere
-
-
-_DRAFT_RECENT_N = int(os.environ.get("MCP_DRAFT_RECENT_SETS", "2"))
-_sets_cache: dict = {"t": 0.0, "rows": []}
-
-
-def _limited_sets() -> list[dict]:
-    """limited_card_stats の収録セットを発売日の新しい順に（記号・名前・発売日）。Cube は除く。5 分キャッシュ。
-    注意: 発売日の最新が今のドラフト環境とは限らない（2026-09-03 実測: 最新は MSH だが Arena の Quick Draft は SOS）
-    ＝既定は最新 N（MCP_DRAFT_RECENT_SETS・既定 2）で取りこぼしを減らし、本命は呼び出し側の draft_set。"""
-    import time
-    if time.time() - _sets_cache["t"] < 300 and _sets_cache["rows"]:
-        return _sets_cache["rows"]
-    try:
-        rows = _db(
-            "SELECT s.expansion, m.set_name, m.released_at FROM (SELECT DISTINCT expansion FROM limited_card_stats) s"
-            " LEFT JOIN mtg_sets m ON lower(m.set_code) = lower(s.expansion)"
-            " WHERE s.expansion NOT ILIKE 'cube%%' ORDER BY m.released_at DESC NULLS LAST, s.expansion", ())
-    except Exception:
-        return []
-    out = [{"code": r[0], "name": r[1], "released_at": str(r[2]) if r[2] else None} for r in rows]
-    _sets_cache.update(t=time.time(), rows=out)
-    return out
-
-
-def _resolve_draft_set(s: str | None) -> str | None:
-    """『#SOS』『LimitedSOS』『sos』『Secrets of Strixhaven』を記号 SOS に。手持ちに無ければ None（推測しない）。"""
-    if not s:
-        return None
-    key = s.strip().lstrip("#").strip()
-    low = key.lower()
-    for pre in ("limited", "quickdraft", "quick draft", "quick", "premierdraft", "premier", "draft", "sealed"):
-        if low.startswith(pre):
-            key = key[len(pre):].strip(" _-:：")
-            low = key.lower()
-    if not key:
-        return None
-    sets = _limited_sets()
-    for x in sets:
-        if x["code"].lower() == low:
-            return x["code"]
-    for x in sets:
-        if x["name"] and (low in x["name"].lower() or x["name"].lower() in low):
-            return x["code"]
-    return None
-
-
-def _sets_line() -> str:
-    return "・".join(f"{x['code']}（{x['name']}）" if x["name"] else x["code"] for x in _limited_sets())
-
-
-def _archetype_lines(code: str) -> str:
-    """query の返り値に添える、そのセットの色の組み合わせ表（1 行）。"""
-    a = _limited_archetypes([code]).get(code)
-    if not a:
-        return ""
-    pairs = "・".join(f"{p['colors']} {p['share_pct']}% wr{p['wr']}" for p in a["color_pairs"])
-    return (f"\n[#{code} の色の組み合わせ（17Lands・2 色・タッチ無し・プレイ数順・share% と勝率・基準線 {a['baseline_wr']}）] {pairs}"
-            "\n（share が 1% 未満の組み合わせはそのセットでは成立していない）")
-
-
-def _limited_archetypes(sets: list[str]) -> dict:
-    """セットごとの色の組み合わせ別勝率（2 色・タッチ無し・limited_color_stats）を search の返り値に同伴する。
-
-    発端（2026-09-02 本人）: 「アーキタイプ別勝率を参考にしながら、と言わないと SOS に無いアーキタイプ
-    （有効色）でデッキを作り出す」。返り値に載っていない表は脳が引かない前提（8/22 裁定）なので、
-    札の統計を付けたセットについて 2 色の組み合わせをプレイ数順で丸ごと（10 行）載せる（勝率順だと
-    母数 100 戦の組み合わせが上位に混ざって読み違える＝SOS で実測）。share_pct はセット内の割合＝成立しない
-    組み合わせ（SOS の WU 0.04% 等）を脳が構造で見分けるための列。
-    baseline_wr はセット全体の勝率（limited_format_stats のランク帯合算）＝組み合わせの良し悪しの基準線。
-    色の列が無いセット（STX）や表が無い環境では空。"""
-    if not sets:
-        return {}
-    try:
-        rows = _db(
-            "SELECT expansion, main_colors, games, wins FROM limited_color_stats"
-            " WHERE expansion = ANY(%s) AND NOT splash AND length(main_colors) = 2"
-            " ORDER BY expansion, games DESC", (sets,))
-        base = _db(
-            "SELECT expansion, sum(games), sum(wins) FROM limited_format_stats"
-            " WHERE expansion = ANY(%s) GROUP BY 1", (sets,))
-    except Exception:
-        return {}
-    out: dict[str, dict] = {}
-    for ex, g, w in base:
-        out[ex] = {"baseline_wr": round(w / g, 4) if g else None, "color_pairs": []}
-    tot: dict[str, int] = {}
-    for ex, _mc, g, _w in rows:
-        tot[ex] = tot.get(ex, 0) + (g or 0)
-    for ex, mc, g, w in rows:
-        out.setdefault(ex, {"baseline_wr": None, "color_pairs": []})["color_pairs"].append(
-            {"colors": mc, "games": g, "share_pct": round(100.0 * g / tot[ex], 2) if tot.get(ex) else None,
-             "wr": round(w / g, 4) if g else None, "source": "17Lands"})
-    return {ex: v for ex, v in out.items() if v["color_pairs"]}
-
-
-# ─── 確率計算の入口（2026-09-04 本人「あらゆる確率計算をどこかに格納して…」→「ひとまず最低限だけ」）───
-# 中身（_PROB_KINDS・mtg_probability）は sisho/tools/probability.py へ切り出した（2026-09-05 Step 2）。
-# ここには登録（名前と説明）だけを残す＝どの道具がどの順で載るかが 1 枚で読める。
+# 確率計算の入口（2026-09-04 本人「あらゆる確率計算をどこかに格納して…」）= sisho/tools/probability.py
 mtg_probability = server.tool(
     name="mtg_probability",
     description=_tool_probability.DESCRIPTION)(_tool_probability.mtg_probability)
-_PROB_KINDS = _tool_probability._PROB_KINDS      # 旧名で届くように再輸出
 
-
-# ─── Commander Spellbook（2026-09-04 本人 GO「API 解放されてるんだから使わせてもよくね」）───
-# 取り込まず都度呼ぶ（8/29 survey: 第三者ツールからの API 表示は公式 docs で許容・データのライセンスは明文なし＝再配布は灰
-# → DB に持たない）。返り値に出典と前提の原文を必ず載せる（本人「2 枚だけでは成立しない前提付きが多い」）。
-# bracketTag・結果タグは正確性に欠ける実例（7/28・EDH Build Helper）があるので「参考」と明記。箱の砂場から backend へは
-# AF_INET 許可で到達済み（9/4 実測 200・1.0 秒）。時間制限 6 秒・失敗はこの道具だけが「届かない」を返す。
-_SPELLBOOK_URL = os.environ.get("SPELLBOOK_URL", "https://backend.commanderspellbook.com/find-my-combos")
-_SPELLBOOK_TIMEOUT = float(os.environ.get("SPELLBOOK_TIMEOUT", "6"))
-
-
-def _spellbook_post(payload: dict) -> dict:
-    import urllib.request
-    req = urllib.request.Request(_SPELLBOOK_URL, data=json.dumps(payload).encode("utf-8"),
-                                 headers={"content-type": "application/json", "accept": "application/json",
-                                          "user-agent": "mtg-sisho-mcp/1.0 (+https://github.com/)"}, method="POST")
-    with urllib.request.urlopen(req, timeout=_SPELLBOOK_TIMEOUT) as r:
-        return json.loads(r.read().decode("utf-8"))
-
-
-def _display_map(names: list[str]) -> dict[str, str]:
-    """英語名 → 完成形 name_display（DB に無い名前は「英語名（DB 未収録）」）。"""
-    out = {n: f"{n}（DB 未収録）" for n in names}
-    if not names:
-        return out
-    try:
-        for cn, nd in _db("SELECT card_name, name_display FROM mtg_cards_v2 WHERE card_name = ANY(%s)", (names,)):
-            out[cn] = nd
-    except Exception:
-        pass
-    return out
-
-
-@server.tool(
+# Commander Spellbook（2026-09-04 本人 GO・外部 API を都度照会）= sisho/tools/combos.py
+find_combos = server.tool(
     name="find_combos",
-    description=(
-        "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く。】"
-        "【コンボを探すときはこれ。記憶で組み合わせを書かない】手持ちのカード名（英語名・日本語名どちらでも）を渡すと、"
-        "Commander Spellbook（公開 API・都度照会・出典を必ず添える）から、いま組めるコンボ（included）・あと 1 枚で組めるコンボ"
-        "（almost_included）・色を足せば組めるコンボ（by_adding_colors）を返す。各コンボに使う札（完成形）・生み出す効果・"
-        "**前提の原文（prerequisites）**・人気・出典 URL。前提付きのコンボは前提をそのまま書く（2 枚で成立するとは限らない）。"
-        "bracket タグは参考（正確性に欠ける実例あり）。commanders に統率者名を入れると統率者領域を考慮する。"
-        "デッキ 1 本（最大 120 枚）を渡す使い方が本来の形。日本語名は DB で英語名に直してから照会する。"))
-def find_combos(card_names: list[str], commanders: list[str] | None = None, limit: int = 10) -> str:
-    _log_tool("find_combos", {"n": len(card_names or []), "commanders": commanders, "limit": limit})
-    names = [n.strip() for n in (card_names or []) if n and n.strip()]
-    cmds = [n.strip() for n in (commanders or []) if n and n.strip()]
-    if not names:
-        return json.dumps({"error": "card_names が空"}, ensure_ascii=False)
-    if len(names) > 120:
-        return json.dumps({"error": "card_names は 120 枚まで"}, ensure_ascii=False)
-    limit = max(1, min(int(limit), 30))
-    # 日本語名 → 英語名（DB）。英語名はそのまま。見つからない名前はそのまま送る（Spellbook 側で無視される）
-    resolved: dict[str, str] = {}
-    try:
-        rows = _db("SELECT card_name, japanese_name, name_ja_front FROM mtg_cards_v2"
-                   " WHERE card_name = ANY(%s) OR japanese_name = ANY(%s) OR name_ja_front = ANY(%s)", (names + cmds, names + cmds, names + cmds))
-        for cn, ja, jaf in rows:
-            resolved[cn] = cn
-            if ja: resolved[ja] = cn
-            if jaf: resolved[jaf] = cn
-    except Exception:
-        pass
-    en_main = [resolved.get(n, n) for n in names]
-    en_cmd = [resolved.get(n, n) for n in cmds]
-    unresolved = [n for n in names + cmds if n not in resolved and not n.isascii()]
-    payload = {"main": [{"card": n, "quantity": 1} for n in en_main], "commanders": [{"card": n, "quantity": 1} for n in en_cmd]}
-    try:
-        data = _spellbook_post(payload)
-    except Exception as e:
-        return json.dumps({"error": f"Commander Spellbook に届かない（{type(e).__name__}: {str(e)[:120]}）。少し待って再試行。この道具以外は影響なし"}, ensure_ascii=False)
-    res = data.get("results", data) if isinstance(data, dict) else {}
-    sections = {"included": "いま組める", "almostIncluded": "あと 1 枚で組める", "almostIncludedByAddingColors": "色を足せば組める"}
-    all_names: set[str] = set()
-    for key in sections:
-        for c in (res.get(key) or [])[:limit]:
-            for u in c.get("uses") or []:
-                all_names.add((u.get("card") or {}).get("name", ""))
-    disp = _display_map(sorted(n for n in all_names if n))
-    out: dict = {"source": "Commander Spellbook（https://commanderspellbook.com/・公開 API・照会時点の内容）",
-                 "input": {"main": en_main, "commanders": en_cmd},
-                 "note": ("前提（prerequisites）は原文のまま。前提付きのコンボは書かれた条件が揃わないと成立しない＝『2 枚で成立』と書かない。"
-                          "bracket タグは参考（正確性に欠ける実例あり・断定しない）。人気（popularity）は Spellbook 側の集計。"
-                          "答えには出典「Commander Spellbook」と各コンボの URL を添える。カード名は uses_display の完成形をそのまま書く")}
-    if unresolved:
-        out["unresolved_names"] = unresolved
-        out["unresolved_note"] = "DB で英語名に直せなかった名前（綴りを search_mtg_cards で確認して呼び直す）"
-    for key, label in sections.items():
-        items = res.get(key) or []
-        rows = []
-        for c in items[:limit]:
-            uses = [(u.get("card") or {}).get("name", "") for u in c.get("uses") or []]
-            rows.append({"id": c.get("id"), "url": f"https://commanderspellbook.com/combo/{c.get('id')}/",
-                         "uses": uses, "uses_display": [disp.get(n, n) for n in uses],
-                         "requires_templates": [(t.get("template") or {}).get("name", "") for t in c.get("requires") or []],
-                         "produces": [(p.get("feature") or {}).get("name", "") for p in c.get("produces") or []],
-                         "prerequisites": " / ".join(x for x in [c.get("easyPrerequisites") or "", c.get("notablePrerequisites") or ""] if x) or None,
-                         "description": (c.get("description") or "")[:600] or None,
-                         "popularity": c.get("popularity"), "bracket_tag": c.get("bracketTag"), "identity": c.get("identity")})
-        out[key] = {"label": label, "count_total": len(items), "shown": len(rows), "combos": rows}
-    return json.dumps(out, ensure_ascii=False, indent=1)
+    description=_tool_combos.DESCRIPTION)(_tool_combos.find_combos)
 
-
-# ─── ローカル DB 直結の道具（2026-08-10 深夜・本人「搬入が要るのでは」への答え）───
-# 試作サーバーは VM に住んでいるので、mtg_rules / card_rulings（ローカルのみ・
-# Aurora 未搬入）に直接手が届く。恒久版ではこの 2 本のデータを搬入 or 焼き込みする
-# （工程表 v0 の 1 番・Aurora/イメージ/VPS の裁定とセット）。読み取り専用クエリのみ。
-
-# DB の席取りと接続（_db_slot／_db／_db_readonly）は sisho/db.py へ切り出した
-# （2026-09-05 Step 2）。設計の経緯（readonly_ai の上限 6・席 5・待ち 20 秒）はそちらの注記に。
-
-
-@server.tool(
+# 総合ルールと公式裁定（ローカル DB 直結・2026-08-10）= sisho/tools/rules.py
+lookup_mtg_rule = server.tool(
     name="lookup_mtg_rule",
-    description=(
-        "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
-        "【ルールの疑問・処理の順番・用語の定義は、Web で調べる前にこれ】"
-        "MTG 総合ルール（Comprehensive Rules・条文3,317＋用語集739）を引く。"
-        "条番号（例: '702.19' '601.2b'）または英語キーワード（例: 'trample' 'state-based'）"
-        "で検索できる。条文の原文は英語なので、必要に応じて日本語に訳して伝えること。"
-        "裁定の根拠を条番号つきで示したいときに使う。"))
-def lookup_mtg_rule(query: str, limit: int = 12) -> str:
-    _log_tool("lookup_mtg_rule", {"query": query})
-
-    query = query.strip()
-    limit = max(1, min(int(limit), 30))
-    import re as _re
-    if _re.fullmatch(r"\d{1,3}(\.\d+[a-z]?)?\.?", query):
-        # 前方一致は禁物: '702.19%' は 702.190（別条文）まで拾う。枝は「702.19a」
-        # 形式なので「自身・直下の英字枝・直下の数字枝」だけを正規表現で許す。
-        q = query.rstrip('.')
-        pat = '^' + _re.escape(q) + r'(\.\d+[a-z]?|[a-z])?$'
-        rows = _db(
-            "SELECT rule_number, is_glossary, text_en FROM mtg_rules"
-            " WHERE rule_number ~ %s ORDER BY rule_number LIMIT %s",
-            (pat, limit))
-    else:
-        # 語検索は FTS の AND（2026-08-11・脳からのバグ報告「dies trigger simultaneous で
-        # 該当なし」＝旧実装は句全体の部分一致で複数語に無力だった）。plainto_tsquery は
-        # 全語 AND・語形正規化つき。ts_rank 順で条文らしさの高い順に返す。
-        rows = _db(
-            "SELECT rule_number, is_glossary, text_en FROM mtg_rules"
-            " WHERE to_tsvector('english', text_en) @@ plainto_tsquery('english', %s)"
-            " ORDER BY ts_rank(to_tsvector('english', text_en),"
-            "                  plainto_tsquery('english', %s)) DESC,"
-            "          is_glossary DESC, rule_number LIMIT %s",
-            (query, query, limit))
-        if not rows:
-            # 全語 AND が不発なら OR に降りて「多く当たる順」（ts_rank が自然にやる）。
-            # 脳の実クエリは概念の羅列（dies trigger simultaneous…）なので全語一致は稀。
-            import re as _re2
-            words = _re2.findall(r"[A-Za-z][A-Za-z'-]+", query)
-            if len(words) >= 2:
-                orq = " | ".join(words)
-                rows = _db(
-                    "SELECT rule_number, is_glossary, text_en FROM mtg_rules"
-                    " WHERE to_tsvector('english', text_en) @@ to_tsquery('english', %s)"
-                    " ORDER BY ts_rank(to_tsvector('english', text_en),"
-                    "                  to_tsquery('english', %s)) DESC, rule_number"
-                    " LIMIT %s", (orq, orq, limit))
-        if not rows:   # FTS 不発（一語・固有表現等）は従来の部分一致で救う
-            rows = _db(
-                "SELECT rule_number, is_glossary, text_en FROM mtg_rules"
-                " WHERE text_en ILIKE %s OR (is_glossary AND rule_number ILIKE %s)"
-                " ORDER BY is_glossary DESC, rule_number LIMIT %s",
-                (f"%{query}%", f"%{query}%", limit))
-    if not rows:
-        return f"該当なし: {query}（条番号または英語キーワードで検索してください）"
-    out = []
-    for num, glos, text in rows:
-        tag = "用語集" if glos else "条文"
-        out.append(f"[{tag} {num}] {text}")
-    return "\n\n".join(out)
-
-
-@server.tool(
+    description=_tool_rules.LOOKUP_MTG_RULE_DESCRIPTION)(_tool_rules.lookup_mtg_rule)
+get_card_rulings = server.tool(
     name="get_card_rulings",
-    description=(
-        "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
-        "【特定カードの挙動・裁定は、Web の解説記事より先にこれ（公式一次情報）】"
-        "カードの公式裁定（Wizards 公式 rulings・77,998 件収録）をカード名で引く。"
-        "カード名は英語の正式名（例: 'Ragavan, Nimble Pilferer'）。部分一致も可。"
-        "裁定の原文は英語なので、必要に応じて日本語に訳して伝えること。"))
-def get_card_rulings(card_name: str, limit: int = 20) -> str:
-    _log_tool("get_card_rulings", {"card_name": card_name})
+    description=_tool_rules.GET_CARD_RULINGS_DESCRIPTION)(_tool_rules.get_card_rulings)
 
-    limit = max(1, min(int(limit), 40))
-    rows = _db(
-        "SELECT card_name, published_at, comment FROM card_rulings"
-        " WHERE card_name = %s ORDER BY published_at, id LIMIT %s",
-        (card_name.strip(), limit))
-    if not rows:                                   # 面の名前（表・裏）→ 正式名に解決して引く（2026-08-31 R3-4）
-        full = _db("SELECT card_name FROM mtg_cards_v2 WHERE name_en_front = %s OR name_en_back = %s ORDER BY (name_en_front = %s) DESC LIMIT 1",
-                   (card_name.strip(), card_name.strip(), card_name.strip()))
-        if full:
-            rows = _db("SELECT card_name, published_at, comment FROM card_rulings WHERE card_name = %s ORDER BY published_at, id LIMIT %s",
-                       (full[0][0], limit))
-    if not rows:
-        rows = _db(
-            "SELECT card_name, published_at, comment FROM card_rulings"
-            " WHERE card_name ILIKE %s ORDER BY card_name, published_at, id LIMIT %s",
-            (f"%{card_name.strip()}%", limit))
-    if not rows:
-        return f"裁定なし: {card_name}（英語の正式カード名で検索してください）"
-    out = [f"{name}（{date}）: {comment}" for name, date, comment in rows]
-    return "\n\n".join(out)
-
-
-def _name_variants(name: str) -> list[str]:
-    """両面・分割カードの名前ゆれを吸収する候補名を返す（2026-08-13）。
-
-    棚ごとにキーの持ち方が違うのが根本原因:
-      card_cooccurrence（mtgtop8 系・古い）     → 名前キー。中身は mtgtop8 が書く
-                                                  「表の名前」（例 Brazen Borrower）
-      edh_card_cooccurrence_v2（7/30 新設）     → ID キー。カード表の正式名で引く
-                                                  （例 Brazen Borrower // Petty Theft）
-    道具の入口でこの差を吸収しないと、scope によって通る名前が逆になる
-    （実測 2026-08-13: 正式名は constructed で空振り・表の名前は edh で空振り）。
-    該当は card_name に ' // ' を持つ 810 枚。
-    """
-    out = [name]
-    front = name.split(" // ")[0]
-    if front != name:
-        out.append(front)                       # 正式名 → 表の名前
-    else:                                       # 表の名前 → 正式名（DB 引き）
-        out += [r[0] for r in _db(
-            "SELECT card_name FROM mtg_cards_v2 WHERE name_en_back IS NOT NULL AND (name_en_front = %s OR name_en_back = %s)",
-            (name, name))]
-    seen, uniq = set(), []
-    for n in out:
-        if n not in seen:
-            seen.add(n)
-            uniq.append(n)
-    return uniq
-
-
-@server.tool(
+# 共起（実デッキ集計・Phase 2 のデッキ壁打ち用）= sisho/tools/partners.py
+find_partner_cards = server.tool(
     name="find_partner_cards",
-    description=(
-        "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
-        "【カードを軸にデッキを組む・相方を探すときは必ずこれを先に呼ぶ。そのカードの「現行の家」（実際に一緒に使われている札）が分かる唯一の道具で、Web にもモデルの記憶にも無い情報】"
-        "指定カードと同じデッキに入りやすいカード（共起）を実デッキ集計から返す。"
-        "Phase 2 のデッキ壁打ち用。scope: 'edh'（統率者・既定）/ 'constructed'"
-        "（mtgtop8＋MTGO 公式の 60 枚構築）/ 'pauper' / 'vintage' / 'precon'（公式構築済み製品）。"
-        "exclude_lands=True で土地を除く（汎用フェッチ等が上位を占めがちなため）。"
-        "返り値は同居率 pct と lift（偶然同居の期待値比）付き。order_by='lift' で"
-        "汎用札を沈めて専属シナジー順に並べ替え（既定は同居数順・2026-08-25）。"
-        "カード名は英語の正式名でも表面の名前でもよい（両面・分割カードの表記ゆれは"
-        "道具側で吸収する・2026-08-13）。"
-        "【内部専用】この道具はデータ出自（Moxfield/mtgtop8）の許可が未決着のため"
-        "公開版カセットには含めない（2026-08-11 権利札）。"))
-def find_partner_cards(card_name: str, scope: str = "edh",
-                       limit: int = 15, exclude_lands: bool = False,
-                       order_by: str = "count") -> str:
-    """共起ペアは片方向格納＝両面 UNION で引く（2026-08-11 実査）。
+    description=_tool_partners.DESCRIPTION)(_tool_partners.find_partner_cards)
 
-    名前は表記ゆれを吸収して引く（_name_variants・2026-08-13）。結果側の JOIN も
-    同じ理由で表の名前を許す＝相方が両面カードのとき静かに落ちるのを防ぐ
-    （実測: 相方名 215 種・7,958 ペアが落ちていた。うち 156 種は表の名前で救える）。
-
-    2026-08-25 分母導入（本人裁定「パーセンテージ表記に賛成」）:
-    - pct = n_ab / (このカード入りデッキ数)。分母は毎回 deck_cards から実測
-      （edh_card_strength の play_decks は母集団の一致が未検証なので借りない）。
-    - lift = pct / (相方カードの全体出現率)。1.0 ≈ 偶然同居（汎用札）・高いほど専属シナジー。
-    - order_by='lift' は同居 10 本以上・生カウント上位 400 の中で並べ替え
-      （少数サンプルの lift 暴発と全相方の分母計算の重さを両方避ける近似）。
-    - 分母の deck_list 直数えは共起集計の重複除去・MTGO 転載除外を再現しない
-      ＝pct は 2〜3% 控えめに出る近似（構築 scope でやや大きめ）。"""
-    _log_tool("find_partner_cards", {"card_name": card_name, "scope": scope,
-                                     "exclude_lands": exclude_lands, "order_by": order_by})
-    name = card_name.strip()
-    limit = max(1, min(int(limit), 30))
-    if order_by not in ("count", "lift"):
-        return f"order_by が不正: {order_by}（count / lift）"
-    land_cond = " AND c.type_line NOT ILIKE '%%Land%%'" if exclude_lands else ""
-    names = _name_variants(name)
-    # lift 順は母集団を広めに取ってから並べ替える（count 順は最初から limit で足りる）
-    pool_limit = 400 if order_by == "lift" else limit
-    min_ab = 10 if order_by == "lift" else 1
-    order_sql = "lift DESC NULLS LAST" if order_by == "lift" else "n_ab DESC"
-    # デッキ側 source（分母とペアの母集団を揃える）
-    deck_src = {"edh": ["moxfield_edh", "mtgtop8_edh"],
-                "commander": ["moxfield_edh", "mtgtop8_edh"],
-                "constructed": ["mtgtop8", "mtgo", "mtgo_other"],
-                "pauper": ["mtgtop8_pauper", "mtgo_pauper"],
-                "vintage": ["mtgtop8_vintage", "mtgo_vintage"],
-                "precon": ["mtgjson_precon"]}.get(scope)
-    if not deck_src:
-        return f"scope が不正: {scope}（edh/constructed/pauper/vintage/precon）"
-    if scope in ("edh", "commander"):
-        pair_sql = (
-            "  SELECT e.card_id_b AS pid, e.deck_count AS cnt"
-            "  FROM edh_card_cooccurrence_v2 e JOIN mtg_cards_v2 a ON a.id=e.card_id_a"
-            "  WHERE a.card_name = ANY(%(names)s)"
-            "  UNION ALL"
-            "  SELECT e.card_id_a, e.deck_count"
-            "  FROM edh_card_cooccurrence_v2 e JOIN mtg_cards_v2 b ON b.id=e.card_id_b"
-            "  WHERE b.card_name = ANY(%(names)s)")
-        resolve = "SELECT x.pid, sum(x.cnt) AS n_ab FROM (" + pair_sql + ") x GROUP BY x.pid"
-    else:
-        # 2026-08-22: MTGO 公式を source に追加（mtgtop8 側は MTGO 転載行を被覆期間で除外済み＝二重なし）
-        # 相方名 → カード表。正式名でも表の名前でも当たるようにする。
-        # 衝突は実測ゼロ（唯一の一致は SP//dr が自分自身に当たる自己一致）。
-        pair_sql = (
-            "  SELECT card_name_b AS pname, co_count AS cnt FROM card_cooccurrence"
-            "  WHERE card_name_a = ANY(%(names)s) AND source = ANY(%(csrc)s)"
-            "  UNION ALL"
-            "  SELECT card_name_a, co_count FROM card_cooccurrence"
-            "  WHERE card_name_b = ANY(%(names)s) AND source = ANY(%(csrc)s)")
-        resolve = (
-            "SELECT cc.id AS pid, sum(x.cnt) AS n_ab FROM (" + pair_sql + ") x"
-            " JOIN mtg_cards_v2 cc"
-            "  ON (cc.card_name = x.pname OR split_part(cc.card_name,' // ',1) = x.pname)"
-            " GROUP BY cc.id")
-    rows = _db(
-        "WITH pool AS (SELECT id FROM deck_list WHERE source = ANY(%(dsrc)s)),"
-        " npool AS (SELECT count(*) AS n FROM pool),"
-        " da AS (SELECT count(DISTINCT dc.deck_id) AS n FROM deck_cards dc"
-        "        JOIN pool p ON p.id = dc.deck_id"
-        "        WHERE dc.card_id IN (SELECT id FROM mtg_cards_v2 WHERE card_name = ANY(%(names)s))),"
-        " agg AS (" + resolve + "),"
-        " top AS (SELECT agg.pid, agg.n_ab FROM agg JOIN mtg_cards_v2 c ON c.id = agg.pid"
-        "         WHERE agg.n_ab >= %(min_ab)s" + land_cond +
-        "         ORDER BY agg.n_ab DESC LIMIT %(pool_limit)s),"
-        " nb AS (SELECT dc.card_id, count(DISTINCT dc.deck_id) AS n FROM deck_cards dc"
-        "        JOIN pool p ON p.id = dc.deck_id"
-        "        WHERE dc.card_id IN (SELECT pid FROM top) GROUP BY dc.card_id)"
-        " SELECT c.card_name, c.name_display, t.n_ab,"
-        "        round(100.0 * t.n_ab / greatest(da.n, 1), 1) AS pct,"
-        "        round((t.n_ab::numeric / greatest(da.n, 1))"
-        "              / nullif(nb.n::numeric / npool.n, 0), 1) AS lift"
-        " FROM top t JOIN mtg_cards_v2 c ON c.id = t.pid"
-        " LEFT JOIN nb ON nb.card_id = t.pid, da, npool"
-        " ORDER BY " + order_sql + " LIMIT %(limit)s",
-        {"names": names, "dsrc": deck_src, "csrc": deck_src,
-         "min_ab": min_ab, "pool_limit": pool_limit, "limit": limit})
-    if not rows:
-        return f"共起なし: {name}（scope={scope}・英語の正式カード名で指定してください）"
-    out = [f"{disp}: {pct}%（{n_ab} 本同居・lift {lift if lift is not None else '?'}）"
-           for en, disp, n_ab, pct, lift in rows]
-    return (f"scope={scope}・order_by={order_by} の同居カード上位。"
-            "pct=このカード入りデッキのうち相方も入れている割合・lift=偶然同居の期待値比"
-            "（1.0≈どのデッキにも入る汎用札・高いほどこのカード専属のシナジー・"
-            "order_by='lift' で専属順に並べ替え可）。"
-            "名前は完成形《日本語名/英語名》を一字も変えずに使う・略称禁止・"
-            "「英語名（日本語版なし）」もそのまま:\n" + "\n".join(out))
-
-
-# ─── 自由 SQL の口（2026-08-11・本人発案「エージェント自身が SQL を叩く路線」）───
-# 鞘は三重: (1) readonly_ai ロールと (2) statement_timeout 10 秒は sisho/db.py の
-# _db_readonly（原文の注記もそちらへ一緒に移した）・(3) 入口で SELECT/WITH 以外と複文を
-# 拒否＋行数・セル長の上限で応答を制限（コンテキスト爆発防止）は下の query_mtg_database。
-
-
-@server.tool(
+# 自由 SQL の口（2026-08-11 本人発案）= sisho/tools/sql.py
+query_mtg_database = server.tool(
     name="query_mtg_database",
-    description=("【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
-        "【専用ツールで表せない集計は Web に行かずここで SQL】読み取り専用 SQL（PostgreSQL・SELECT/WITH のみ・1 文・10 秒・最大 50 行）。"
-        "主な棚: mtg_cards_v2（card_name, japanese_name, name_display, type_line, mana_cost, oracle_text, legalities, edhrec_rank）／"
-        "mtg_rules／card_rulings／card_format_strength・edh_card_strength（採用率）／card_cooccurrence・edh_card_cooccurrence_v2（共起）／"
-        "mtg_sets（セット発売日・set_type・エキスパンション紀元の突き合わせ用・2026-08-25）／"
-        "deck_list・deck_cards（実デッキ・プレイヤー名は players 表に隔離＝非公開・deck_list は player_id）。列名は describe_mtg_tables で確認（推測しない）。"
-        "結果のカード名列の右隣に <列>_display（完成形）を自動同伴＝それをそのまま書く。【内部専用・公開版に載せない（権利札 2026-08-11）】"
-        "【SQL の 1 行目の掟】必ず `-- 目的` のコメントを 1 行目に書く（例: `-- #SOS 3 パック目の比較`）。"
-        "リミテッドの問いでユーザーがセットを示していたら（#SOS のタグ・「SOS のクイックドラフト」等）、コメントに `#セット記号` を含める"
-        "（そのセットの色の組み合わせ表が返り値に添う）。構築の問いでは記号を書かない。コメントは読むだけで SQL は書き換えない。"
-        + ("セット記号は search_mtg_cards の説明にある一覧から（知らないセットでも MTG・推測しない）。" if _SETS_BLURB else "")
-        + "確率の SQL 関数（データと結合するとき・単発は mtg_probability）: mtg_hypergeom_atleast(N,K,D,m)・mtg_prob_by_turn(deck,copies,turn,on_play,m,mull)・"
-          "mtg_land_drops(deck,lands,turn,on_play,mull)・mtg_combo_by_turn(deck,a,b,turn,on_play,mull)・mtg_cards_seen(turn,on_play,mull)。"))
-def query_mtg_database(sql: str, max_rows: int = 30) -> str:
-    _log_tool("query_mtg_database", {"sql": sql[:max(150, TOOL_LOG_MAX)]})
-    # 先頭コメントの札（2026-09-03 本人「全ての SQL にコメントを付けさせ、届いたら Python を一つ通す」・読むだけで書き換えない）
-    import re as _re
-    _m = _re.match(r"\s*--[^\n]*?#([A-Za-z0-9_\-]{2,40})", sql)
-    tag_set = _resolve_draft_set(_m.group(1).strip()) if _m else None
-    # 先頭のコメント行は判定と実行から剥がす（コメントは札であって SQL の一部でない）
-    sql = "\n".join(ln for ln in sql.splitlines() if not ln.lstrip().startswith("--")) if sql.lstrip().startswith("--") else sql
+    description=_tool_sql.QUERY_MTG_DATABASE_DESCRIPTION)(_tool_sql.query_mtg_database)
 
-    max_rows = max(1, min(int(max_rows), 50))
-    stripped = sql.strip().rstrip(";").strip()
-    if ";" in stripped:
-        return "拒否: 複文（; 区切り）は実行できません。1 文だけにしてください。"
-    head = stripped.split(None, 1)[0].upper() if stripped else ""
-    if head not in ("SELECT", "WITH"):
-        return f"拒否: SELECT / WITH で始まる読み取りクエリのみ実行できます（先頭語: {head}）。"
-    try:
-        cols, rows = _db_readonly(stripped, max_rows)
-    except Exception as e:
-        return f"SQL エラー: {str(e)[:400]}"
-    if not rows:
-        return "0 行（クエリは成功）。"
-    cols, rows, ja_note = _attach_japanese_names(cols, rows)
-    def cell(v):
-        s = "" if v is None else str(v)
-        return s if len(s) <= 160 else s[:157] + "…"
-    lines = [" | ".join(cols)]
-    lines += [" | ".join(cell(v) for v in r) for r in rows]
-    note = f"\n（{len(rows)} 行返却・上限 {max_rows}）" + ja_note
-    if tag_set:
-        note += _archetype_lines(tag_set)
-    return "\n".join(lines) + note
-
-
-def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str], list[tuple], str]:
-    """結果の文字列列のうち値が DB のカード名（正式名 or 表の名前）に当たる列の右隣に `<列>_ja` を添える。
-
-    2026-08-22 書式ベンチの教訓: Sonnet は SQL で card_name だけ取ると自分で訳す（10 問中 11 件の創作訳・
-    DB には正式名あり）。instructions の「翻訳するな」は効かないので、道具の返り値に japanese_name を
-    同伴させて訳す隙を構造で塞ぐ（設計の掟: LLM の出力は信用せず構造で塞ぐ）。
-    列名で推測せず値で判定（card_name_a / pname / 別名付き列でも効く）。結果に japanese_name 列が
-    既にあれば何もしない。日本語版なしは「日本語版なし」と明示（NULL と未一致を区別する）。
-    """
-    if any(c.lower() in ("name_display",) or c.lower().endswith("_display") for c in cols):
-        return cols, rows, ""
-    str_cols = [i for i in range(len(cols))
-                if any(isinstance(r[i], str) and r[i] for r in rows)]
-    if not str_cols:
-        return cols, rows, ""
-    cands = sorted({r[i] for r in rows for i in str_cols if isinstance(r[i], str) and 0 < len(r[i]) <= 160})
-    if not cands:
-        return cols, rows, ""
-    try:
-        hits = _db(
-            "SELECT card_name, name_display, name_en_front, name_en_back, name_ja_back, digital FROM mtg_cards_v2"
-            " WHERE card_name = ANY(%s) OR name_en_front = ANY(%s) OR name_en_back = ANY(%s)",
-            (cands, cands, cands))
-    except Exception:
-        return cols, rows, ""
-    # 2026-08-31（R3-4）: 正式名・表面名は表面の完成形（name_display）、裏面名はその面の完成形。裏面名が本物のカード名と同じ（prepare）なら本物が勝つ
-    ja_of: dict[str, str] = {}
-    for en, label, enf, enb, jab, dg in hits:
-        ja_of[en] = label
-        ja_of[enf] = label
-    for en, label, enf, enb, jab, dg in hits:
-        if enb:
-            ja_of.setdefault(enb, f"《{jab}/{enb}》" if jab else f"{enb}（{'日本語名未収録' if dg else '日本語版なし'}）")
-    # 列ごとに「その列の値の過半がカード名」なら名前列と見なす（数字混じりの雑多な列を避ける）
-    name_cols = []
-    for i in str_cols:
-        vals = [r[i] for r in rows if isinstance(r[i], str) and r[i]]
-        if vals and sum(v in ja_of for v in vals) * 2 >= len(vals):
-            name_cols.append(i)
-    if not name_cols:
-        return cols, rows, ""
-    new_cols, new_rows = [], []
-    for i, c in enumerate(cols):
-        new_cols.append(c)
-        if i in name_cols:
-            new_cols.append(f"{c}_display")
-    for r in rows:
-        nr = []
-        for i, v in enumerate(r):
-            nr.append(v)
-            if i in name_cols:
-                nr.append(ja_of.get(v) if isinstance(v, str) else None)
-        new_rows.append(tuple(nr))
-    note = ("\n（カード名の列に _display＝完成形《日本語名/英語名》を同伴。日本語で答えるときはこの文字列を一字も変えずに使い、"
-            "自分で訳さない・組み立てない・略さない（2 回目以降も完成形）。「英語名（日本語版なし）」「英語名（日本語名未収録）」もそのまま書く）")
-    return new_cols, new_rows, note
-
-
-# ─── 答案検査（2026-08-22 夕・本人裁定「選択肢 1」）────────────────────────
-# 中身（_JA_STOP・_NAME_CACHE・_names・verify_answer）は sisho/tools/verify.py へ切り出した
-# （2026-09-05 Step 2）。ここには登録（名前と説明）だけを残す。
+# 答案検査（2026-08-22 夕・本人裁定「選択肢 1」）= sisho/tools/verify.py
 verify_answer = server.tool(
     name="verify_answer",
     description=_tool_verify.DESCRIPTION)(_tool_verify.verify_answer)
-# 旧名で届くように再輸出（tests・将来の道具からの再利用）
+
+# スキーマの窓（SQL を書く前に列を確認する口）= sisho/tools/sql.py
+describe_mtg_tables = server.tool(
+    name="describe_mtg_tables",
+    description=_tool_sql.DESCRIBE_MTG_TABLES_DESCRIPTION)(_tool_sql.describe_mtg_tables)
+
+# 健全性確認（DB 実疎通・行数・鮮度）= sisho/tools/health.py
+mtg_rag_health = server.tool(
+    name="mtg_rag_health",
+    description=_tool_health.DESCRIPTION)(_tool_health.mtg_rag_health)
+
+
+# ─── 旧名の再輸出（tests と外の脚本が mcp_server 越しに触る名前）───────────
+# 契約試験 test_module_reexports が毎回検査する。注意: これは束縛の写しなので、
+# 試験で差し替える（monkeypatch）ときは中身のモジュール側を指すこと
+# （例: sisho.tools.combos._spellbook_post・sisho.db._db）。ここを差し替えても道具には届かない。
+ARENA_FORMATS = _tool_cards.ARENA_FORMATS
+_attach_limited_stats = _tool_cards._attach_limited_stats
+_DRAFT_RECENT_N = _tool_cards._DRAFT_RECENT_N
+_limited_sets = _tool_cards._limited_sets
+_resolve_draft_set = _tool_cards._resolve_draft_set
+_sets_line = _tool_cards._sets_line
+_archetype_lines = _tool_cards._archetype_lines
+_limited_archetypes = _tool_cards._limited_archetypes
+_SPELLBOOK_URL = _tool_combos._SPELLBOOK_URL
+_SPELLBOOK_TIMEOUT = _tool_combos._SPELLBOOK_TIMEOUT
+_spellbook_post = _tool_combos._spellbook_post
+_display_map = _tool_combos._display_map
+_name_variants = _tool_partners._name_variants
+_attach_japanese_names = _tool_sql._attach_japanese_names
+_TABLE_NOTES = _tool_sql._TABLE_NOTES
+_ident = _tool_sql._ident
+_limited_sets_note = _tool_sql._limited_sets_note
+_PROB_KINDS = _tool_probability._PROB_KINDS
 _names = _tool_verify._names
 _NAME_CACHE = _tool_verify._NAME_CACHE
 _JA_STOP = _tool_verify._JA_STOP
-
-
-# 表ごとの注記（出典・列の意味）。返り値に載せる＝脳に確実に届くのは返り値だけ
-# （2026-08-22 本人裁定「MCP の返り値は自己完結」）。変わる事実（収録セット一覧）は固定文にせず実測で添える。
-# 2026-08-31 まで一覧は relname だけ返していた（スキーマ落ち）→ public 以外の表は「スキーマ名.表名」で返す。
-# 17Lands 集計は同日 limited_card_stats → public.limited_card_stats に統合（本人裁定・表 1 枚に別スキーマは不要）。
-_TABLE_NOTES = {
-    "mtg_cards_v2": (
-        "カード本体。**名前の正本は面の列** name_en_front／name_en_back／name_ja_front／name_ja_back（両面札は 2 面・単面札は back が NULL）。"
-        "card_name（『表 // 裏』）・japanese_name（両面揃った時だけ結合、揃わなければ NULL）・name_display（表面の完成形）は面から自動で作る生成列＝書けない。"
-        "裏面（出来事・変身後・分割の片方）で引くときは name_en_back／name_ja_back。name_ja_src_front/back は日本語名の出所（scryfall／manual／rule_a／whisper／legacy）。"
-        "digital=true は Arena 専用の札（アルケミー・A- リバランス・Jumpstart: Historic Horizons 等・"
-        "2026-08-31 に 860 枚を合流）＝紙には存在しない。紙のカードの照会は WHERE NOT digital を付ける。"
-        "name_display の「（日本語名未収録）」は Arena に日本語版はあるがこの DB がまだ持っていない印（「（日本語版なし）」とは別）。"),
-    "limited_color_stats": (
-        "17Lands（集計元 Premier Draft・Bo1 ドラフト一般の物差し＝Quick Draft の問いにも使う）のセット × デッキの色組み合わせ（main_colors・例 'WU'）× splash（タッチ有無）の勝率。"
-        "列: games, wins, wr。「どの色の組み合わせが勝っているか」はこの表（多色カードの平均ではない・2026-09-02）。"
-        "母数 games を必ず添える。出典「17Lands」。"),
-    "limited_matchup_stats": (
-        "17Lands のセット × 自分の色（main_colors）× 相手の色（opp_colors）の勝率（相性表）。列: games, wins, wr。"
-        "相手の色は対戦中に見えた色＝欠けや過剰があり得る。母数の細いマスは読まない。"),
-    "limited_format_stats": (
-        "17Lands のセット × ランク帯（rank: bronze〜mythic・小文字・欠けは 'none'）の環境指標。"
-        "列: games, wins, wr, on_play_games, on_play_wins, on_play_wr（先手勝率）, turns_sum, avg_turns（平均ターン数＝環境の速さ）, "
-        "mulligans_sum（マリガン率は mulligans_sum/games）。セット全体はランク帯を SUM で合算。"),
-    "limited_card_rank_stats": (
-        "17Lands のセット × ランク帯 × 札の GIH WR / GP WR（列: gih_games, gih_wins, gih_wr, gp_games, gp_wins, gp_wr）。"
-        "上位帯で評価が変わる札を見る表。母数が痩せるので gih_games < 500 は書かない。正式名は db_card_name。"),
-    "limited_card_pick_stats": (
-        "17Lands のセット × 札のピック側の指標。picks=取られた回数・maindeck_rate=取った札がメインに入った率の平均・"
-        "sideboard_in_rate・avg_event_wins=その札を取ったドラフターの平均勝ち数（event_picks が母数）。正式名は db_card_name。"),
-    "limited_card_stats": (
-        "17Lands（https://www.17lands.com/）Public Datasets（CC BY 4.0）の Premier Draft（人間対面・Bo1）をセット×カードで集計した"
-        "Bo1 ドラフト統計。Quick Draft（ボット対面・Bo1）の問いにもカードの強さの物差しとしてそのまま使う"
-        "（「Quick Draft のデータは無い」で止まらない・alsa/ata だけは人間対面の流れ方＝Quick Draft では当てにしない）。"
-        "答えに使うときは出典「17Lands」を添える。"
-        "列: gih_wr=手札に来たゲームの勝率（Games In Hand）・oh_wr=初手・gd_wr=引いた・gp_wr=メインに入れた・"
-        "*_games は母数（500 未満はぶれる）・alsa=最後に見えたピック番号の平均（小さいほど早く消える）・"
-        "ata=取られたピック番号の平均・seen_packs/taken_count はその母数。"
-        "card_name は 17lands 側の表記（両面カードは表面名・稀に文字化け）なので、正式名は db_card_name"
-        "（mtg_cards_v2.card_name）を使う。"),
-}
-
-
-def _ident(s: str) -> str:
-    """識別子の無害化（英数字と _ だけ残す）。_db_readonly はプレースホルダを受けないので文字種で守る。"""
-    return "".join(ch for ch in s if ch.isalnum() or ch == "_")
-
-
-def _limited_sets_note() -> str:
-    """limited_card_stats の収録セットを実測で一行に（無いセットを書かないための一覧）。表が無ければ空文字。"""
-    try:
-        _, srows = _db_readonly(
-            "SELECT expansion, event_type, count(*) FROM limited_card_stats"
-            " GROUP BY 1, 2 ORDER BY 2, 1", 200)
-    except Exception:
-        return ""
-    if not srows:
-        return ""
-    by_ev: dict[str, list[str]] = {}
-    for exp, ev, n in srows:
-        by_ev.setdefault(ev, []).append(f"{exp}({n})")
-    parts = [f"{ev}: " + "・".join(v) for ev, v in by_ev.items()]
-    return ("  収録セット（expansion 列の値・括弧はカード数・実測）: " + "／".join(parts)
-            + "。ここに無いセットは持っていない（無いものは書かない）。event_type は集計元の名前（PremierDraft）＝"
-            "Bo1 ドラフト一般（Quick Draft を含む）の物差しとして使う。")
-
-
-@server.tool(
-    name="describe_mtg_tables",
-    description=(
-        "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
-        "データベースの実スキーマを見る。table_name 省略で全テーブルの一覧と行数概算、"
-        "指定でそのテーブルの列名・型の一覧。query_mtg_database で SQL を書く前に"
-        "列名をここで確認すること。public 以外のスキーマの表があれば「スキーマ名.表名」で返り、SQL でもその形で書く。"))
-def describe_mtg_tables(table_name: str | None = None) -> str:
-    _log_tool("describe_mtg_tables", {"table": table_name})
-
-    try:
-        if not table_name:
-            cols, rows = _db_readonly(
-                "SELECT schemaname, relname, n_live_tup FROM pg_stat_user_tables"
-                " ORDER BY n_live_tup DESC", 60)
-            names = [r[1] if r[0] == "public" else f"{r[0]}.{r[1]}" for r in rows]
-            lines = ["テーブル | 行数概算"] + [f"{n} | {r[2]}" for n, r in zip(names, rows)]
-            if any("." in n for n in names):
-                lines.append("（「スキーマ名.表名」の形の表は SQL でもその形で書く。public の表はそのまま）")
-            for qname, note in _TABLE_NOTES.items():
-                if qname in names:
-                    lines.append(f"- {qname}: {note}")
-                    if qname == "limited_card_stats":
-                        extra = _limited_sets_note()
-                        if extra:
-                            lines.append(extra)
-            return "\n".join(lines)
-        # 列一覧。「スキーマ名.表名」でも表名だけでも受ける（スキーマ無しなら該当する全スキーマを出す）
-        sch, _, tbl = table_name.strip().rpartition(".")
-        sch, tbl = _ident(sch), _ident(tbl)
-        if not tbl:
-            return f"テーブルなし: {table_name}"
-        where = f"table_name = '{tbl}'" + (f" AND table_schema = '{sch}'" if sch else "")
-        cols, rows = _db_readonly(
-            "SELECT table_schema, column_name, data_type FROM information_schema.columns"
-            f" WHERE {where} ORDER BY table_schema, ordinal_position", 160)
-        if not rows:
-            return f"テーブルなし: {table_name}"
-        out = []
-        for schema in dict.fromkeys(r[0] for r in rows):
-            qname = tbl if schema == "public" else f"{schema}.{tbl}"
-            out.append(f"{qname} の列:")
-            out += [f"{r[1]} | {r[2]}" for r in rows if r[0] == schema]
-            if schema != "public":
-                out.append(f"（SQL では {qname} とスキーマ付きで書く。{tbl} だけでは引けない）")
-            if qname in _TABLE_NOTES:
-                out.append(f"- {qname}: {_TABLE_NOTES[qname]}")
-                if qname == "limited_card_stats":
-                    extra = _limited_sets_note()
-                    if extra:
-                        out.append(extra)
-        return "\n".join(out)
-    except Exception as e:
-        return f"エラー: {str(e)[:300]}"
-
-
-@server.tool(
-    name="mtg_rag_health",
-    description="データ層の健全性を確認する（DB 実疎通・主要テーブルの行数と鮮度）。")
-def mtg_rag_health(deep: bool = False) -> str:
-    """deep は旧 API 時代の名残で互換のため受けるが、常に DB 実疎通を見る。"""
-    _log_tool("mtg_rag_health", {"deep": deep})
-    import time
-    t0 = time.time()
-    try:
-        rows = _db(
-            "SELECT (SELECT COUNT(*) FROM mtg_cards_v2),"
-            "       (SELECT COUNT(*) FROM mtg_rules),"
-            "       (SELECT COUNT(*) FROM card_rulings),"
-            "       (SELECT COUNT(*) FROM deck_list),"
-            "       (SELECT MAX(tournament_date)::text FROM deck_list)", ())
-        n_card, n_rule, n_rul, n_deck, latest = rows[0]
-        # ドラフト統計（17Lands 集計・limited_card_stats）は表が無い環境もあるので別口で・失敗は 0
-        try:
-            n_l17 = _db("SELECT COUNT(DISTINCT expansion) FROM limited_card_stats", ())[0][0]
-        except Exception:
-            n_l17 = 0
-        return json.dumps({
-            "status": "ok",
-            "db_latency_ms": int((time.time() - t0) * 1000),
-            "cards": n_card, "rules": n_rule, "rulings": n_rul,
-            "decks": n_deck, "latest_deck": latest,
-            "draft_stat_sets": n_l17,
-            "draft_stat_note": "17Lands 集計・表 limited_card_stats・セット一覧は describe_mtg_tables"},
-            ensure_ascii=False)
-    except Exception as e:
-        return f"health 失敗: {e}"
 
 
 # レート制限（配布前の門・2026-09-02）は sisho/ratelimit.py へ切り出した（2026-09-05 Step 2）。
