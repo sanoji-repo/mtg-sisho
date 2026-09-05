@@ -27,6 +27,8 @@ from mcp.server import MCPServer
 from sisho.db import _db, _db_readonly, _db_slot          # noqa: F401（_db_slot は再輸出のみ）
 from sisho.ratelimit import RateLimiter as _RateLimiter, RateLimitASGI as _RateLimitASGI
 from sisho.toollog import TOOL_LOG, TOOL_LOG_MAX, _log_tool   # noqa: F401（TOOL_LOG は再輸出のみ）
+from sisho.tools import probability as _tool_probability
+from sisho.tools import verify as _tool_verify
 
 # 収録概況は「絶対に嘘にならない下限」で書く（2026-08-25 本人裁定・単調増加する量は下限表記）。
 # 旧 _data_stamp（2026-08-11・起動時実測の焼き込み）は claude.ai がコネクタ登録時のキャッシュを
@@ -422,77 +424,12 @@ def _limited_archetypes(sets: list[str]) -> dict:
 
 
 # ─── 確率計算の入口（2026-09-04 本人「あらゆる確率計算をどこかに格納して…」→「ひとまず最低限だけ」）───
-# 計算の本体は DB の SQL 関数（sql/prob_functions.sql・超幾何・IMMUTABLE）。ここは名前付き引数で受けて同じ関数を呼び、
-# 数字と式と入力の復唱を返す薄い入口。LLM に算術をさせない・自由なコード実行は置かない（箱は 2 コア・公開口）。
-# データと結合したいときは query_mtg_database から関数を直接呼ぶ（例: SELECT mtg_land_drops(60, 24, 4, true)）。
-_PROB_KINDS = ("at_least", "by_turn", "land_drops", "combo_by_turn")
-
-
-@server.tool(
+# 中身（_PROB_KINDS・mtg_probability）は sisho/tools/probability.py へ切り出した（2026-09-05 Step 2）。
+# ここには登録（名前と説明）だけを残す＝どの道具がどの順で載るかが 1 枚で読める。
+mtg_probability = server.tool(
     name="mtg_probability",
-    description=(
-        "【確率の計算はこれ。自分で計算しない】デッキの確率を超幾何分布で厳密に計算する（DB の SQL 関数・決定的・1 ミリ秒未満）。"
-        "kind: at_least=N 枚のデッキから D 枚引いて K 枚入りの札が m 枚以上／by_turn=turn ターン目までに K 枚入りの札を m 枚以上"
-        "（見る枚数=初手 7−マリガン＋引き・先手は turn−1 回・後手は turn 回）／land_drops=turn ターン目まで毎ターン土地を置ける"
-        "（見た札に土地が turn 枚以上）／combo_by_turn=turn ターン目までに A（copies）と B（copies_b）を両方 1 枚以上。"
-        "引数: deck_size（60/40/99 等）・copies（当たりの枚数・land_drops では土地の枚数）・copies_b（combo の相方）・"
-        "draws（at_least の引く枚数）・turn・on_play（先手 true／後手 false）・at_least（m・既定 1）・mulligans（既定 0）。"
-        "返り値の probability を percent と一緒にそのまま書き、formula と cards_seen を添えると読者が検算できる。"
-        "色マナ源の問い（例: 2 ターン目に青 2 つ）は by_turn で copies=その色のソース枚数・at_least=必要数。"
-        "答えに『前提: 先手／後手・マリガン n 回』を必ず添える。"))
-def mtg_probability(kind: str, deck_size: int = 60, copies: int = 4, copies_b: int = 0, draws: int = 7,
-                    turn: int = 1, on_play: bool = True, at_least: int = 1, mulligans: int = 0) -> str:
-    _log_tool("mtg_probability", {"kind": kind, "deck_size": deck_size, "copies": copies, "copies_b": copies_b,
-                                  "draws": draws, "turn": turn, "on_play": on_play, "at_least": at_least, "mulligans": mulligans})
-    if kind not in _PROB_KINDS:
-        return json.dumps({"error": f"kind は {', '.join(_PROB_KINDS)} のどれか（受け取った値: {kind!r}）"}, ensure_ascii=False)
-    bad = []
-    if not (1 <= deck_size <= 500): bad.append("deck_size は 1〜500")
-    if not (0 <= copies <= deck_size): bad.append("copies は 0〜deck_size")
-    if not (0 <= copies_b <= deck_size): bad.append("copies_b は 0〜deck_size")
-    if not (0 <= draws <= deck_size): bad.append("draws は 0〜deck_size")
-    if not (1 <= turn <= 60): bad.append("turn は 1〜60")
-    if not (0 <= at_least <= deck_size): bad.append("at_least は 0〜deck_size")
-    if not (0 <= mulligans <= 6): bad.append("mulligans は 0〜6")
-    if bad:
-        return json.dumps({"error": "引数の範囲外: " + "・".join(bad)}, ensure_ascii=False)
-    premise = f"先手（{turn} ターン目までの引き {max(turn - 1, 0)} 回）" if on_play else f"後手（{turn} ターン目までの引き {turn} 回）"
-    if mulligans:
-        premise += f"・マリガン {mulligans} 回（初手 {7 - mulligans} 枚）"
-    try:
-        if kind == "at_least":
-            rows = _db("SELECT mtg_hypergeom_atleast(%s, %s, %s, %s)", (deck_size, copies, draws, at_least))
-            seen = draws; premise = f"{draws} 枚引く"
-            formula = f"P(X ≥ {at_least}) = Σ C({copies}, i)·C({deck_size - copies}, {draws}−i) / C({deck_size}, {draws})  (i = {at_least}..min({copies},{draws}))"
-        elif kind == "by_turn":
-            rows = _db("SELECT mtg_prob_by_turn(%s, %s, %s, %s, %s, %s), mtg_cards_seen(%s, %s, %s)",
-                       (deck_size, copies, turn, on_play, at_least, mulligans, turn, on_play, mulligans))
-            seen = rows[0][1]
-            formula = f"見る枚数 {seen} = 7−{mulligans}＋{seen - 7 + mulligans}・P(X ≥ {at_least}) 超幾何(N={deck_size}, K={copies}, D={seen})"
-        elif kind == "land_drops":
-            rows = _db("SELECT mtg_land_drops(%s, %s, %s, %s, %s), mtg_cards_seen(%s, %s, %s)",
-                       (deck_size, copies, turn, on_play, mulligans, turn, on_play, mulligans))
-            seen = rows[0][1]
-            formula = f"見る枚数 {seen}・P(土地 ≥ {turn} 枚) 超幾何(N={deck_size}, K={copies}, D={seen})＝{turn} ターン目まで毎ターン土地を置ける"
-        else:
-            rows = _db("SELECT mtg_combo_by_turn(%s, %s, %s, %s, %s, %s), mtg_cards_seen(%s, %s, %s)",
-                       (deck_size, copies, copies_b, turn, on_play, mulligans, turn, on_play, mulligans))
-            seen = rows[0][1]
-            formula = f"見る枚数 {seen}・1 − P(A なし) − P(B なし) ＋ P(両方なし)（包除・A={copies} 枚・B={copies_b} 枚・N={deck_size}）"
-    except Exception as e:
-        return json.dumps({"error": f"計算に失敗: {str(e)[:200]}（SQL 関数 mtg_* が無い環境の可能性）"}, ensure_ascii=False)
-    p = rows[0][0]
-    if p is None:
-        return json.dumps({"error": "この入力では定義できない（枚数の整合を確認: copies+copies_b ≤ deck_size 等）"}, ensure_ascii=False)
-    p = float(p)
-    out = {"kind": kind, "inputs": {"deck_size": deck_size, "copies": copies, "copies_b": copies_b if kind == "combo_by_turn" else None,
-                                    "draws": draws if kind == "at_least" else None, "turn": None if kind == "at_least" else turn,
-                                    "on_play": None if kind == "at_least" else on_play, "at_least": at_least if kind in ("at_least", "by_turn") else None,
-                                    "mulligans": None if kind == "at_least" else mulligans},
-           "cards_seen": seen, "probability": round(p, 4), "percent": f"{p * 100:.1f}%", "premise": premise, "formula": formula,
-           "note": "超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。土地の連続配置は『見た札に土地が turn 枚以上』の近似ではなく同値。"}
-    out["inputs"] = {k: v for k, v in out["inputs"].items() if v is not None}
-    return json.dumps(out, ensure_ascii=False, indent=1)
+    description=_tool_probability.DESCRIPTION)(_tool_probability.mtg_probability)
+_PROB_KINDS = _tool_probability._PROB_KINDS      # 旧名で届くように再輸出
 
 
 # ─── Commander Spellbook（2026-09-04 本人 GO「API 解放されてるんだから使わせてもよくね」）───
@@ -955,153 +892,15 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
 
 
 # ─── 答案検査（2026-08-22 夕・本人裁定「選択肢 1」）────────────────────────
-# 書式ベンチの残穴は「道具の返り値に出ないカードを脳が記憶で挙げて自分で訳す」型
-# （Sonnet medium 10 問で 11 件・Opus low 200 問で 7 答案）。返り値側の同伴（_ja）では
-# 届かないので、答案そのものを DB に当てる口を置く。脳が最後に一回呼べば届く。
-
-_NAME_CACHE: dict = {"ts": 0.0}
-_JA_STOP = {"ショック", "巻き添え", "レベルアップ", "ナズグル", "フラッシュバック", "トランプル", "生け贄",
-            "破壊不能", "打ち消し", "呪禁", "瞬速", "警戒", "飛行", "速攻", "接死", "絆魂", "威迫", "到達",
-            "護法", "占術", "変身", "追放", "死亡", "召集", "探査", "続唱", "親和", "奇跡", "反復", "予見",
-            "待機", "変容", "超過", "明滅", "接合", "倍増", "転生", "消術", "キッカー", "サイクリング",
-            "マッドネス", "モーフ", "プロテクション"}
-
-
-def _names() -> dict:
-    """カード名表（1 時間キャッシュ）。ja→正式名・en→(ja or None)・両面は表名も登録。"""
-    import time
-    if time.time() - _NAME_CACHE["ts"] < 3600 and "ja" in _NAME_CACHE:
-        return _NAME_CACHE
-    # 2026-08-31（R3-4）: 面の列で組む。8/31 まで裏面の英語名に表面の日本語名を割り当てていた（《厚かましい借り手/Petty Theft》型の誤接合）。
-    #   en_ja: 英語（正式名／表面名／裏面名）→ 同じ粒度の日本語（無ければ None）
-    #   ja_full: 日本語（空白抜き）→ 日本語（そのまま）  ja_en: 日本語 → 同じ粒度の英語
-    #   裏面名は本物のカード名と同じことがある（prepare 20 枚）→ 裏面は setdefault＝本物のカードが勝つ
-    rows = _db("SELECT card_name, japanese_name, digital, name_en_front, name_en_back, name_ja_front, name_ja_back FROM mtg_cards_v2", ())
-    ja_full, en_ja, ja_en, digital = {}, {}, {}, set()
-    for en, ja, dg, enf, enb, jaf, jab in rows:
-        if dg:
-            digital.update(x for x in (en, enf, enb) if x)
-        en_ja[en] = ja
-        en_ja[enf] = jaf
-        if enb:
-            en_ja.setdefault(enb, jab)
-        for j, e in ((ja, en), (jaf, enf), (jab, enb)):
-            if j and e:
-                ja_full[j.replace(" ", "")] = j
-                ja_en.setdefault(j, e)
-    # 裸の英語名検出用: 日本語名があり、5 文字以上か空白入り（短い一般語を避ける）
-    en_bare = sorted((e for e, j in en_ja.items() if j and (len(e) >= 5 or " " in e)), key=len, reverse=True)
-    ja_bare = sorted((j for j in ja_full if len(j) >= 4 and j not in _JA_STOP), key=len, reverse=True)
-    _NAME_CACHE.update({"ts": time.time(), "ja": ja_full, "en": en_ja, "ja_en": ja_en, "en_bare": en_bare, "ja_bare": ja_bare, "digital": digital})
-    return _NAME_CACHE
-
-
-@server.tool(
+# 中身（_JA_STOP・_NAME_CACHE・_names・verify_answer）は sisho/tools/verify.py へ切り出した
+# （2026-09-05 Step 2）。ここには登録（名前と説明）だけを残す。
+verify_answer = server.tool(
     name="verify_answer",
-    description=(
-        "【答えを出す前の最後の一手・必須】日本語でカード名を含む答えを書き上げたら、送信する前に必ず全文をこれに渡し、返った修正版を答えにする。"
-        "答案中のカード名を DB に照合し、(1) 《》の中身が DB に無い名前（自分で訳した名前・誤字・略記）を列挙し、"
-        "近い正式名の候補を添える (2) 《英語名》・《日本語名》・裸の英語名・裸の日本語名を完成形《日本語名/英語名》に直した"
-        "修正版（カード名は完成形《日本語名/英語名》）の全文を返す。未確認の名前が残っていれば、そのカードを search_mtg_cards で引いてから答えること。"
-        "未確認ゼロなら修正版をそのまま答えに使う。Web 不要・DB 直結・1 秒未満。"))
-def verify_answer(text: str) -> str:
-    import re
-    _log_tool("verify_answer", {"len": len(text)})
-    N = _names()
-    ja_full, en_ja, ja_en = N["ja"], N["en"], N["ja_en"]
-    brackets = re.findall(r"《([^》]+)》", text)
-    # 《X》（English）の English（初出添え）を控える＝X が DB に無いとき正式名を引く最強の手がかり
-    en_after = {b.strip(): e.strip() for b, e in re.findall(r"《([^》]+)》\s*[（(]([A-Za-z][^）)]*)[）)]", text)}
-    unknown, fixed, n_fix = [], text, 0
-    def _disp(ja, en):
-        return f"《{ja}/{en}》"
-    def _pair(ja, en):
-        """同じ粒度の対から完成形を作る。正式名「A // B」なら表面の対《表ja/表en》（8/22 の掟）・面の名前ならその面の対。"""
-        if " // " in en and ja and " // " in ja:
-            return _disp(ja.split(" // ")[0], en.split(" // ")[0])
-        return _disp(ja, en.split(" // ")[0] if " // " in en else en)
-    def _noja(en):
-        return f"{en}（{'日本語名未収録' if en in N.get('digital', ()) else '日本語版なし'}）"
-    # (0) 「Black Lotus（ブラック・ロータス）」型（英語主・日本語添え）→《ブラック・ロータス》（Black Lotus）
-    for e, j in re.findall(r"(?<![A-Za-z《])([A-Z][A-Za-z'’,\- ]{3,}?)\s*[（(]([^（）()A-Za-z]{2,})[）)]", fixed):
-        e2 = e.strip()
-        if en_ja.get(e2) and en_ja[e2].replace(" ", "") == j.strip().replace(" ", ""):
-            fixed = re.sub(re.escape(e) + r"\s*[（(]" + re.escape(j) + r"[）)]", _disp(en_ja[e2], e2), fixed)
-            n_fix += 1
-    # (1) 《》の中身
-    for b in dict.fromkeys(x.strip() for x in brackets):
-        key = b.replace(" ", "")
-        if "/" in b and " // " not in b:                # 《日本語名/英語名》の完成形＝両半分が対で一致して初めて合格
-            jpart, epart = b.split("/", 1)
-            jkey, ekey = jpart.strip().replace(" ", ""), epart.strip()
-            true_ja = en_ja.get(ekey)
-            if true_ja is not None and jkey in (true_ja.replace(" ", ""), true_ja.split(" // ")[0].replace(" ", "")):
-                continue
-            if ekey in en_ja:                           # 英語半分は正しい・日本語半分が違う（記憶の訳）→ 正しい完成形を第一候補に
-                cand = _pair(true_ja, ekey) if true_ja else _noja(ekey)
-                unknown.append((b, [cand])); continue
-            if jkey in ja_full:                         # 日本語半分は正しい・英語半分が違う
-                unknown.append((b, [ja_full[jkey]])); continue
-            unknown.append((b, [])); continue            # 両方 DB に無い（カード自体が未収録 or 創作）
-        if key in ja_full:                             # 《日本語名》だけ → 完成形へ（同じ粒度の英語と組む）
-            ja_name = ja_full[key]
-            en_name = ja_en.get(ja_name)
-            if en_name:
-                fixed = fixed.replace(f"《{b}》", _pair(ja_name, en_name)); n_fix += 1
-            continue
-        if b in en_ja:
-            ja = en_ja[b]
-            if ja:                                     # 《英語名》→《日本語名/英語名》（面の名前ならその面の対）
-                fixed = fixed.replace(f"《{b}》", _pair(ja, b)); n_fix += 1
-            continue                                   # 日本語版なしの英語名はそのまま
-        # DB に無い: 近い正式名を候補として添える（添えられた英語名があればそれが第一候補）
-        cands = []
-        e = en_after.get(b)
-        if e and e in en_ja:
-            cands.append(en_ja[e] or _noja(e))
-        cands += [c[0] for c in _db(
-            "SELECT japanese_name FROM mtg_cards_v2 WHERE japanese_name IS NOT NULL"
-            " AND similarity(japanese_name, %s) > 0.25"
-            " ORDER BY similarity(japanese_name, %s) DESC LIMIT 3", (b, b)) if c[0] not in cands]
-        unknown.append((b, cands))
-    # (2) 裸の英語名（日本語名あり）→《日本語名》（英語名）。《》の中・括弧の中は触らない
-    # 日本語版なしの英語名（Volcanic Island 等）は正しい表記なので保護域に入れる（中の Island を拾わない）
-    noja_in = [e for e, j in en_ja.items() if not j and (len(e) >= 5 or " " in e) and e in fixed]
-    prot_src = r"《[^》]*》|[（(][^）)]*[）)]|\*[^*\n]+\*"
-    if noja_in:
-        prot_src += "|" + "|".join(re.escape(e) for e in sorted(noja_in, key=len, reverse=True))
-    protected = re.compile(prot_src)
-    def _outside(pattern, repl, s):
-        out, pos = [], 0
-        for m in protected.finditer(s):
-            out.append(pattern.sub(repl, s[pos:m.start()])); out.append(m.group(0)); pos = m.end()
-        out.append(pattern.sub(repl, s[pos:]))
-        return "".join(out)
-    for e in (x for x in N["en_bare"] if x in fixed):
-        pat = re.compile(r"(?<![A-Za-z])" + re.escape(e) + r"(?![A-Za-z])")
-        new = _outside(pat, _pair(en_ja[e], e), fixed)
-        n_fix += (new != fixed); fixed = new
-    # (3) 裸の日本語名→《日本語名》
-    for j in (x for x in N["ja_bare"] if x in fixed):
-        en_name = ja_en.get(j)
-        new = _outside(re.compile(re.escape(j)), _pair(j, en_name) if en_name else f"《{j}》", fixed)
-        n_fix += (new != fixed); fixed = new
-    # 完成形《ja/en》の直後に重複の（en）が残っていれば削る
-    fixed = re.sub(r"(《[^》/]+/([^》]+)》)\s*[（(]\2[）)]", r"\1", fixed)
-    # 二重に囲んでしまった箇所（《《X》》）を戻す
-    fixed = re.sub(r"《《([^》]+)》》", r"《\1》", fixed)
-    lines = []
-    if unknown:
-        lines.append(f"未確認の名前 {len(unknown)} 件（DB のどのカード名にも一致しない＝自分で訳した/誤字/略記の疑い。"
-                     "search_mtg_cards で引いて正式名に直してから答えること。略称・省略は冗長でも禁止）:")
-        for b, c in unknown:
-            lines.append(f"  - 《{b}》 → 候補: " + ("／".join(c) if c else "（近い名前なし・日本語版なしなら英語名のまま）"))
-    else:
-        lines.append("未確認の名前: なし（《》の中身はすべて DB の正式名）。")
-    lines.append(f"機械修正 {n_fix} 箇所（裸の英語名・《英語名》・《日本語名》・裸の日本語名 → 完成形《日本語名/英語名》）。")
-    lines.append("---- 修正版（未確認ゼロならこのまま使う） ----")
-    lines.append(fixed)
-    return "\n".join(lines)
+    description=_tool_verify.DESCRIPTION)(_tool_verify.verify_answer)
+# 旧名で届くように再輸出（tests・将来の道具からの再利用）
+_names = _tool_verify._names
+_NAME_CACHE = _tool_verify._NAME_CACHE
+_JA_STOP = _tool_verify._JA_STOP
 
 
 # 表ごとの注記（出典・列の意味）。返り値に載せる＝脳に確実に届くのは返り値だけ
