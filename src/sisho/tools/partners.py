@@ -3,6 +3,7 @@
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
 """
 from sisho.db import _db
+from sisho.names import resolve_face_name
 from sisho.toollog import _log_tool
 
 
@@ -17,15 +18,17 @@ def _name_variants(name: str) -> list[str]:
     道具の入口でこの差を吸収しないと、scope によって通る名前が逆になる
     （実測 2026-08-13: 正式名は constructed で空振り・表の名前は edh で空振り）。
     該当は card_name に ' // ' を持つ 810 枚。
+
+    2026-09-05（Step 6 作業 1）: 「面の名前 → 正式名」の DB 引きは sisho/names.py の
+    resolve_face_name に寄せた（同じ規則が rules.py にも別実装であった＝片方だけ直す事故を防ぐ）。
+    候補の集合はそのまま（実測の根拠は names.py の冒頭）。
     """
     out = [name]
     front = name.split(" // ")[0]
     if front != name:
         out.append(front)                       # 正式名 → 表の名前
-    else:                                       # 表の名前 → 正式名（DB 引き）
-        out += [r[0] for r in _db(
-            "SELECT card_name FROM mtg_cards_v2 WHERE name_en_back IS NOT NULL AND (name_en_front = %s OR name_en_back = %s)",
-            (name, name))]
+    else:                                       # 表の名前 → 正式名（DB 引き・名前の解決は names.py に 1 つ）
+        out += resolve_face_name(name)
     seen, uniq = set(), []
     for n in out:
         if n not in seen:
