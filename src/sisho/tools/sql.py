@@ -71,11 +71,17 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
     2026-08-22 書式ベンチの教訓: Sonnet は SQL で card_name だけ取ると自分で訳す（10 問中 11 件の創作訳・
     DB には正式名あり）。instructions の「翻訳するな」は効かないので、道具の返り値に japanese_name を
     同伴させて訳す隙を構造で塞ぐ（設計の掟: LLM の出力は信用せず構造で塞ぐ）。
-    列名で推測せず値で判定（card_name_a / pname / 別名付き列でも効く）。結果に japanese_name 列が
-    既にあれば何もしない。日本語版なしは「日本語版なし」と明示（NULL と未一致を区別する）。
+    列名で推測せず値で判定（card_name_a / pname / 別名付き列でも効く）。
+    日本語版なしは「日本語版なし」と明示（NULL と未一致を区別する）。
+
+    2026-09-05（Step 5 修正 3）: 入口の「列名が *_display で終わる列が一つでもあれば全停止」を撤去した。
+    脳が `SELECT count(*) AS foo_display` のように無関係な列名を付けた瞬間、結果中のカード名列への
+    同伴が丸ごと消えていた（実測）＝構造で塞いだはずの穴が名前の付け方で開く。
+    判定は列名でなく値・行ごとに置き換える:
+      (a) その列のカード名の完成形が**同じ行の別の列に既にある**（`SELECT card_name, name_display` 型）なら添えない
+      (b) 添える列名（`<列>_display`）が既に結果にあるなら添えない（衝突を作らない）
+      (c) それ以外のカード名列には従来どおり右隣に添える。
     """
-    if any(c.lower() in ("name_display",) or c.lower().endswith("_display") for c in cols):
-        return cols, rows, ""
     str_cols = [i for i in range(len(cols))
                 if any(isinstance(r[i], str) and r[i] for r in rows)]
     if not str_cols:
@@ -99,11 +105,21 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
         if enb:
             ja_of.setdefault(enb, f"《{jab}/{enb}》" if jab else f"{enb}（{'日本語名未収録' if dg else '日本語版なし'}）")
     # 列ごとに「その列の値の過半がカード名」なら名前列と見なす（数字混じりの雑多な列を避ける）
+    lower_cols = {c.lower() for c in cols}
     name_cols = []
     for i in str_cols:
         vals = [r[i] for r in rows if isinstance(r[i], str) and r[i]]
-        if vals and sum(v in ja_of for v in vals) * 2 >= len(vals):
-            name_cols.append(i)
+        if not (vals and sum(v in ja_of for v in vals) * 2 >= len(vals)):
+            continue
+        if f"{cols[i]}_display".lower() in lower_cols:
+            continue                       # (b) 同名の列が既にある＝衝突させない
+        # (a) 完成形が同じ行の別の列に既にあるなら二重に添えない（値で判定・列名は見ない）
+        already = sum(1 for r in rows
+                      if isinstance(r[i], str) and ja_of.get(r[i])
+                      and any(j != i and r[j] == ja_of[r[i]] for j in range(len(cols))))
+        if already * 2 >= len(vals):
+            continue
+        name_cols.append(i)
     if not name_cols:
         return cols, rows, ""
     new_cols, new_rows = [], []
