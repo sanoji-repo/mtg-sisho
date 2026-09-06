@@ -9,6 +9,7 @@ import os
 
 from sisho import errors
 from sisho.db import _db
+from sisho.names import face_display
 from sisho.sets_blurb import _SETS_BLURB, _SETS_HEAD
 from sisho.toollog import _log_tool
 
@@ -162,7 +163,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
         enb = d.pop("name_en_back", None); jab = d.pop("name_ja_back", None)
         enf = d.pop("name_en_front", None); jaf = d.pop("name_ja_front", None)
         def _face_disp(en, ja):
-            return f"《{ja}/{en}》" if ja else f"{en}（{'日本語名未収録' if d.get('digital') else '日本語版なし'}）"
+            return face_display(en, ja, bool(d.get("digital")))
         if enb:
             d["faces"] = [{"en": enf, "ja": jaf, "display": _face_disp(enf, jaf)}, {"en": enb, "ja": jab, "display": _face_disp(enb, jab)}]
             ql = q.lower()

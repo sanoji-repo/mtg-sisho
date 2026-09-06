@@ -45,3 +45,12 @@ def resolve_face_name(name: str) -> list[str]:
         "SELECT card_name FROM mtg_cards_v2"
         " WHERE name_en_front = %s OR name_en_back = %s"
         " ORDER BY (name_en_front = %s) DESC", (n, n, n))]
+
+
+def face_display(en: str, ja: str | None, digital: bool = False) -> str:
+    """面の完成形。ja があれば《ja/en》・無ければ「en（日本語版なし）」・digital の札は「en（日本語名未収録）」。"""
+    if ja:
+        return f"《{ja}/{en}》"
+    note = "日本語名未収録" if digital else "日本語版なし"
+    return f"{en}（{note}）"
+

@@ -7,6 +7,7 @@ QUERY_MTG_DATABASE_DESCRIPTION・DESCRIBE_MTG_TABLES_DESCRIPTION と名前を分
 _resolve_draft_set・_archetype_lines）を借りる＝セットの解決は 1 箇所に置く。
 """
 from sisho.db import DBBusy, _db, _db_readonly
+from sisho.names import face_display
 from sisho.sets_blurb import _SETS_BLURB
 from sisho.toollog import TOOL_LOG_MAX, _log_tool
 from sisho.tools.cards import _archetype_lines, _resolve_draft_set
@@ -106,7 +107,7 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
         ja_of[enf] = label
     for en, label, enf, enb, jab, dg in hits:
         if enb:
-            ja_of.setdefault(enb, f"《{jab}/{enb}》" if jab else f"{enb}（{'日本語名未収録' if dg else '日本語版なし'}）")
+            ja_of.setdefault(enb, face_display(enb, jab, bool(dg)))
     # 列ごとに「その列の値の過半がカード名」なら名前列と見なす（数字混じりの雑多な列を避ける）
     lower_cols = {c.lower() for c in cols}
     name_cols = []

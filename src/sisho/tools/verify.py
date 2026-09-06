@@ -3,6 +3,7 @@
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
 """
 from sisho.db import _db
+from sisho.names import face_display
 from sisho.toollog import _log_tool
 
 
@@ -76,14 +77,14 @@ def verify_answer(text: str) -> str:
     en_after = {b.strip(): e.strip() for b, e in re.findall(r"《([^《》]+)》\s*[（(]([A-Za-z][^）)]*)[）)]", text)}
     unknown, fixed, n_fix = [], text, 0
     def _disp(ja, en):
-        return f"《{ja}/{en}》"
+        return face_display(en, ja)
     def _pair(ja, en):
         """同じ粒度の対から完成形を作る。正式名「A // B」なら表面の対《表ja/表en》（8/22 の掟）・面の名前ならその面の対。"""
         if " // " in en and ja and " // " in ja:
             return _disp(ja.split(" // ")[0], en.split(" // ")[0])
         return _disp(ja, en.split(" // ")[0] if " // " in en else en)
     def _noja(en):
-        return f"{en}（{'日本語名未収録' if en in N.get('digital', ()) else '日本語版なし'}）"
+        return face_display(en, None, en in N.get("digital", ()))
     # (0) 「Black Lotus（ブラック・ロータス）」型（英語主・日本語添え）→《ブラック・ロータス》（Black Lotus）
     for e, j in re.findall(r"(?<![A-Za-z《])([A-Z][A-Za-z'’,\- ]{3,}?)\s*[（(]([^（）()A-Za-z]{2,})[）)]", fixed):
         e2 = e.strip()
