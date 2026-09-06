@@ -37,6 +37,18 @@ def _name_variants(name: str) -> list[str]:
     return uniq
 
 
+# scope → デッキ側 source（分母とペアの母集団を揃える）。edh と commander は同じ。
+# DESCRIPTION の scope の説明と scope が不正 の文言は手で同期している（commander は別名なので文言には出さない）。
+_SCOPE_SOURCES: dict[str, list[str]] = {
+    "edh": ["moxfield_edh", "mtgtop8_edh"],
+    "commander": ["moxfield_edh", "mtgtop8_edh"],
+    "constructed": ["mtgtop8", "mtgo", "mtgo_other"],
+    "pauper": ["mtgtop8_pauper", "mtgo_pauper"],
+    "vintage": ["mtgtop8_vintage", "mtgo_vintage"],
+    "precon": ["mtgjson_precon"],
+}
+
+
 DESCRIPTION = (
     "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
     "【カードを軸にデッキを組む・相方を探すときは必ずこれを先に呼ぶ。そのカードの「現行の家」（実際に一緒に使われている札）が分かる唯一の道具で、Web にもモデルの記憶にも無い情報】"
@@ -80,12 +92,7 @@ def find_partner_cards(card_name: str, scope: str = "edh",
     min_ab = 10 if order_by == "lift" else 1
     order_sql = "lift DESC NULLS LAST" if order_by == "lift" else "n_ab DESC"
     # デッキ側 source（分母とペアの母集団を揃える）
-    deck_src = {"edh": ["moxfield_edh", "mtgtop8_edh"],
-                "commander": ["moxfield_edh", "mtgtop8_edh"],
-                "constructed": ["mtgtop8", "mtgo", "mtgo_other"],
-                "pauper": ["mtgtop8_pauper", "mtgo_pauper"],
-                "vintage": ["mtgtop8_vintage", "mtgo_vintage"],
-                "precon": ["mtgjson_precon"]}.get(scope)
+    deck_src = _SCOPE_SOURCES.get(scope)
     if not deck_src:
         return f"scope が不正: {scope}（edh/constructed/pauper/vintage/precon）"
     if scope in ("edh", "commander"):
