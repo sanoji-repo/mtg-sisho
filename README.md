@@ -14,7 +14,7 @@ AI 側の記憶や Web の孫引きではなく、一次データから直接引
 | [DESIGN.md](./DESIGN.md) | 設計原則（何で失敗して何を学んだか） |
 | [docs/DATA_SOURCES.md](./docs/DATA_SOURCES.md) | データの出所・利用マナー・ライセンス |
 | [docs/bench/README.md](./docs/bench/README.md) | ベンチマーク台帳（モデル別・回答原文つき） |
-| [docs/PUBLIC_SERVER.md](./docs/PUBLIC_SERVER.md) | 読み取り専用の公開サーバーを別のマシンに構築する手順と dump の受け渡し |
+| [docs/PUBLIC_SERVER.md](./docs/PUBLIC_SERVER.md) | 読み取り専用の公開サーバーを別のマシンに構築する手順・規模の見積もりと台数を増やす形 |
 
 ---
 
