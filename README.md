@@ -14,7 +14,7 @@ AI 側の記憶や Web の孫引きではなく、一次データから直接引
 | [DESIGN.md](./DESIGN.md) | 設計原則（何で失敗して何を学んだか） |
 | [docs/DATA_SOURCES.md](./docs/DATA_SOURCES.md) | データの出所・利用マナー・ライセンス |
 | [docs/bench/README.md](./docs/bench/README.md) | ベンチマーク台帳（モデル別・回答原文つき） |
-| [docs/SALES_FLOOR.md](./docs/SALES_FLOOR.md) | 読み取り専用の公開サーバーを別のマシンに構築する手順と dump の受け渡し |
+| [docs/PUBLIC_SERVER.md](./docs/PUBLIC_SERVER.md) | 読み取り専用の公開サーバーを別のマシンに構築する手順と dump の受け渡し |
 
 ---
 
@@ -207,7 +207,7 @@ Sisho is unofficial Fan Content permitted under the Fan Content Policy. Not appr
 
 ## 運用上の制限
 
-- 公開口のレート制限: 接続元 IP ごと 60 回/分・全体 300 回/分（超過は HTTP 429 と JSON-RPC の error で理由を返す）。詳細は `docs/SALES_FLOOR.md`。
+- 公開口のレート制限: 接続元 IP ごと 60 回/分・全体 300 回/分（超過は HTTP 429 と JSON-RPC の error で理由を返す）。詳細は `docs/PUBLIC_SERVER.md`。
 - 入力の記録: この接続先に送られた道具の入力（検索語・SQL・カード名など）は、障害対応と品質改善のためサーバー側に記録する。第三者には渡さない。
 - 答えの責任の所在: 答えの文章を作るのは利用者側の AI である。Sisho が返すのは一次データから引いた値で、その値は記録から確認できる。
 - 認証は無い。無保証の実験的な提供であり、問題の報告は GitHub の Issues へ。

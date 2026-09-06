@@ -139,7 +139,7 @@ MCP の `query_mtg_database` はこれらを読み取り専用の役割（`reado
 
 ### 確率計算の SQL 関数（2026-09-04）
 
-`sql/prob_functions.sql`。超幾何分布の厳密値を `numeric` で返す（IMMUTABLE・6 桁）。論理レプリケーションは関数を運ばないので、工場と売り場の両方で流す（`CREATE OR REPLACE`・冪等）。MCP の `mtg_probability` はこれを呼ぶ薄い入口で、`query_mtg_database` からはデータと結合して直接呼べる。
+`sql/prob_functions.sql`。超幾何分布の厳密値を `numeric` で返す（IMMUTABLE・6 桁）。論理レプリケーションは関数を運ばないので、工場と公開サーバーの両方で流す（`CREATE OR REPLACE`・冪等）。MCP の `mtg_probability` はこれを呼ぶ薄い入口で、`query_mtg_database` からはデータと結合して直接呼べる。
 
 | 関数 | 意味 |
 | --- | --- |

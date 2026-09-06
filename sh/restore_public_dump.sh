@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
-# restore_sales_dump.sh — 売り場用 dump を別名 DB に復元し、検収してから差し替える（2026-08-23）
+# restore_public_dump.sh — 公開サーバー用 dump を別名 DB に復元し、検収してから差し替える（2026-08-23）
 # =========================================================================
-# 売り場（公開箱）側で走らせる。工場の VM 内でも「予行」として同じものが走る（別 DB 名に復元するだけ）。
+# 公開サーバー（公開箱）側で走らせる。工場の VM 内でも「予行」として同じものが走る（別 DB 名に復元するだけ）。
 # 流れ: 1) sha256 検証 → 2) <DB>_new を作成（既存なら落とす）→ 3) CREATE EXTENSION pg_trgm →
 #       4) pg_restore -j2 --no-owner --no-privileges --exit-on-error → 5) deck_list.player_name を DROP・Moxfield 行の source_url/deck_name を NULL →
 #       6) readonly_ai を用意（無ければ作る・SELECT を GRANT・資源上限・pg_sleep 剥奪）→ 7) ANALYZE →
 #       8) 煙試験（行数・name_display・曖昧名）→ 9) 差し替え（<DB> → <DB>_old、<DB>_new → <DB>）。
 #       どの段で失敗しても、今動いている <DB> には触らない。<DB>_old は次回まで残す（戻せる）。
 # 接続: 二通り。
-#   (a) コンテナ: SALES_CONTAINER=pg18-primary のように指定 → docker exec 経由で psql/pg_restore 18 を使う
-#   (b) 素の PG:   SALES_CONTAINER を空 → PGHOST/PGPORT/PGUSER（既定 localhost/5432/postgres）で直接
+#   (a) コンテナ: PUBLIC_CONTAINER=pg18-primary のように指定 → docker exec 経由で psql/pg_restore 18 を使う
+#   (b) 素の PG:   PUBLIC_CONTAINER を空 → PGHOST/PGPORT/PGUSER（既定 localhost/5432/postgres）で直接
 #   管理ユーザーのパスワードは PGPASSWORD（未設定なら .pgpass か trust に任せる）。
 #   readonly_ai のパスワードは DB_PASS_ROAI（必須・無ければ中止）。
-# 使い方: DB_PASS_ROAI=... SALES_CONTAINER=pg18-primary PGUSER=devuser PGPASSWORD=... \
-#           sh/restore_sales_dump.sh /mnt/new_hdd/db_archives/sisho_sales_20260823.dump rag_sisho
+# 使い方: DB_PASS_ROAI=... PUBLIC_CONTAINER=pg18-primary PGUSER=devuser PGPASSWORD=... \
+#           sh/restore_public_dump.sh /mnt/new_hdd/db_archives/sisho_public_20260823.dump rag_sisho
 set -u
 DUMP="${1:?dump ファイル}"; DB="${2:-rag_sisho}"
 JOBS="${RESTORE_JOBS:-2}"
-CONTAINER="${SALES_CONTAINER:-}"
+CONTAINER="${PUBLIC_CONTAINER:-}"
 PGHOST="${PGHOST:-localhost}"; PGPORT="${PGPORT:-5432}"; PGUSER="${PGUSER:-postgres}"
 : "${DB_PASS_ROAI:?DB_PASS_ROAI（readonly_ai のパスワード）が要る}"
 log(){ echo "[$(date '+%F %T')] $*"; }
@@ -26,9 +26,9 @@ die(){ log "中止: $*"; exit 1; }
 # pg_restore -j は標準入力からは動かない（ファイルが要る）→ コンテナ方式では docker cp で中へ置いてから復元する
 if [ -n "$CONTAINER" ]; then
   PSQL(){ docker exec -i -e PGPASSWORD="${PGPASSWORD:-}" "$CONTAINER" psql -v ON_ERROR_STOP=1 -qAt -h localhost -U "$PGUSER" "$@"; }
-  RESTORE(){ docker cp "$DUMP" "$CONTAINER:/tmp/sales_restore.dump" || return 1
-             docker exec -e PGPASSWORD="${PGPASSWORD:-}" "$CONTAINER" pg_restore -h localhost -U "$PGUSER" "$@" /tmp/sales_restore.dump; rc=$?
-             docker exec -u root "$CONTAINER" rm -f /tmp/sales_restore.dump 2>/dev/null; return $rc; }
+  RESTORE(){ docker cp "$DUMP" "$CONTAINER:/tmp/public_restore.dump" || return 1
+             docker exec -e PGPASSWORD="${PGPASSWORD:-}" "$CONTAINER" pg_restore -h localhost -U "$PGUSER" "$@" /tmp/public_restore.dump; rc=$?
+             docker exec -u root "$CONTAINER" rm -f /tmp/public_restore.dump 2>/dev/null; return $rc; }
 else
   PSQL(){ psql -v ON_ERROR_STOP=1 -qAt -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" "$@"; }
   RESTORE(){ pg_restore -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" "$@" "$DUMP"; }
