@@ -43,21 +43,28 @@ class _db_slot:
         return False
 
 
-def _db(sql: str, params: tuple) -> list[tuple]:
+def _run(cfg: dict, sql: str, params: tuple | None, fetch):
     import psycopg2
-    from db_config import DB_CONFIG
     with _db_slot():
         # 計時は席を取った後から（順番待ちは DB の仕事でない＝道具の所要秒と DB 累計秒の
         # 差として見える・2026-09-06 Step 7）。接続・実行・取得の全部を 1 回として数える。
         t0 = time.perf_counter()
-        conn = psycopg2.connect(**DB_CONFIG)
+        conn = psycopg2.connect(**cfg)
         try:
             with conn.cursor() as cur:
-                cur.execute(sql, params)
-                return cur.fetchall()
+                if params is None:
+                    cur.execute(sql)
+                else:
+                    cur.execute(sql, params)
+                return fetch(cur)
         finally:
             conn.close()
             record_db_call(time.perf_counter() - t0, sql)
+
+
+def _db(sql: str, params: tuple) -> list[tuple]:
+    from db_config import DB_CONFIG
+    return _run(DB_CONFIG, sql, params, lambda cur: cur.fetchall())
 
 
 # ─── 自由 SQL の口（2026-08-11・本人発案「エージェント自身が SQL を叩く路線」）───
@@ -66,21 +73,14 @@ def _db(sql: str, params: tuple) -> list[tuple]:
 # 行数・セル長の上限で応答を制限（コンテキスト爆発防止）。
 
 def _db_readonly(sql: str, max_rows: int) -> tuple[list[str], list[tuple]]:
-    import os
-    import psycopg2
     from db_config import DB_CONFIG
     cfg = dict(DB_CONFIG)
     cfg["user"] = "readonly_ai"
     cfg["password"] = os.environ.get("DB_PASS_ROAI") or ""
     cfg["options"] = "-c statement_timeout=10000"
-    with _db_slot():
-        t0 = time.perf_counter()               # 計時は席を取った後から（_db と同じ物差し）
-        conn = psycopg2.connect(**cfg)
-        try:
-            with conn.cursor() as cur:
-                cur.execute(sql)
-                cols = [d[0] for d in cur.description] if cur.description else []
-                return cols, cur.fetchmany(max_rows)
-        finally:
-            conn.close()
-            record_db_call(time.perf_counter() - t0, sql)
+
+    def _fetch(cur):
+        cols = [d[0] for d in cur.description] if cur.description else []
+        return cols, cur.fetchmany(max_rows)
+
+    return _run(cfg, sql, None, _fetch)
