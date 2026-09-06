@@ -177,6 +177,33 @@ sudo ufw reload
 - Funnel が CGNAT（モバイル回線など）の下で動くこと（仕組み上は動くはず）
 - Raspberry Pi OS に PGDG の postgresql-18 が無改造で入ること
 
+## 規模の見積もりと台数を増やす形（2026-09-07）
+
+### 今の公開サーバーで持つ範囲
+
+- 機体: Lenovo G50-30・Celeron N2830（2 コア・2014 年・AVX 無し）・RAM 3.3GB・HDD 1 本。DB 本体は約 0.9GB で RAM のキャッシュに全部収まる。
+- 実測（2026-08-30〜09-07・道具ログ 8 日・1,594 回）: 1 分あたり最大 17 回・同時実行の最大 1・DB 時間の中央値 0.30 秒。
+- 封筒裏の見積もり: 1 回の呼び出しが 0.3 秒まるごと 1 コアを使うと仮定しても、2 コアで毎分およそ 360 回。入口のレート制限（全体 300 回/分）が先に上限になる。つまり今の客足の 20 倍まではこの機体で受ける。
+- 先に詰まる所は CPU でなく (1) 重い集計（相方検索の構築 scope: 1〜7 秒） (2) キャッシュに無い読み（HDD）。手を打つ順: 重い集計を夜間便で表にする → HDD を SSD に → 台数を増やす。
+- DB の席（2026-09-07）: 同時実行は 5 席。重い線（自由 SQL・相方検索）は 4 席まで・軽い線は statement_timeout 1 秒で、切られたら席を返して重い線（10 秒）に並び直す。順番待ちは 20 秒で「混雑」を返す。重い問い合わせが 4 本並んでも、軽い問い合わせの席が 1 つ必ず残る。
+- 工場（VM）が止まっている間も、公開サーバーは最後に受け取った状態で答え続ける。複製は工場が戻れば追いつく（2026-09-06 に工場が 8 時間止まって確認・データの欠けは無し）。
+
+### 台数を増やす形
+
+公開サーバーは工場からの論理レプリケーションの購読者（読み取り専用の複製）で、MCP は stateless（どの公開サーバーがどの呼び出しを受けても同じ答え）。だから 2 台目は「同じ手順でもう 1 台組んで、同じ publication を購読させる」だけで作れる。足りないのは客をどの台に渡すか決める玄関（ロードバランサ＝振り分け役）。
+
+玄関の候補（2026-09-07 に公式文書で確認）:
+
+| 候補 | 振り分けできるか | 理由 |
+| --- | --- | --- |
+| 家のルーター | できない | NAT のポート転送は 1 ポート 1 台。しかも Funnel は公開サーバーから外へ張る接続で、ルーターは経路に居ない |
+| Tailscale Funnel | できない | Funnel の名前はノードごと（`機体名.tailnet.ts.net`）で、同じ名前を 2 台で受ける機能は無い |
+| 自前のリバースプロキシ（手前で受けて後ろの台へ渡す代理） | できる | 1 台目の nginx か Caddy に Funnel を向け、そこから自分と 2 台目へ振る。公開 URL は変わらない。1 台目が単一障害点になるが仕事は軽い |
+| Cloudflare Tunnel の複製（同じトンネルを複数の台で張る） | できる | 公式機能。1 トンネルにつき最大 25 台。振り分けの割合は制御できない（要るならトンネルを分けて Cloudflare の Load Balancer を使う）。公開 URL が自分のドメインに変わる＝配布前に決める話 |
+
+- 引き金（構想・未実施）: 毎分 100 回超か、応答の p90 が 2 秒超の状態が 1 週間続いたら、上の順（表にする → SSD → 台数）で手を打つ。それまでは増やさない。
+- 参照: [Tailscale Funnel](https://tailscale.com/docs/features/tailscale-funnel)・[Cloudflare Tunnel の複製](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-availability/deploy-replicas/)・[Cloudflare の公開ロードバランサ](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/routing-to-tunnel/public-load-balancers/)
+
 ## レート制限（2026-09-02）
 
 公開 URL を配る前の門。`src/mcp_server.py` の `_RateLimiter`（滑走窓 60 秒）と `_RateLimitASGI`（ASGI の外皮）で、uvicorn が `X-Forwarded-For` を client に解決した後の IP で数える（Funnel → `127.0.0.1:8765` 直結・前段の代理は無い）。
