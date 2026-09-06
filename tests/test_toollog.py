@@ -259,57 +259,31 @@ def test_counters_do_not_mix_between_concurrent_tools():
 
 
 def test_counters_do_not_mix_between_concurrent_coroutines():
-    """集計器は contextvars（将来の async 道具や同一ループ内のコルーチン並行でも混ざらないこと）。"""
+    """集計器は contextvars＝同一スレッドで交互に進む二つのコルーチンでも混ざらない
+    （asyncio の Task は生成時に context を複製する）。今日の道具は同期関数でスレッド分離だが、
+    async 道具を足しても同じ器で数えられることの担保。threading.local だとこの試験は落ちる
+    （2026-09-06 Antigravity 監査・死んだコードを削って実際にコルーチンを走らせる形に）。"""
     import asyncio
 
     async def amany():
+        toollog.reset_db_stats()
         for _ in range(5):
             toollog.record_db_call(0.01, "SELECT many")
-            await asyncio.sleep(0.005)
-        return "できた"
+            await asyncio.sleep(0.001)
+        return toollog.db_stats()
 
     async def afew():
+        toollog.reset_db_stats()
+        await asyncio.sleep(0.002)
         toollog.record_db_call(0.007, "SELECT few")
-        return "できた"
-
-    amany.__name__, afew.__name__ = "fake_amany", "fake_afew"
+        return toollog.db_stats()
 
     async def main():
-        # observed は同期ラッパーなので asyncio 上で context を分離して呼ぶテスト
-        import contextvars
-        ctx_many = contextvars.copy_context()
-        ctx_few = contextvars.copy_context()
+        return await asyncio.gather(amany(), afew())
 
-        async def run_in_ctx(ctx, fn, is_async=False):
-            if is_async:
-                return await ctx.run(fn)
-            return ctx.run(toollog.observed(fn))
-
-        await asyncio.gather(
-            run_in_ctx(ctx_many, amany, is_async=True),
-            run_in_ctx(ctx_few, afew, is_async=True),
-        )
-
-    # コルーチン内で record_db_call がそれぞれのコンテキストに積まれることを確認
-    import contextvars
-    ctx_m = contextvars.copy_context()
-    ctx_f = contextvars.copy_context()
-
-    def run_m():
-        toollog.reset_db_stats()
-        for _ in range(3):
-            toollog.record_db_call(0.01, "SELECT m")
-        return toollog.db_stats()
-
-    def run_f():
-        toollog.reset_db_stats()
-        toollog.record_db_call(0.005, "SELECT f")
-        return toollog.db_stats()
-
-    res_m = ctx_m.run(run_m)
-    res_f = ctx_f.run(run_f)
-    assert res_m[0] == 3 and 0.029 < res_m[1] < 0.031
-    assert res_f[0] == 1 and 0.004 < res_f[1] < 0.006
+    res_many, res_few = asyncio.run(main())
+    assert res_many[0] == 5 and abs(res_many[1] - 0.05) < 1e-9, res_many
+    assert res_few[0] == 1 and abs(res_few[1] - 0.007) < 1e-9, res_few
 
 
 @requires_db

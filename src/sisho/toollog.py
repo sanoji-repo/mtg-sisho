@@ -19,11 +19,11 @@
 "uvicorn.error"＝systemd の journal に出る系統）に warning を 1 行。DB の警告に載せるのは
 SQL の先頭 120 字だけで、引数（利用者の入力）は載せない。
 """
+import contextvars
 import functools
 import json
 import logging
 import os
-import threading
 import time
 
 from sisho import errors
@@ -42,10 +42,10 @@ SLOW_SEC = float(os.environ.get("MCP_SLOW_SEC", "1.0"))
 #: stdio 版では stderr に出る＝どちらでも人が読める場所に落ちる。
 JOURNAL = "uvicorn.error"
 
-import contextvars
-
 # DB 呼び出しの集計器。道具 1 回ぶんをコンテキストに貯める（スレッドローカルと
 # 非同期コルーチンの両方で分離される＝MCP の同期道具・将来の async 道具の両対応）。
+# 2026-09-06 Antigravity の監査で threading.local から移行。今日の道具は同期関数で、mcp 2.0 は
+# anyio.to_thread.run_sync で別スレッドに投げ、anyio は context を複製して渡す＝動きは同じ。
 _db_stats: contextvars.ContextVar[dict] = contextvars.ContextVar("_db_stats", default=None)
 
 
