@@ -89,3 +89,14 @@ def test_unwritable_path_does_not_raise(tmp_path, monkeypatch):
 
     toollog._log_tool("test_tool", {"arg": 1})
     toollog._log_tool_end("test_tool", "ok", 0.01, 0, 0.0)
+
+
+def test_unserializable_args_do_not_raise(tmp_path, monkeypatch):
+    """6. 引数が JSON にできなくても（整形の失敗）例外を外に出さず、行も書かない（共通化前の try の範囲を保つ）。"""
+    log_file = tmp_path / "t.log"
+    monkeypatch.setattr("sisho.toollog.TOOL_LOG", str(log_file))
+
+    toollog._log_tool("x", {"obj": object()})
+    toollog._log_tool_end("x", "ok", "not-a-number", 1, 0.0)
+
+    assert not log_file.exists()

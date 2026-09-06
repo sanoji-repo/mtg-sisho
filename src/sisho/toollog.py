@@ -94,15 +94,21 @@ def _append_row(*fields: str) -> None:
 def _log_tool(name: str, args: dict) -> None:
     """道具の呼び出し履歴（2026-08-11・「彼はどう MCP を使ったか」に query_log だけでは
     答えられなかった観測穴の修理）。search 以外はローカル DB 直結で足跡が無かった。"""
-    arg_s = json.dumps(args, ensure_ascii=False)[:TOOL_LOG_MAX]
+    try:
+        arg_s = json.dumps(args, ensure_ascii=False)[:TOOL_LOG_MAX]
+    except Exception:
+        return                   # 整形の失敗も道具を殺さない（共通化前は try の中にあった）
     _append_row(name, arg_s)
 
 
 def _log_tool_end(name: str, outcome: str, elapsed: float,
                   db_calls: int, db_seconds: float) -> None:
     """道具の出口の 1 行（2026-09-06 Step 7）。引数は繰り返さない（入口の行にある）。"""
-    _append_row("end", name, outcome, f"{elapsed:.3f}",
-                str(db_calls), f"{db_seconds:.3f}")
+    try:
+        row = ("end", name, outcome, f"{elapsed:.3f}", str(db_calls), f"{db_seconds:.3f}")
+    except Exception:
+        return                   # 整形の失敗も道具を殺さない（共通化前は try の中にあった）
+    _append_row(*row)
 
 
 def observed(fn):
