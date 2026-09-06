@@ -20,6 +20,7 @@
 SQL の先頭 120 字だけで、引数（利用者の入力）は載せない。
 """
 import contextvars
+import datetime
 import functools
 import json
 import logging
@@ -79,32 +80,29 @@ def record_db_call(elapsed: float, sql: str) -> None:
             "[slow] db elapsed=%.3f sql=%s", elapsed, " ".join((sql or "").split())[:120])
 
 
-def _log_tool(name: str, args: dict) -> None:
-    """道具の呼び出し履歴（2026-08-11・「彼はどう MCP を使ったか」に query_log だけでは
-    答えられなかった観測穴の修理）。search 以外はローカル DB 直結で足跡が無かった。"""
-    import datetime
+def _append_row(*fields: str) -> None:
+    """道具ログに 1 行追記する（先頭に時刻を付与・タブ区切り・失敗は黙る）。"""
     try:
         os.makedirs(os.path.dirname(TOOL_LOG), exist_ok=True)
         with open(TOOL_LOG, "a", encoding="utf-8") as f:
             ts = datetime.datetime.now().strftime("%m-%d %H:%M:%S")
-            arg_s = json.dumps(args, ensure_ascii=False)[:TOOL_LOG_MAX]
-            f.write(f"{ts}\t{name}\t{arg_s}\n")
+            f.write(f"{ts}\t" + "\t".join(fields) + "\n")
     except Exception:
         pass                     # ログ失敗で道具を殺さない
+
+
+def _log_tool(name: str, args: dict) -> None:
+    """道具の呼び出し履歴（2026-08-11・「彼はどう MCP を使ったか」に query_log だけでは
+    答えられなかった観測穴の修理）。search 以外はローカル DB 直結で足跡が無かった。"""
+    arg_s = json.dumps(args, ensure_ascii=False)[:TOOL_LOG_MAX]
+    _append_row(name, arg_s)
 
 
 def _log_tool_end(name: str, outcome: str, elapsed: float,
                   db_calls: int, db_seconds: float) -> None:
     """道具の出口の 1 行（2026-09-06 Step 7）。引数は繰り返さない（入口の行にある）。"""
-    import datetime
-    try:
-        os.makedirs(os.path.dirname(TOOL_LOG), exist_ok=True)
-        with open(TOOL_LOG, "a", encoding="utf-8") as f:
-            ts = datetime.datetime.now().strftime("%m-%d %H:%M:%S")
-            f.write(f"{ts}\tend\t{name}\t{outcome}\t{elapsed:.3f}"
-                    f"\t{db_calls}\t{db_seconds:.3f}\n")
-    except Exception:
-        pass                     # ログ失敗で道具を殺さない
+    _append_row("end", name, outcome, f"{elapsed:.3f}",
+                str(db_calls), f"{db_seconds:.3f}")
 
 
 def observed(fn):
