@@ -18,6 +18,12 @@ from sisho.toollog import _log_tool
 # 既定の検索は紙＝WHERE NOT digital（列 → 並べ方の掟: 紙と Arena 専用を混ぜて並べない）。
 ARENA_FORMATS = {"historic", "alchemy", "timeless", "brawl", "standardbrawl", "gladiator", "explorer"}
 
+_CARD_COLS: tuple[str, ...] = (
+    "card_name", "japanese_name", "type_line", "mana_cost", "power", "toughness",
+    "rarity", "oracle_text", "japanese_oracle_text", "edhrec_rank", "name_display", "digital",
+    "name_en_front", "name_en_back", "name_ja_front", "name_ja_back",
+)
+
 # 不明な format の扱い（2026-09-05 Step 5 修正 4・本人裁定「一意で近いなら直して再検索・返り値に必ず書く／
 # 複数候補なら直さず選ばせる／遠ければ一覧」）。Step 4 まで legalities->>'modrn' を引くだけだったので、
 # 「そんな鍵は無い」と「その鍵で合法な札が無い」が同じ「該当なし」に潰れていた。
@@ -115,9 +121,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     fmt_sql = " AND legalities->>%s = 'legal'" if fmt else ""
     if fmt not in ARENA_FORMATS:
         fmt_sql += " AND NOT digital"          # 既定は紙。Arena の形式を名指しされたときだけ Arena 専用札も
-    cols = ("card_name, japanese_name, type_line, mana_cost, power, toughness,"
-            " rarity, oracle_text, japanese_oracle_text, edhrec_rank, name_display, digital,"
-            " name_en_front, name_en_back, name_ja_front, name_ja_back")
+    cols = ", ".join(_CARD_COLS)
 
     # 1) 名前ヒット: クエリ全体を名前に部分一致（完全一致を先頭へ）
     p1 = [f"%{q}%", f"%{q}%"] + ([fmt] if fmt else []) + [q, q, top_k]
@@ -147,9 +151,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
             " AND ".join([cond] * len(terms)) + fmt_sql +
             " ORDER BY edhrec_rank ASC NULLS LAST, card_name LIMIT %s", tuple(p2))
 
-    keep = ("card_name", "japanese_name", "type_line", "mana_cost", "power",
-            "toughness", "rarity", "oracle_text", "japanese_oracle_text",
-            "edhrec_rank", "name_display", "digital", "name_en_front", "name_en_back", "name_ja_front", "name_ja_back")
+    keep = _CARD_COLS
     def _row(r: tuple) -> dict:
         """japanese_name だけは None でも落とさず明示する（2026-08-21 本人指摘:
         脳が Helm of Obedience のような日本語版の無いカードに勝手な訳名を作った。
