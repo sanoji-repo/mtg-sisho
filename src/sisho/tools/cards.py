@@ -134,10 +134,17 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     for t in terms:
         p2 += [f"%{t}%"] * 5
     p2 += ([fmt] if fmt else []) + [top_k]
-    text_rows = _db(
-        f"SELECT {cols} FROM mtg_cards_v2 WHERE " +
-        " AND ".join([cond] * len(terms)) + fmt_sql +
-        " ORDER BY edhrec_rank ASC NULLS LAST, card_name LIMIT %s", tuple(p2))
+    # 2026-09-06（Antigravity 監査の提言 1 を実測で置き換え）: 名前ヒットが top_k 件あれば本文ヒットは
+    # 下の詰め合わせで 1 件も使われない（名前を先に詰めて top_k で止まる）＝引かない。出力は不変。
+    # 箱の実引数 187 通りを VM で再生: 本文検索は 1 検索 339ms のうち平均 260ms（77%）で、実運用の
+    # 大半は名前引き（top_k 1〜3）。p1 と p2 を 1 文に束ねても仕事量は減らないので、そちらは採らない。
+    if len(name_rows) >= top_k:
+        text_rows: list = []
+    else:
+        text_rows = _db(
+            f"SELECT {cols} FROM mtg_cards_v2 WHERE " +
+            " AND ".join([cond] * len(terms)) + fmt_sql +
+            " ORDER BY edhrec_rank ASC NULLS LAST, card_name LIMIT %s", tuple(p2))
 
     keep = ("card_name", "japanese_name", "type_line", "mana_cost", "power",
             "toughness", "rarity", "oracle_text", "japanese_oracle_text",
