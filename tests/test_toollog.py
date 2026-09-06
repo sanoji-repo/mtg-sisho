@@ -258,6 +258,60 @@ def test_counters_do_not_mix_between_concurrent_tools():
     assert got == {"fake_many": ("5", "0.050"), "fake_few": ("1", "0.007")}, got
 
 
+def test_counters_do_not_mix_between_concurrent_coroutines():
+    """集計器は contextvars（将来の async 道具や同一ループ内のコルーチン並行でも混ざらないこと）。"""
+    import asyncio
+
+    async def amany():
+        for _ in range(5):
+            toollog.record_db_call(0.01, "SELECT many")
+            await asyncio.sleep(0.005)
+        return "できた"
+
+    async def afew():
+        toollog.record_db_call(0.007, "SELECT few")
+        return "できた"
+
+    amany.__name__, afew.__name__ = "fake_amany", "fake_afew"
+
+    async def main():
+        # observed は同期ラッパーなので asyncio 上で context を分離して呼ぶテスト
+        import contextvars
+        ctx_many = contextvars.copy_context()
+        ctx_few = contextvars.copy_context()
+
+        async def run_in_ctx(ctx, fn, is_async=False):
+            if is_async:
+                return await ctx.run(fn)
+            return ctx.run(toollog.observed(fn))
+
+        await asyncio.gather(
+            run_in_ctx(ctx_many, amany, is_async=True),
+            run_in_ctx(ctx_few, afew, is_async=True),
+        )
+
+    # コルーチン内で record_db_call がそれぞれのコンテキストに積まれることを確認
+    import contextvars
+    ctx_m = contextvars.copy_context()
+    ctx_f = contextvars.copy_context()
+
+    def run_m():
+        toollog.reset_db_stats()
+        for _ in range(3):
+            toollog.record_db_call(0.01, "SELECT m")
+        return toollog.db_stats()
+
+    def run_f():
+        toollog.reset_db_stats()
+        toollog.record_db_call(0.005, "SELECT f")
+        return toollog.db_stats()
+
+    res_m = ctx_m.run(run_m)
+    res_f = ctx_f.run(run_f)
+    assert res_m[0] == 3 and 0.029 < res_m[1] < 0.031
+    assert res_f[0] == 1 and 0.004 < res_f[1] < 0.006
+
+
 @requires_db
 def test_real_db_call_is_timed_and_counted():
     """実物の _db／_db_readonly が回数と秒を積む（1 回以上・0 秒より大きい）。"""

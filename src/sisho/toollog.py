@@ -42,20 +42,24 @@ SLOW_SEC = float(os.environ.get("MCP_SLOW_SEC", "1.0"))
 #: stdio 版では stderr に出る＝どちらでも人が読める場所に落ちる。
 JOURNAL = "uvicorn.error"
 
-# DB 呼び出しの集計器。道具 1 回ぶんをスレッドローカルに貯める（MCP の同期道具は
-# 1 呼び出し＝1 スレッドで走り、DB を呼ぶのはその同じスレッド）。
-_db_stats = threading.local()
+import contextvars
+
+# DB 呼び出しの集計器。道具 1 回ぶんをコンテキストに貯める（スレッドローカルと
+# 非同期コルーチンの両方で分離される＝MCP の同期道具・将来の async 道具の両対応）。
+_db_stats: contextvars.ContextVar[dict] = contextvars.ContextVar("_db_stats", default=None)
 
 
 def reset_db_stats() -> None:
     """道具 1 回ぶんの集計を 0 に戻す（包み observed() が本体を呼ぶ直前に）。"""
-    _db_stats.calls = 0
-    _db_stats.seconds = 0.0
+    _db_stats.set({"calls": 0, "seconds": 0.0})
 
 
 def db_stats() -> tuple[int, float]:
-    """いまのスレッドの (DB 呼び出し回数, DB 累計秒)。まだ数えていなければ (0, 0.0)。"""
-    return getattr(_db_stats, "calls", 0), getattr(_db_stats, "seconds", 0.0)
+    """いまのコンテキストの (DB 呼び出し回数, DB 累計秒)。まだ数えていなければ (0, 0.0)。"""
+    st = _db_stats.get()
+    if st is None:
+        return 0, 0.0
+    return st["calls"], st["seconds"]
 
 
 def record_db_call(elapsed: float, sql: str) -> None:
@@ -64,8 +68,12 @@ def record_db_call(elapsed: float, sql: str) -> None:
     warning に載せるのは SQL の先頭 120 字（空白は 1 個に潰す）だけ＝引数は載せない
     （ログに利用者の入力を残しすぎない）。
     """
-    _db_stats.calls = getattr(_db_stats, "calls", 0) + 1
-    _db_stats.seconds = getattr(_db_stats, "seconds", 0.0) + elapsed
+    st = _db_stats.get()
+    if st is None:
+        st = {"calls": 0, "seconds": 0.0}
+        _db_stats.set(st)
+    st["calls"] += 1
+    st["seconds"] += elapsed
     if elapsed > SLOW_SEC:
         logging.getLogger(JOURNAL).warning(
             "[slow] db elapsed=%.3f sql=%s", elapsed, " ".join((sql or "").split())[:120])
