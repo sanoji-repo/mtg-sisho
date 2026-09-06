@@ -14,7 +14,9 @@ def _startup_sets_blurb() -> str:
     try:
         import psycopg2
         from db_config import DB_CONFIG
-        conn = psycopg2.connect(**DB_CONFIG)
+        cfg = dict(DB_CONFIG)
+        cfg.setdefault("connect_timeout", 2)
+        conn = psycopg2.connect(**cfg)
         try:
             cur = conn.cursor()
             cur.execute(
