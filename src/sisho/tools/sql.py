@@ -209,6 +209,19 @@ def _limited_sets_note() -> str:
 
 
 
+def _table_note_lines(qname: str) -> list[str]:
+    """表の注記の行（_TABLE_NOTES に無ければ空・あれば注記と、limited_card_stats なら収録セットの行）。"""
+    note = _TABLE_NOTES.get(qname)
+    if not note:
+        return []
+    res = [f"- {qname}: {note}"]
+    if qname == "limited_card_stats":
+        extra = _limited_sets_note()
+        if extra:
+            res.append(extra)
+    return res
+
+
 DESCRIBE_MTG_TABLES_DESCRIPTION = (
     "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
     "データベースの実スキーマを見る。table_name 省略で全テーブルの一覧と行数概算、"
@@ -226,13 +239,9 @@ def describe_mtg_tables(table_name: str | None = None) -> str:
             lines = ["テーブル | 行数概算"] + [f"{n} | {r[2]}" for n, r in zip(names, rows)]
             if any("." in n for n in names):
                 lines.append("（「スキーマ名.表名」の形の表は SQL でもその形で書く。public の表はそのまま）")
-            for qname, note in _TABLE_NOTES.items():
+            for qname in _TABLE_NOTES:
                 if qname in names:
-                    lines.append(f"- {qname}: {note}")
-                    if qname == "limited_card_stats":
-                        extra = _limited_sets_note()
-                        if extra:
-                            lines.append(extra)
+                    lines += _table_note_lines(qname)
             return "\n".join(lines)
         # 列一覧。「スキーマ名.表名」でも表名だけでも受ける（スキーマ無しなら該当する全スキーマを出す）
         sch_in, _, tbl_in = table_name.strip().rpartition(".")
@@ -263,12 +272,7 @@ def describe_mtg_tables(table_name: str | None = None) -> str:
             out += [f"{r[1]} | {r[2]}" for r in rows if r[0] == schema]
             if schema != "public":
                 out.append(f"（SQL では {qname} とスキーマ付きで書く。{tbl} だけでは引けない）")
-            if qname in _TABLE_NOTES:
-                out.append(f"- {qname}: {_TABLE_NOTES[qname]}")
-                if qname == "limited_card_stats":
-                    extra = _limited_sets_note()
-                    if extra:
-                        out.append(extra)
+            out += _table_note_lines(qname)
         return "\n".join(out)
     except DBBusy as e:
         return str(e)          # 混雑（errors.BUSY）
