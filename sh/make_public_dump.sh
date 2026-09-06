@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# make_sales_dump.sh — 売り場（読み取り専用の公開箱）用の pg_dump を作る（2026-08-23・工場側＝家の VM で走らせる）
+# make_public_dump.sh — 公開サーバー（読み取り専用の公開箱）用の pg_dump を作る（2026-08-23・工場側＝家の VM で走らせる）
 # =========================================================================
 # 背景: 公開する MCP の後ろを家の PC から別の箱（Pi／シンクライアント／VPS）へ出すため、
-#       「売り場に要る表だけ」を -Fc で書き出す。bak_*・埋め込み表・eval/query_log・共起 v1 は含めない。
+#       「公開サーバーに要る表だけ」を -Fc で書き出す。bak_*・埋め込み表・eval/query_log・共起 v1 は含めない。
 #       実測（2026-08-23・VM）: 表 12 本・約 75MB・12 秒（ジャッジパネルの評価者が計測）。
 # 方式: コンテナ内 pg_dump 18（ホストの pg_dump は 17 でサーバ 18 に不可）を docker exec。
-#       --no-owner --no-privileges＝所有者と GRANT は含めない（売り場側の restore_sales_dump.sh が
+#       --no-owner --no-privileges＝所有者と GRANT は含めない（公開サーバー側の restore_public_dump.sh が
 #       readonly_ai を作って GRANT し直す＝「役割が無いから失敗」を構造で消す）。
 #       -t で表を名指し＝拡張（pg_trgm）は dump に入らない → 復元側で CREATE EXTENSION する。
 # 注意: プレイヤー名は 2026-08-31 から players 表（表指定に含めない）にだけあり、deck_list.player_name 列は廃止＝dump に名前は入らない。
 #       復元側の DROP COLUMN IF EXISTS は旧 dump 用の保険。dump は自分の箱の間（Tailscale 私有網）でしか動かさない＝再配布ではない。
-# 出力: /mnt/new_hdd/db_archives/sisho_sales_YYYYMMDD.dump と .sha256
-# 使い方: sh/make_sales_dump.sh            （出力先は SALES_DUMP_DIR で上書き可）
+# 出力: /mnt/new_hdd/db_archives/sisho_public_YYYYMMDD.dump と .sha256
+# 使い方: sh/make_public_dump.sh            （出力先は PUBLIC_DUMP_DIR で上書き可）
 set -u
 REPO=/mnt/mtg_rag
-DEST="${SALES_DUMP_DIR:-/mnt/new_hdd/db_archives}"
+DEST="${PUBLIC_DUMP_DIR:-/mnt/new_hdd/db_archives}"
 CONTAINER="${PGDUMP_CONTAINER:-pg18-primary}"
 PY=/mnt/new_hdd/my_rag_env/bin/python
 STAMP=$(date +%Y%m%d)
-OUT="$DEST/sisho_sales_${STAMP}.dump"
-# 売り場に要る表（mcp_server.py が読む表＋describe で見せてよい表）。増やすときはここに足す
+OUT="$DEST/sisho_public_${STAMP}.dump"
+# 公開サーバーに要る表（mcp_server.py が読む表＋describe で見せてよい表）。増やすときはここに足す
 # （publication の表と揃える＝sh/sisho_repl/01 と同じ 19 表・limited_card_stats は 2026-08-31・limited_* 5 表は 2026-09-02・mtg_sets は 2026-09-03 追加）。
 TABLES=(mtg_cards_v2 mtg_cards_v2_nonlegal mtg_rules card_rulings deck_list deck_cards
         card_format_strength edh_card_strength format_deck_counts

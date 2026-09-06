@@ -197,7 +197,7 @@ if __name__ == "__main__":
         # ので、秘密は URL のパスに持たせる。既定 /mcp・本番は unit の EnvironmentFile
         # （~/.config/mtg-rag/mcp.env・claude 専用ホーム）から MCP_HTTP_PATH を注入。
         http_path = os.environ.get("MCP_HTTP_PATH", "/mcp")
-        # stateless（2026-08-29・売り場で採用）: claude.ai のコネクタは道具呼び出しをセッション ID
+        # stateless（2026-08-29・公開サーバーで採用）: claude.ai のコネクタは道具呼び出しをセッション ID
         # 無しで送ってくることがあり、既定（stateful）だと「Bad Request: Missing session ID」で
         # 全滅する（箱の実測・health 1 回成功→以降 400）。道具はすべて独立（サーバ発の通知なし）
         # なので、リクエストごとに独立処理しても失うものは無い。MCP_STATELESS=1 で有効。

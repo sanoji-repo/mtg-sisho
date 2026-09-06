@@ -1,22 +1,24 @@
-# 売り場の組み立て（SALES_FLOOR.md）
+# 公開サーバーの組み立て（PUBLIC_SERVER.md）
 
-Sisho の「売り場」＝読み取り専用の公開箱を、家の PC とは別の機械に建てる手順。
-工場（データを作る側）は今までの VM のまま。売り場は dump から数分で作り直せる使い捨ての箱として扱う。
+> 旧名「売り場（SALES_FLOOR.md）」・2026-09-07 に改名。内部の呼び名で、金銭の授受があるように読めるため。古い作業記録に出る「売り場」はこの文書のこと。
+
+Sisho の「公開サーバー」＝読み取り専用の公開箱を、家の PC とは別の機械に建てる手順。
+工場（データを作る側）は今までの VM のまま。公開サーバーは dump から数分で作り直せる使い捨ての箱として扱う。
 2026-08-23 に VM 内で予行済み（dump 66MB・復元 53 秒）。実機では未検証。
 
 ## 役割
 
 | 箱 | 役割 | 中身 |
 | --- | --- | --- |
-| 工場（家の VM） | データを作る | 夜間便・搬入便・共起の洗い替え・ベンチ。`sh/make_sales_dump.sh` で売り場用 dump を書き出す |
-| 売り場（別の箱） | 返事をする | PostgreSQL（売り場用の表だけ・読み取り専用）・MCP サーバー・Tailscale。`sh/restore_sales_dump.sh` で dump を受ける |
+| 工場（家の VM） | データを作る | 夜間便・搬入便・共起の洗い替え・ベンチ。`sh/make_public_dump.sh` で公開サーバー用 dump を書き出す |
+| 公開サーバー（別の箱） | 返事をする | PostgreSQL（公開サーバー用の表だけ・読み取り専用）・MCP サーバー・Tailscale。`sh/restore_public_dump.sh` で dump を受ける |
 
-売り場に置かないもの: プレイヤー名（工場の `players` 表に隔離・dump にも publication にも含めない・`deck_list.player_name` 列は 2026-08-31 に廃止）・バックアップ表・埋め込み表・評価の表・呼び出しログ。
+公開サーバーに置かないもの: プレイヤー名（工場の `players` 表に隔離・dump にも publication にも含めない・`deck_list.player_name` 列は 2026-08-31 に廃止）・バックアップ表・埋め込み表・評価の表・呼び出しログ。
 
 ## 箱を選ぶときの確認（中古を買う前に）
 
 1. 世代: x86 なら Core i 第 4〜8 世代あたり（64bit・待機 10〜25W）。シンクライアント（FUTRO・HP t 系）はファンレスで 5〜10W。Raspberry Pi 5 なら 8GB（4GB で足りるかは未確認）
-2. メモリ: 規格（DDR3/DDR3L/DDR4・SO-DIMM/DIMM）と最大容量。売り場の DB は約 0.9GB なので 4GB あれば足りる。RAM に DB を展開するなら 8GB
+2. メモリ: 規格（DDR3/DDR3L/DDR4・SO-DIMM/DIMM）と最大容量。公開サーバーの DB は約 0.9GB なので 4GB あれば足りる。RAM に DB を展開するなら 8GB
 3. 記憶装置: OS 用に何でもよい（HDD でも可）。DB を SD カードに置くのは避ける（RAM 展開か SSD）
 4. 電源: AC アダプタが付属するか（シンクライアントは別売りが多い）。BIOS に「AC 復帰で自動起動」があるか
 5. 保証: 動作確認済み・保証付きの棚から。店頭で BIOS まで上げられるなら上げる。USB のライブ Linux を持って行けば NIC まで見られる
@@ -46,25 +48,25 @@ curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up            # 家の VM と同じ tailnet に入れる
 ```
 
-Tailscale の管理画面で、この箱を tag 付きノードにし（鍵の期限が切れない）、ACL で「VM → 売り場の ssh と 8765」だけ許し「売り場 → 他」は拒否する。売り場が踏み台にならないため。
+Tailscale の管理画面で、この箱を tag 付きノードにし（鍵の期限が切れない）、ACL で「VM → 公開サーバーの ssh と 8765」だけ許し「公開サーバー → 他」は拒否する。公開サーバーが踏み台にならないため。
 
 ### 3. リポジトリと venv
 
 ```bash
 git clone <mtg-sisho の URL> ~/mtg-sisho && cd ~/mtg-sisho
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp env.example .env && chmod 600 .env     # DB_* を売り場の値に・DB_PASS_ROAI を決める・MCP_HTTP_PATH を秘密の値に
+cp env.example .env && chmod 600 .env     # DB_* を公開サーバーの値に・DB_PASS_ROAI を決める・MCP_HTTP_PATH を秘密の値に
 ```
 
 ### 4. dump を受けて復元する
 
-工場側で `sh/make_sales_dump.sh` を走らせ、できた `sisho_sales_YYYYMMDD.dump` と `.sha256` を Tailscale 経由で売り場へ送る（`scp` か `tailscale file cp`）。売り場で:
+工場側で `sh/make_public_dump.sh` を走らせ、できた `sisho_public_YYYYMMDD.dump` と `.sha256` を Tailscale 経由で公開サーバーへ送る（`scp` か `tailscale file cp`）。公開サーバーで:
 
 ```bash
 # dump とスクリプトは postgres ユーザーが読める場所（/tmp）へ置く。sudo -E は新しい sudo（Ubuntu 26.04 の sudo-rs）で無視されるので env で渡す。
-sudo cp ~/sisho_sales_YYYYMMDD.dump ~/sisho_sales_YYYYMMDD.dump.sha256 sh/restore_sales_dump.sh /tmp/ && sudo chmod 644 /tmp/sisho_sales_*
+sudo cp ~/sisho_public_YYYYMMDD.dump ~/sisho_public_YYYYMMDD.dump.sha256 sh/restore_public_dump.sh /tmp/ && sudo chmod 644 /tmp/sisho_public_*
 sudo -u postgres env DB_PASS_ROAI=<.env と同じ値> PGUSER=postgres PGHOST=/var/run/postgresql \
-  bash /tmp/restore_sales_dump.sh /tmp/sisho_sales_YYYYMMDD.dump rag_sisho
+  bash /tmp/restore_public_dump.sh /tmp/sisho_public_YYYYMMDD.dump rag_sisho
 ```
 
 実測（2026-08-29・Lenovo G50-30・N2830 2 コア・HDD・Ubuntu 26.04）: 復元 104 秒・全体 131 秒（dump 68MB）。scp は Tailscale 越しで 16 秒。
@@ -82,7 +84,7 @@ sudo -u postgres env DB_PASS_ROAI=<.env と同じ値> PGUSER=postgres PGHOST=/va
 工場側（VM）:
 1. PostgreSQL を `wal_level=logical` にして再起動（docker compose なら command に `-c wal_level=logical`）。`max_slot_wal_keep_size` も置く（箱が長く落ちても工場のディスクが埋まらない保険）。
 2. 箱から届く口を開ける（docker の ports に Tailscale の IP・Tailscale ACL に `tag:sisho → <VM>:5435`）。pg_hba は `host all all all scram-sha-256` があれば足りる。
-3. `sh/sisho_repl/01_vm_publication.sql` を流す（ロール `sisho_repl`＝REPLICATION＋公開する列だけ SELECT／publication `sisho_pub`＝19 表（`limited_card_stats`・17Lands 追加集計 5 表 `limited_*`・`mtg_sets` を含む・`make_sales_dump.sh` の TABLES と同じ）・**全表を明示の列指定**——ただし主キーの無い `mtg_cards_v2_nonlegal`（REPLICA IDENTITY FULL）だけは列指定なし。列指定を付けると UPDATE/DELETE が「Column list used by the publication does not cover the replica identity」で拒否される（2026-08-31 実測））。
+3. `sh/sisho_repl/01_vm_publication.sql` を流す（ロール `sisho_repl`＝REPLICATION＋公開する列だけ SELECT／publication `sisho_pub`＝19 表（`limited_card_stats`・17Lands 追加集計 5 表 `limited_*`・`mtg_sets` を含む・`make_public_dump.sh` の TABLES と同じ）・**全表を明示の列指定**——ただし主キーの無い `mtg_cards_v2_nonlegal`（REPLICA IDENTITY FULL）だけは列指定なし。列指定を付けると UPDATE/DELETE が「Column list used by the publication does not cover the replica identity」で拒否される（2026-08-31 実測））。
    - `deck_list` の列指定に `player_name` を入れない＝名前は箱へ流れない。
    - 生成列（`mtg_cards_v2.name_display`）は列指定に入れない（箱が自分で計算する。入れると箱側で "incompatible generated column"）。
    - 主キーの無い表（`mtg_cards_v2_nonlegal`）は `REPLICA IDENTITY FULL`。
@@ -96,13 +98,13 @@ sudo -u postgres env DB_PASS_ROAI=<.env と同じ値> PGUSER=postgres PGHOST=/va
 運用:
 - 工場で公開表に列を足したら「箱に ADD COLUMN → 工場で publication から表を外して列指定を足して入れ直す（`ALTER PUBLICATION … DROP TABLE` → `ADD TABLE …(列)`・列指定は差し替えられない）→ 01 にも反映 → 箱で `ALTER SUBSCRIPTION sisho_sub REFRESH PUBLICATION WITH (copy_data = false)`」（copy_data=false＝中身のある表を COPY し直して主キー衝突させない）。実例は `05_vm_digital_column.sql`／`06_box_digital_column.sql`（2026-08-31・`digital` 列）。外している間の書き込みは箱へ流れないので、その間は表を書かない。
 - 生成列（`mtg_cards_v2` の `card_name`・`japanese_name`・`name_display`）は publication に載せられない。箱にも同じ式で作り、箱が自分で計算する（2026-08-31・`sh/sisho_repl/09a〜12`）。列指定に新しい列を足した後、既存行の値は REFRESH では流れない → 工場で `UPDATE 表 SET 列 = 列` と全行に触って流す。
-- 表を足すときは「工場で GRANT＋`ALTER PUBLICATION sisho_pub ADD TABLE …（列指定）` → 箱に同じ列の表を作って `readonly_ai` に GRANT → 箱で REFRESH PUBLICATION」（`03_vm_add_limited_card_stats.sql`／`04_box_add_limited_card_stats.sql` が実例・2026-08-31）。01 と `make_sales_dump.sh` の TABLES にも同じ表を足しておく（01 は作り直しの正本・dump は新しい箱の初期化）。表は public に置く（別スキーマだと既定 ACL・dump・名前解決の例外が増える＝8/31 に `lab17.card_stats` を public へ統合した理由）。
+- 表を足すときは「工場で GRANT＋`ALTER PUBLICATION sisho_pub ADD TABLE …（列指定）` → 箱に同じ列の表を作って `readonly_ai` に GRANT → 箱で REFRESH PUBLICATION」（`03_vm_add_limited_card_stats.sql`／`04_box_add_limited_card_stats.sql` が実例・2026-08-31）。01 と `make_public_dump.sh` の TABLES にも同じ表を足しておく（01 は作り直しの正本・dump は新しい箱の初期化）。表は public に置く（別スキーマだと既定 ACL・dump・名前解決の例外が増える＝8/31 に `lab17.card_stats` を public へ統合した理由）。
 - 箱が長く落ちて工場のスロットが `lost` になったら、箱で `DROP SUBSCRIPTION sisho_sub` → 02 をやり直す。
-- §4 の復元を走らせるときは先に `DROP SUBSCRIPTION sisho_sub`（`restore_sales_dump.sh` が検査して止まる）。
+- §4 の復元を走らせるときは先に `DROP SUBSCRIPTION sisho_sub`（`restore_public_dump.sh` が検査して止まる）。
 
 ### 5. MCP を常駐させる
 
-**推奨（2026-08-30・売り場で採用）: 専用ユーザーで動かす。** MCP に穴があっても sudo 持ちのユーザーに届かないようにする。
+**推奨（2026-08-30・公開サーバーで採用）: 専用ユーザーで動かす。** MCP に穴があっても sudo 持ちのユーザーに届かないようにする。
 
 ```bash
 sudo useradd -r -m -s /usr/sbin/nologin mcp                 # sudo 無し・ログイン不可
@@ -119,7 +121,7 @@ sudo chown -R sanoji:mcp /opt/mtg-sisho && sudo chmod -R g+rX,g-w,o-rwx /opt/mtg
 
 以下は旧手順（運用者のユーザー unit で動かす形・sudo 持ちのユーザーで動くので上の形を推奨）。
 
-`deploy/mtg-rag-mcp.service` を `~/.config/systemd/user/` に置き、`WorkingDirectory`・`ExecStart` のパスを売り場のものに直す（`~/mtg-sisho`・`.venv/bin/python`）。`EnvironmentFile` で `.env` を読ませる。 venv に mcp が入るので `Environment=PYTHONPATH=...` の行は消す（作者環境の都合）。`ExecStartPre` の待ち受けポートは売り場の PostgreSQL（5432）に直す。`.env` の `DB_USER` は `readonly_ai`・`DB_PASSWORD` は `DB_PASS_ROAI` と同じ値でよい（MCP は書き込みをしないので全道具を読み取り専用ロールで動かす）。`DB_FLAG_FILE` の既定はリポジトリ直下の `.primary_updating`（2026-09-05 以降・以前は作者環境の絶対パス）。売り場では更新処理を走らせないので、存在しないパスに上書きしておくと確実。
+`deploy/mtg-rag-mcp.service` を `~/.config/systemd/user/` に置き、`WorkingDirectory`・`ExecStart` のパスを公開サーバーのものに直す（`~/mtg-sisho`・`.venv/bin/python`）。`EnvironmentFile` で `.env` を読ませる。 venv に mcp が入るので `Environment=PYTHONPATH=...` の行は消す（作者環境の都合）。`ExecStartPre` の待ち受けポートは公開サーバーの PostgreSQL（5432）に直す。`.env` の `DB_USER` は `readonly_ai`・`DB_PASSWORD` は `DB_PASS_ROAI` と同じ値でよい（MCP は書き込みをしないので全道具を読み取り専用ロールで動かす）。`DB_FLAG_FILE` の既定はリポジトリ直下の `.primary_updating`（2026-09-05 以降・以前は作者環境の絶対パス）。公開サーバーでは更新処理を走らせないので、存在しないパスに上書きしておくと確実。
 
 ```bash
 sudo loginctl enable-linger $USER
@@ -133,20 +135,20 @@ curl -s http://127.0.0.1:8765$MCP_HTTP_PATH   # 何か返れば生きている
 sudo tailscale funnel --bg 8765      # この箱の Funnel で 8765 を公開
 ```
 
-VM 側の Funnel を止め、claude.ai のコネクタの URL を売り場のホスト名に貼り替える。ホスト名は証明書の透明性ログで公開されるので、待ち受けパス（`MCP_HTTP_PATH`）を秘密の値にしておく。
+VM 側の Funnel を止め、claude.ai のコネクタの URL を公開サーバーのホスト名に貼り替える。ホスト名は証明書の透明性ログで公開されるので、待ち受けパス（`MCP_HTTP_PATH`）を秘密の値にしておく。
 
 ### 7. 見張りと復旧
 
 - 工場の VM から 5〜15 分ごとに Funnel の URL で `mtg_rag_health` を叩く（返事が無ければ通知）
-- 売り場が壊れたら: OS を入れ直し → 1〜6 をやり直す。データは dump から戻る（工場に正本がある）
+- 公開サーバーが壊れたら: OS を入れ直し → 1〜6 をやり直す。データは dump から戻る（工場に正本がある）
 - 停電対策が要るなら UPS（Pi なら UPS HAT か大きめのモバイルバッテリー）。ルーターも一緒に生かさないと外から届かない
 
-## 守り（2026-08-30・売り場で実施した順）
+## 守り（2026-08-30・公開サーバーで実施した順）
 
 前提: Funnel は家のルーターにも tailnet にも入口を開けない（入ってくるのは箱の 127.0.0.1:8765 への HTTP だけ）。守るのは「MCP に穴があったとき、箱の外へ広がらないこと」。
 
 1. **MCP は専用ユーザー**（§5・sudo 無し・コード読み取り専用・書けるのはログ置き場だけ・systemd の砂場）
-2. **Tailscale ACL**: 売り場 → 他ノードは拒否（§2）
+2. **Tailscale ACL**: 公開サーバー → 他ノードは拒否（§2）
 3. **ufw は外向きも既定拒否**: 許すのは ルーター宛 DNS/DHCP・Tailscale（41641/3478 udp・tailscale0）・80/443 tcp（Tailscale 制御・DERP・Discord・apt・pip）・NTP（123 udp・4460 tcp）。**家の LAN 宛はルーター以外拒否**（Tailscale 直結用の 41641/udp だけ例外）。これで乗っ取られても LAN の他の機械に届かず、踏み台としても 80/443 宛しか出られない。
 
 ```bash
@@ -160,13 +162,13 @@ sudo ufw reload
 ```
 適用の前に LAN 直の ssh（inbound 22 from LAN）を控えに残しておく。適用後に Tailscale の直結（`tailscale ping`）・DNS・Discord・apt が通ること、LAN の他の機械と外の 22/25 が拒否されることを実測する。
 
-4. **Lynis で答え合わせ**: `sudo apt install lynis && sudo lynis audit system` → 警告は全部潰す・提案は「この箱に意味があるか」で選ぶ（企業向け項目=外部ログホスト・auditd・GRUB パスワード等は見送ってよい）。unit の砂場は `systemd-analyze security mtg-rag-mcp` の点数で確認（売り場の実測: 7.8 → 1.3・Hardening index 64 → 72・2026-08-30）。
+4. **Lynis で答え合わせ**: `sudo apt install lynis && sudo lynis audit system` → 警告は全部潰す・提案は「この箱に意味があるか」で選ぶ（企業向け項目=外部ログホスト・auditd・GRUB パスワード等は見送ってよい）。unit の砂場は `systemd-analyze security mtg-rag-mcp` の点数で確認（公開サーバーの実測: 7.8 → 1.3・Hardening index 64 → 72・2026-08-30）。
 
 残る性質の違う穴: 秘密パスを知られたときの DoS（レート制限は未実装）・pip の供給元・物理。
 
 ## DB を RAM に置く形（任意）
 
-売り場の DB は約 0.9GB なので、8GB の箱なら tmpfs に置いて毎回 dump から作り直す形もとれる（記憶装置に一切書かない）。
+公開サーバーの DB は約 0.9GB なので、8GB の箱なら tmpfs に置いて毎回 dump から作り直す形もとれる（記憶装置に一切書かない）。
 起動時に `pg_restore` が数分かかり、その間は返事ができない。MCP の unit を復元完了の後に起動するよう縛る。実機で復元時間を測ってから採るかどうか決める。
 
 ## 未検証（正直に）
@@ -187,8 +189,8 @@ sudo ufw reload
 
 ## 確率計算の SQL 関数（2026-09-04）
 
-`sql/prob_functions.sql` を工場と売り場の両方で流す（論理レプリケーションは関数を運ばない・`CREATE OR REPLACE` で冪等）。売り場は `scp` → `/tmp` → `chmod 644` → `sudo -u postgres psql -d rag_sisho -v ON_ERROR_STOP=1 -f /tmp/prob_functions.sql`。`readonly_ai` は既定の PUBLIC EXECUTE で呼べる。新しい箱を作るときは dump の後にこのファイルを流す（dump は表だけ）。
+`sql/prob_functions.sql` を工場と公開サーバーの両方で流す（論理レプリケーションは関数を運ばない・`CREATE OR REPLACE` で冪等）。公開サーバーは `scp` → `/tmp` → `chmod 644` → `sudo -u postgres psql -d rag_sisho -v ON_ERROR_STOP=1 -f /tmp/prob_functions.sql`。`readonly_ai` は既定の PUBLIC EXECUTE で呼べる。新しい箱を作るときは dump の後にこのファイルを流す（dump は表だけ）。
 
 ## 索引（2026-09-04）
 
-索引は論理レプリケーションで運ばれないので、工場と売り場の両方で作る（`sh/sisho_repl/21_both_add_indexes.sql`・`CREATE INDEX CONCURRENTLY`＝適用と道具を止めない）。売り場の統計（`pg_stat_user_tables` の順次走査・`pg_stat_user_indexes` の使用回数）で足りない索引と使われない索引を定期的に見る。膨張は `pgstattuple` の `pgstatindex()` で葉の密度を測る（新品は約 90%・40% 未満は作り直し）。売り場の `readonly_ai` は `max_parallel_workers_per_gather = 0`（2 コアで席 5 の取り合いを避ける）。
+索引は論理レプリケーションで運ばれないので、工場と公開サーバーの両方で作る（`sh/sisho_repl/21_both_add_indexes.sql`・`CREATE INDEX CONCURRENTLY`＝適用と道具を止めない）。公開サーバーの統計（`pg_stat_user_tables` の順次走査・`pg_stat_user_indexes` の使用回数）で足りない索引と使われない索引を定期的に見る。膨張は `pgstattuple` の `pgstatindex()` で葉の密度を測る（新品は約 90%・40% 未満は作り直し）。公開サーバーの `readonly_ai` は `max_parallel_workers_per_gather = 0`（2 コアで席 5 の取り合いを避ける）。
