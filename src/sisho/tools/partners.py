@@ -2,7 +2,7 @@
 
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
 """
-from sisho.db import _db
+from sisho.db import LANE_HEAVY, _db
 from sisho.names import resolve_face_name
 from sisho.toollog import _log_tool
 
@@ -144,7 +144,8 @@ def find_partner_cards(card_name: str, scope: str = "edh",
         " LEFT JOIN nb ON nb.card_id = t.pid, da, npool"
         " ORDER BY " + order_sql + " LIMIT %(limit)s",
         {"names": names, "dsrc": deck_src, "csrc": deck_src,
-         "min_ab": min_ab, "pool_limit": pool_limit, "limit": limit})
+         "min_ab": min_ab, "pool_limit": pool_limit, "limit": limit},
+        lane=LANE_HEAVY)
     if not rows:
         return f"共起なし: {name}（scope={scope}・英語の正式カード名で指定してください）"
     out = [f"{disp}: {pct}%（{n_ab} 本同居・lift {lift if lift is not None else '?'}）"

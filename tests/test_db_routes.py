@@ -81,8 +81,13 @@ def test_db_route_success(fake_db):
     res = db._db("SELECT name, count FROM cards WHERE set = %s", ("MH3",))
     slot_after = db._DB_SLOTS._value
 
-    # 項目 1
-    assert calls == [DB_CONFIG], "connect の引数が DB_CONFIG と一致"
+    # 項目 1: options 以外の鍵が DB_CONFIG と一致し、options に statement_timeout=1000 を含む（既定は軽い線）
+    assert len(calls) == 1
+    cfg0 = calls[0]
+    assert "statement_timeout=1000" in cfg0.get("options", "")
+    for k, v in DB_CONFIG.items():
+        if k != "options":
+            assert cfg0[k] == v
     assert cur.executed == [("SELECT name, count FROM cards WHERE set = %s", ("MH3",))], "execute(sql, params) を呼ぶ"
     assert cur.fetchall_called == 1, "fetchall() を呼ぶ"
     assert res == rows, "返り値が fetchall の結果そのもの"
@@ -111,7 +116,8 @@ def test_db_readonly_route_success(fake_db, monkeypatch):
     cfg = calls[0]
     assert cfg["user"] == "readonly_ai"
     assert cfg["password"] == "mock_roai_secret"
-    assert cfg["options"] == "-c statement_timeout=10000"
+    # 既定は軽い線なので 1000ms（2026-09-07 本人裁定: 席を重い線 4+バイパス 1 に分割・既定は軽い線）
+    assert cfg["options"] == "-c statement_timeout=1000"
     for k, v in DB_CONFIG.items():
         if k not in ("user", "password", "options"):
             assert cfg[k] == v
