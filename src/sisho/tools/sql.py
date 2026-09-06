@@ -19,7 +19,7 @@ from sisho.tools.cards import _archetype_lines, _resolve_draft_set
 
 
 QUERY_MTG_DATABASE_DESCRIPTION = ("【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
-    "【専用ツールで表せない集計は Web に行かずここで SQL】読み取り専用 SQL（PostgreSQL・SELECT/WITH のみ・1 文・10 秒・最大 50 行）。"
+    "【専用ツールで表せない集計は Web に行かずここで SQL】読み取り専用 SQL（PostgreSQL・SELECT/WITH のみ・1 文・10 秒・最大 50 行）。条件違いの比較（色別・セット別・ランク帯別など）は同じ表を何度も引かず GROUP BY／CASE で 1 文にまとめる（往復 1 回が速い）。"
     "主な棚: mtg_cards_v2（card_name, japanese_name, name_display, type_line, mana_cost, oracle_text, legalities, edhrec_rank）／"
     "mtg_rules／card_rulings／card_format_strength・edh_card_strength（採用率）／card_cooccurrence・edh_card_cooccurrence_v2（共起）／"
     "mtg_sets（セット発売日・set_type・エキスパンション紀元の突き合わせ用・2026-08-25）／"
