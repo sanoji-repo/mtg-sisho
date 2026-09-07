@@ -11,7 +11,7 @@ import re
 import secrets
 import time
 
-from sisho.context import CURRENT_FUDA
+from sisho.context import CURRENT_CLIENT_IP, CURRENT_FUDA
 from sisho.paths import repo_path
 from sisho.ratelimit import RateLimiter, send_429
 
@@ -383,44 +383,48 @@ class GateASGI:
         client = scope.get("client")
         ip = client[0] if client else "?"
 
-        if path.rstrip("/") == self.issue_path.rstrip("/"):
-            ok, retry = self.limiter.check(ip)     # 発行ページも IP の枠（60/分）で数える
-            if not ok:
-                return await send_429(send, retry, f"混雑: 呼び出しが多すぎます。{retry} 秒待ってからもう一度開いてください。")
-            return await self._handle_issue(scope, receive, send, ip)
+        ip_token = CURRENT_CLIENT_IP.set(ip)
+        try:
+            if path.rstrip("/") == self.issue_path.rstrip("/"):
+                ok, retry = self.limiter.check(ip)     # 発行ページも IP の枠（60/分）で数える
+                if not ok:
+                    return await send_429(send, retry, f"混雑: 呼び出しが多すぎます。{retry} 秒待ってからもう一度開いてください。")
+                return await self._handle_issue(scope, receive, send, ip)
 
-        m = self._fuda_re.fullmatch(path)
-        if m:
-            fuda = m.group(1)
-            rec = self.store.lookup(fuda)
-            if rec is None:
-                return await self._respond_404(send, ip)
-            ok, retry = self.limiter.check("fuda:" + fuda, per=rec["per_min"])
-            if not ok:
-                msg = (f"混雑: 呼び出しが多すぎます（この接続 URL からの上限に達しました）。{retry} 秒待ってから"
-                       "もう一度呼んでください。まとめて引ける問いは 1 回の SQL に寄せると回数が減ります。")
-                return await send_429(send, retry, msg)
-            token = CURRENT_FUDA.set(short(fuda))
-            new_scope = dict(scope)
-            new_scope["path"] = self.inner_path
-            new_scope["raw_path"] = self.inner_path.encode("latin1")
-            try:
-                return await self.app(new_scope, receive, send)
-            finally:
-                CURRENT_FUDA.reset(token)
+            m = self._fuda_re.fullmatch(path)
+            if m:
+                fuda = m.group(1)
+                rec = self.store.lookup(fuda)
+                if rec is None:
+                    return await self._respond_404(send, ip)
+                ok, retry = self.limiter.check("fuda:" + fuda, per=rec["per_min"])
+                if not ok:
+                    msg = (f"混雑: 呼び出しが多すぎます（この接続 URL からの上限に達しました）。{retry} 秒待ってから"
+                           "もう一度呼んでください。まとめて引ける問いは 1 回の SQL に寄せると回数が減ります。")
+                    return await send_429(send, retry, msg)
+                token = CURRENT_FUDA.set(short(fuda))
+                new_scope = dict(scope)
+                new_scope["path"] = self.inner_path
+                new_scope["raw_path"] = self.inner_path.encode("latin1")
+                try:
+                    return await self.app(new_scope, receive, send)
+                finally:
+                    CURRENT_FUDA.reset(token)
 
-        if path == self.inner_path:
-            if not self.legacy_on:
-                return await self._respond_404(send, ip)
-            ok, retry = self.limiter.check(ip)
-            if not ok:
-                msg = (f"混雑: 呼び出しが多すぎます（この接続元からの上限に達しました）。{retry} 秒待ってから"
-                       "もう一度呼んでください。まとめて引ける問いは 1 回の SQL に寄せると回数が減ります。")
-                return await send_429(send, retry, msg)
-            token = CURRENT_FUDA.set("legacy")
-            try:
-                return await self.app(scope, receive, send)
-            finally:
-                CURRENT_FUDA.reset(token)
+            if path == self.inner_path:
+                if not self.legacy_on:
+                    return await self._respond_404(send, ip)
+                ok, retry = self.limiter.check(ip)
+                if not ok:
+                    msg = (f"混雑: 呼び出しが多すぎます（この接続元からの上限に達しました）。{retry} 秒待ってから"
+                           "もう一度呼んでください。まとめて引ける問いは 1 回の SQL に寄せると回数が減ります。")
+                    return await send_429(send, retry, msg)
+                token = CURRENT_FUDA.set("legacy")
+                try:
+                    return await self.app(scope, receive, send)
+                finally:
+                    CURRENT_FUDA.reset(token)
 
-        return await self._respond_404(send, ip)
+            return await self._respond_404(send, ip)
+        finally:
+            CURRENT_CLIENT_IP.reset(ip_token)
