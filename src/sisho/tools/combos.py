@@ -80,7 +80,7 @@ def find_combos(card_names: list[str], commanders: list[str] | None = None, limi
     if not ok:
         return errors.err_json(
             errors.RATE_LIMITED,
-            f"コンボ検索の回数が多すぎます（この接続 URL は 1 分に 10 回まで）。{retry} 秒待ってから呼び直す")
+            f"コンボ検索の回数が多すぎます（この接続 URL は 1 分に {_COMBOS_PER_MIN} 回まで）。{retry} 秒待ってから呼び直す")
     # 日本語名 → 英語名（DB）。英語名はそのまま。見つからない名前はそのまま送る（Spellbook 側で無視される）
     resolved: dict[str, str] = {}
     try:

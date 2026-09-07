@@ -94,6 +94,16 @@ def test_fuda_store_crud(tmp_path):
     # stopping again returns False
     assert store1.stop(fuda) is False
 
+    # stop の TSV 行は番兵 '-' を使わず末尾空文字 \t\n
+    with open(fuda_file, "r", encoding="utf-8") as f:
+        stop_lines = [l for l in f if "\tstop\t" in l]
+    assert len(stop_lines) == 1
+    assert stop_lines[0].endswith("\t\n")
+    stop_cols = stop_lines[0].rstrip("\r\n").split("\t")
+    assert len(stop_cols) == 6
+    assert stop_cols[5] == ""
+    assert "-" not in stop_cols
+
     # issue a second fuda
     fuda2 = store1.issue("192.0.2.1", memo="second token")
 
@@ -167,9 +177,10 @@ def test_gate_asgi_404(tmp_path):
 
     for bad_path in ["/unknown", "/mcp/nonexistentfuda123456789012345", f"/mcp/{fuda_stopped}", "/mcp"]:
         _, sent = asyncio.run(run_asgi_request(gate, bad_path))
-        status, _, body = parse_response(sent)
+        status, headers, body = parse_response(sent)
         assert status == 404, f"Path {bad_path} should be 404, got {status}"
         assert body == b"not found"
+        assert headers.get("content-length") == "9"
         assert len(calls) == 0, f"Inner app must not be called for {bad_path}"
 
 
@@ -313,6 +324,10 @@ def test_gate_asgi_issue_page(tmp_path):
     assert status == 200
     assert "https://base.example.com/mcp/" in body_str
     assert "readonly" in body_str
+    assert "ボタンを押すと、あなた専用の接続 URL が出ます" not in body_str
+    assert "URL は合言葉と同じです。人に見せないでください" in body_str
+    assert "無くしたら、もう一度ここで発行できます" in body_str
+    assert "claude.ai の設定 → コネクタ → カスタムコネクタを追加、に貼る" in body_str
 
     # POST 2回目・3回目
     _, sent_p2 = asyncio.run(run_asgi_request(gate, "/issue", method="POST", client_ip=ip))
@@ -427,6 +442,7 @@ def test_combos_fuda_rate_limit(monkeypatch):
         res11 = combos.find_combos(["Sol Ring"])
         d11 = json.loads(res11)
         assert d11.get("error_kind") == "rate_limited"
+        assert f"1 分に {combos._COMBOS_PER_MIN} 回まで" in d11.get("error", "")
         assert "秒待ってから呼び直す" in d11.get("error", "")
     finally:
         CURRENT_FUDA.reset(token)
@@ -439,6 +455,149 @@ def test_combos_fuda_rate_limit(monkeypatch):
         assert "error_kind" not in d_b, "別札が巻き添えになった"
     finally:
         CURRENT_FUDA.reset(token_b)
+
+
+def test_gate_asgi_issue_persistence_after_restart(tmp_path):
+    """11. 再起動後の 24h 枠: 既存 TSV に 1 時間前の同一 IP issue 3 行がある状態で新しい FudaStore＋新しい issue_limiter を組んで POST → 429。25 時間前なら 200。"""
+    fuda_file = str(tmp_path / "fuda.tsv")
+    base_dt = datetime.datetime(2026, 9, 7, 12, 0, 0)
+    ip = "203.0.113.88"
+
+    async def dummy_app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    # 1. 1時間前の issue が 3 行ある状態
+    t_1h_ago = base_dt - datetime.timedelta(hours=1)
+    with open(fuda_file, "w", encoding="utf-8") as f:
+        for i in range(3):
+            f.write(f"{t_1h_ago.isoformat()}\tissue\tfuda_old_{i}\t{ip}\t60\tmemo\n")
+
+    # 新しい FudaStore + 新しい issue_limiter（メモリは空）
+    mock_dt = MockTime(base_dt)
+    clock = Clock(base_dt.timestamp())
+    store1 = FudaStore(fuda_file, dt_now=mock_dt)
+    issue_limiter1 = RateLimiter(per_ip=3, global_=100, window=86400.0, exempt="", clock=clock)
+    limiter1 = RateLimiter(per_ip=60, global_=300, clock=clock)
+    gate1 = GateASGI(dummy_app, store1, limiter1, issue_limiter1,
+                     inner_path="/mcp", prefix="/mcp/")
+
+    _, sent1 = asyncio.run(run_asgi_request(gate1, "/issue", method="POST", client_ip=ip))
+    status1, headers1, body1 = parse_response(sent1)
+    assert status1 == 429
+    assert "今日はもう発行できません" in body1.decode("utf-8")
+    assert "retry-after" in headers1
+    retry_sec = int(headers1["retry-after"])
+    # 1時間前(3600秒前)なので、残り時間は約 23時間 (86400 - 3600 = 82800秒) 付近
+    assert 82700 <= retry_sec <= 82900
+
+    # 2. 25時間前の issue が 3 行ある状態
+    t_25h_ago = base_dt - datetime.timedelta(hours=25)
+    with open(fuda_file, "w", encoding="utf-8") as f:
+        for i in range(3):
+            f.write(f"{t_25h_ago.isoformat()}\tissue\tfuda_older_{i}\t{ip}\t60\tmemo\n")
+
+    store2 = FudaStore(fuda_file, dt_now=mock_dt)
+    issue_limiter2 = RateLimiter(per_ip=3, global_=100, window=86400.0, exempt="", clock=clock)
+    limiter2 = RateLimiter(per_ip=60, global_=300, clock=clock)
+    gate2 = GateASGI(dummy_app, store2, limiter2, issue_limiter2,
+                     inner_path="/mcp", prefix="/mcp/")
+
+    _, sent2 = asyncio.run(run_asgi_request(gate2, "/issue", method="POST", client_ip=ip))
+    status2, _, body2 = parse_response(sent2)
+    assert status2 == 200
+    assert "あなたの接続 URL" in body2.decode("utf-8")
+
+
+def test_gate_asgi_issue_post_drains_body(tmp_path):
+    """12. POST 本文の読み捨て: _handle_issue の POST で応答前に receive() を more_body が False になるまで読む。"""
+    fuda_file = str(tmp_path / "fuda.tsv")
+    store = FudaStore(fuda_file)
+
+    async def dummy_app(scope, receive, send):
+        pass
+
+    limiter = RateLimiter(per_ip=60, global_=300)
+    issue_limiter = RateLimiter(per_ip=3, global_=100, window=86400.0, exempt="")
+    gate = GateASGI(dummy_app, store, limiter, issue_limiter, inner_path="/mcp", prefix="/mcp/")
+
+    chunks = [
+        {"type": "http.request", "body": b"field1=val1&", "more_body": True},
+        {"type": "http.request", "body": b"field2=val2&", "more_body": True},
+        {"type": "http.request", "body": b"field3=val3", "more_body": False},
+    ]
+    receive_calls = []
+
+    async def chunked_receive():
+        idx = len(receive_calls)
+        receive_calls.append(idx)
+        return chunks[idx]
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/issue",
+        "raw_path": b"/issue",
+        "headers": [(b"content-type", b"application/x-www-form-urlencoded")],
+        "client": ("203.0.113.19", 12345),
+    }
+    sent = []
+    async def send(msg):
+        sent.append(msg)
+
+    asyncio.run(gate(scope, chunked_receive, send))
+    status, _, _ = parse_response(sent)
+    assert status == 200
+    assert len(receive_calls) == 3, f"receive() should have been called 3 times until more_body=False, but got {len(receive_calls)}"
+
+
+def test_bin_fuda_cli(tmp_path):
+    """13. bin/fuda CLI の動作検証（issue, list, stop, list --all, 番兵'-'の不在）。"""
+    import subprocess
+    fuda_file = str(tmp_path / "fuda.tsv")
+    bin_fuda = os.path.join(os.path.dirname(__file__), "..", "bin", "fuda")
+    env = {**os.environ, "PYTHONPATH": os.path.join(os.path.dirname(__file__), "..", "src")}
+
+    # issue
+    proc = subprocess.run([sys.executable, bin_fuda, "--file", fuda_file, "issue", "--memo", "cli test"],
+                          capture_output=True, text=True, check=True, env=env)
+    out = proc.stdout
+    assert "札: " in out
+    fuda = [line for line in out.splitlines() if line.startswith("札: ")][0].split(": ")[1].strip()
+
+    # list
+    proc_list = subprocess.run([sys.executable, bin_fuda, "--file", fuda_file, "list"],
+                               capture_output=True, text=True, check=True, env=env)
+    list_out = proc_list.stdout.strip()
+    assert short(fuda) in list_out
+    assert "alive" in list_out
+    assert "cli" in list_out
+    assert "cli test" in list_out
+
+    # stop
+    proc_stop = subprocess.run([sys.executable, bin_fuda, "--file", fuda_file, "stop", fuda[:10]],
+                               capture_output=True, text=True, check=True, env=env)
+    assert "停止しました" in proc_stop.stdout
+
+    # list (without --all should be empty now)
+    proc_list2 = subprocess.run([sys.executable, bin_fuda, "--file", fuda_file, "list"],
+                                capture_output=True, text=True, check=True, env=env)
+    assert proc_list2.stdout.strip() == ""
+
+    # list --all
+    proc_list_all = subprocess.run([sys.executable, bin_fuda, "--file", fuda_file, "list", "--all"],
+                                   capture_output=True, text=True, check=True, env=env)
+    assert "stopped" in proc_list_all.stdout
+
+    # TSV の stop 行は番兵 '-' を含まず末尾 \t\n で終わる
+    with open(fuda_file, "r", encoding="utf-8") as f:
+        tsv_lines = f.readlines()
+    stop_line = [l for l in tsv_lines if "\tstop\t" in l][0]
+    assert stop_line.endswith("\t\n")
+    cols = stop_line.rstrip("\r\n").split("\t")
+    assert len(cols) == 6
+    assert cols[5] == ""
+    assert "-" not in cols
 
 
 if __name__ == "__main__":
