@@ -139,10 +139,10 @@ class FudaStore:
         rec["alive"] = False
         now_dt = self._dt_now()
         ts_s = now_dt.isoformat()
-        ip = rec.get("ip", "-")
-        per_min = rec.get("per_min", "-")
+        ip = rec.get("ip", "")
+        per_min = str(rec.get("per_min", ""))
         with open(self.path, "a", encoding="utf-8") as f:
-            f.write(f"{ts_s}\tstop\t{fuda}\t{ip}\t{per_min}\t-\n")
+            f.write(f"{ts_s}\tstop\t{fuda}\t{ip}\t{per_min}\t\n")
         try:
             st = os.stat(self.path)
             self._last_mtime = st.st_mtime
@@ -162,6 +162,7 @@ class FudaStore:
 
     def issued_in(self, ip: str, seconds: float = 86400) -> int:
         """直近 seconds 秒間の指定 IP からの発行回数を数える。"""
+        self.reload_if_changed()
         now = self._dt_now()
         count = 0
         for dt, ev_type, fuda, ev_ip in self.events:
@@ -226,7 +227,10 @@ class GateASGI:
                    public_base=public_base)
 
     async def _respond_404(self, send) -> None:
-        headers = [(b"content-type", b"text/plain; charset=utf-8")]
+        headers = [
+            (b"content-type", b"text/plain; charset=utf-8"),
+            (b"content-length", b"9"),
+        ]
         await send({"type": "http.response.start", "status": 404, "headers": headers})
         await send({"type": "http.response.body", "body": b"not found"})
 
@@ -254,6 +258,38 @@ class GateASGI:
             return
 
         if method == "POST":
+            # フォームの本文が残ったまま応答すると h11 が接続を切るため読み捨てる
+            more_body = True
+            while more_body:
+                msg = await receive()
+                more_body = msg.get("more_body", False)
+
+            # TSV の永続記録から直近 24 時間の発行枠を検査（サーバー再起動対策）
+            if self.issue_limiter.per_ip and self.store.issued_in(ip, 86400) >= self.issue_limiter.per_ip:
+                now = self.store._dt_now()
+                matching_dts = [dt for dt, ev_type, _, ev_ip in self.store.events
+                                if ev_type == "issue" and ev_ip == ip and 0 <= (now - dt).total_seconds() <= 86400]
+                if matching_dts:
+                    oldest = min(matching_dts)
+                    retry = max(1, int(86400 - (now - oldest).total_seconds()) + 1)
+                else:
+                    retry = 86400
+                body = (
+                    '<!DOCTYPE html>\n<html lang="ja">\n<head>\n<meta charset="utf-8">\n'
+                    '<title>発行上限</title>\n</head>\n<body>\n'
+                    '<h1>今日はもう発行できません。明日また来てください</h1>\n'
+                    '</body>\n</html>'
+                ).encode("utf-8")
+                headers = [
+                    (b"content-type", b"text/html; charset=utf-8"),
+                    (b"cache-control", b"no-store"),
+                    (b"retry-after", str(retry).encode()),
+                    (b"content-length", str(len(body)).encode()),
+                ]
+                await send({"type": "http.response.start", "status": 429, "headers": headers})
+                await send({"type": "http.response.body", "body": body})
+                return
+
             ok, retry = self.issue_limiter.check(ip)
             if not ok:
                 body = (
@@ -283,7 +319,6 @@ class GateASGI:
                 f'<h1>あなたの接続 URL</h1>\n'
                 f'<p><code>{url_esc}</code></p>\n'
                 f'<p><input readonly value="{url_esc}" style="width: 100%; max-width: 600px;"></p>\n'
-                f'<p>ボタンを押すと、あなた専用の接続 URL が出ます</p>\n'
                 f'<p>URL は合言葉と同じです。人に見せないでください</p>\n'
                 f'<p>無くしたら、もう一度ここで発行できます</p>\n'
                 f'<p>claude.ai の設定 → コネクタ → カスタムコネクタを追加、に貼る</p>\n'

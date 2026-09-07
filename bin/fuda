@@ -2,6 +2,7 @@
 """fuda — 接続 URL の札の発行・停止・一覧（2026-09-07 小片 8）
 
 箱では sudo -u mcp bin/fuda ... で打つ（/var/log/mtg-sisho/fuda.tsv への書き込み権限）。
+箱の環境変数は /opt/mtg-sisho/.env を sudo -u mcp env $(cat /opt/mtg-sisho/.env) で渡すか、MCP_FUDA_FILE=/var/log/mtg-sisho/fuda.tsv を明示。
 """
 import argparse
 import datetime
@@ -49,7 +50,7 @@ def main():
             status = "alive" if alive else "stopped"
             ts = rec.get("issued_at")
             ts_str = ts.strftime("%Y-%m-%d %H:%M:%S") if isinstance(ts, datetime.datetime) else str(ts)
-            ip = rec.get("ip", "-")
+            ip = rec.get("ip", "")
             per_min = rec.get("per_min", 60)
             memo = rec.get("memo", "")
             print(f"{short(fuda)}\t{status}\t{ts_str}\t{ip}\t{per_min}/分\t{memo}")
