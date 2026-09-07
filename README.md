@@ -1,23 +1,19 @@
 # Sisho（司書）
 
-**Magic: The Gathering の「検証済みの事実」を AI アシスタントに渡す MCP サーバー。**
-カード（日本語名つき）・総合ルール・公式裁定・実デッキ統計を PostgreSQL に持ち、
-MCP（Model Context Protocol＝AI アシスタントが外部ツールを呼ぶための共通規格）のツールとして提供する。
-AI 側の記憶や Web の孫引きではなく、一次データから直接引けるようにするのが目的。
+Magic: The Gathering のデータを取り出すライブラリアンサービス（MCP サーバー）。
 
-設定キーは `sisho`。名前は MTG 公式日本語訳のカード名「Librarian（司書）」に由来。
+An MCP (Model Context Protocol) server that acts as a librarian for Magic: The Gathering data. It connects AI assistants directly to a local PostgreSQL database of cards with Japanese names, Comprehensive Rules, official rulings, and tournament deck statistics. Instead of relying on model memory or web searches, assistants retrieve verified primary data directly through standard tool calls.
+
+カード（日本語名つき）・総合ルール・公式裁定・実デッキ統計を PostgreSQL に揃え、
+MCP（Model Context Protocol＝AI アシスタントが外部ツールを呼ぶための共通規格）のツールとして提供する。
+AI のあやふやな記憶や Web の孫引きに頼らず、手元の一次データから直接引けるようにするのが役目。
+
+設定キーは `sisho`。名前は MTG 公式日本語訳のカード名「Librarian（司書）」に由来する。
 
 | 文書 | 内容 |
 | --- | --- |
-| README（本書） | 何ができるか・使い方の入口・ライセンスと制限 |
-| [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md) | はじめての人向け: つないで最初の問いを投げるまで |
-| [DATA_MODEL.md](./DATA_MODEL.md) | テーブルと列の一覧（実 DB から 2026-08-23 に採取） |
-| [DESIGN.md](./DESIGN.md) | 設計原則（何で失敗して何を学んだか） |
-| [docs/DATA_SOURCES.md](./docs/DATA_SOURCES.md) | データの出所・利用マナー・ライセンス |
-| [docs/bench/README.md](./docs/bench/README.md) | ベンチマーク台帳（モデル別・回答原文つき） |
-| [docs/PUBLIC_SERVER.md](./docs/PUBLIC_SERVER.md) | 読み取り専用の公開サーバーを別のマシンに構築する手順・規模の見積もりと台数を増やす形 |
-| [docs/SETUP.md](./docs/SETUP.md) | 自分で立てる手順（前提条件・DB 構築・定期運用・MCP サーバーの登録） |
-| [hooks/README.md](./hooks/README.md) | Claude Code の Stop フック（回答前の強制検証） |
+| [docs/導入方法.md](./docs/導入方法.md) | 使う人向け。つないで最初の問いを投げるまで |
+| [docs/ENGINEERING.md](./docs/ENGINEERING.md) | 立てる・中を見る人向け。設計や構築の技術文書 |
 
 ---
 
@@ -42,9 +38,9 @@ AI アシスタント（Claude Code・claude.ai のコネクタ等）にこの�
 
 ### カード名の完成形
 
-日本語で MTG を語るとき、AI は**カード名を自分で翻訳してしまう**（例: Stifle を「スティフル」、正しくは《もみ消し》）。
-このサーバーは、カード情報を扱うツールの返り値すべてに `name_display`＝**《日本語名/英語名》** という完成形の文字列を載せ、
-「この文字列を一字も変えずに書く」ことを求める。日本語版が存在しないカードは「英語名（日本語版なし）」で返す（Arena 専用で日本語名未収録のカードは「英語名（日本語名未収録）」）。
+日本語で MTG を語るとき、AI はカード名を自分で翻訳してしまう（例: Stifle を「スティフル」、正しくは 《もみ消し/Stifle》）。
+このサーバーは、カード情報を扱うツールの返り値すべてに `name_display`＝《日本語名/英語名》 という完成形の文字列を載せ、
+「この文字列を一字も変えずに書く」ことを求める。日本語版が無いカードは英語名のみ（日本語版無し）で返す（Arena 専用で日本語名未収録のカードは「英語名（日本語名未収録）」）。
 SQL の実行結果でも、カード名に当たる列の右隣に完成形の列を自動で添える。
 最後に `verify_answer` が回答文中の名称を DB と突き合わせる。
 
@@ -54,24 +50,25 @@ SQL の実行結果でも、カード名に当たる列の右隣に完成形の�
 
 ## 測定データ
 
-名前忠実度（2026-08-21・42 問・Claude Opus）: MCP 有りは全 effort で 42/42、MCP 無しは最良でも 22/42。
-《日本語名/英語名》の書式適合（2026-08-22・100 問 × 5 試行・Opus low）: 改変ゼロ回答 97/100（5 回目）。
+名前忠実度（42 問・Claude Opus）: MCP 有りは全 effort で 42/42、MCP 無しは最良でも 22/42。
+《日本語名/英語名》の書式適合（100 問 × 5 試行・Opus low）: 改変ゼロ回答 97/100（5 回目）。
 測定の条件・回答原文・正直に書いておくこと・再測定の手順は [docs/bench/README.md](./docs/bench/README.md)。
 
 ---
 
 ## データ
 
-件数の表は [DATA_MODEL.md](./DATA_MODEL.md) の頭にある（2026-09-07 時点）。
+件数の表は [DATA_MODEL.md](./DATA_MODEL.md) の頭にある。
 
-**このリポジトリにデータ本体は含まれていない。** リポジトリに含まれるのは DB を構築・更新するためのスクリプト群と MCP サーバー実装である。
+このリポジトリにデータ本体は含まれていない。
+リポジトリに含まれるのは DB を構築・更新するためのスクリプト群と MCP サーバー実装である。
 データ出所ごとの取得マナーとライセンス・著作権表示は [docs/DATA_SOURCES.md](./docs/DATA_SOURCES.md) を参照。
 
 ---
 
 ## 使い方
 
-- つないで使う（はじめての人向け）: [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md)
+- つないで使う（はじめての人向け）: [docs/導入方法.md](./docs/導入方法.md)
 - 自分で立てる: [docs/SETUP.md](./docs/SETUP.md)（前提条件・DB 構築・定期運用・MCP サーバーの登録）
 - Claude Code で回答前の強制検証: [hooks/README.md](./hooks/README.md)
 
@@ -81,7 +78,7 @@ SQL の実行結果でも、カード名に当たる列の右隣に完成形の�
 | --- | --- | --- | --- |
 | claude.ai（無料プラン） | カスタムコネクタ 1 枠（公式サポートに「Free users are limited to one custom connector」と明記） | ツールの説明文と返り値のみ（`instructions` は無視される） | 不可 |
 | claude.ai（Pro 以上） | カスタムコネクタ | 同上 | 不可 |
-| Claude Code（Pro 以上） | stdio または HTTP 接続 | 説明文・返り値・`instructions` | **可能**（[hooks/README.md](./hooks/README.md) の Stop フックを使用） |
+| Claude Code（Pro 以上） | stdio または HTTP 接続 | 説明文・返り値・`instructions` | 可能（[hooks/README.md](./hooks/README.md) の Stop フックを使用） |
 | 独自アプリケーション（API） | 任意の実装 | 全情報 | 可能（レスポンス受信後に検証・再生成を制御） |
 
 ---

@@ -1,6 +1,6 @@
 # 自分で立てる（SETUP.md）
 
-Sisho を自分の PostgreSQL と Python で動かす手順。README から 2026-09-07 に移した（内容は移した時点のまま）。
+Sisho を自分の PostgreSQL と Python で動かす手順。
 読み取り専用の公開サーバーを別のマシンに作る手順は [PUBLIC_SERVER.md](./PUBLIC_SERVER.md)。
 
 ## 前提条件
