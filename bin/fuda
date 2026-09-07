@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""fuda — 接続 URL の札の発行・停止・一覧（2026-09-07 小片 8）
+
+箱では sudo -u mcp bin/fuda ... で打つ（/var/log/mtg-sisho/fuda.tsv への書き込み権限）。
+"""
+import argparse
+import datetime
+import os
+import sys
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(_ROOT, "src"))
+
+from sisho.gate import FudaStore, short
+from sisho.paths import repo_path
+
+
+def main():
+    parser = argparse.ArgumentParser(description="接続 URL の札の管理ツール")
+    parser.add_argument(
+        "--file", "-f",
+        default=os.environ.get("MCP_FUDA_FILE", repo_path("state", "fuda.tsv")),
+        help="札の TSV ファイルパス（既定: MCP_FUDA_FILE または state/fuda.tsv）",
+    )
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # list
+    p_list = subparsers.add_parser("list", help="札の一覧を表示")
+    p_list.add_argument("--all", action="store_true", help="停止された札も表示")
+
+    # issue
+    p_issue = subparsers.add_parser("issue", help="新しい札を発行")
+    p_issue.add_argument("--memo", "-m", default="", help="札のメモ")
+    p_issue.add_argument("--per-min", "-p", type=int, default=None, help="分あたりの枠（既定: 60）")
+
+    # stop
+    p_stop = subparsers.add_parser("stop", help="札を停止")
+    p_stop.add_argument("target", help="停止する札の全文または先頭 8 字以上")
+
+    args = parser.parse_args()
+    store = FudaStore(args.file)
+
+    if args.command == "list":
+        for fuda, rec in store.records.items():
+            alive = rec.get("alive", False)
+            if not alive and not args.all:
+                continue
+            status = "alive" if alive else "stopped"
+            ts = rec.get("issued_at")
+            ts_str = ts.strftime("%Y-%m-%d %H:%M:%S") if isinstance(ts, datetime.datetime) else str(ts)
+            ip = rec.get("ip", "-")
+            per_min = rec.get("per_min", 60)
+            memo = rec.get("memo", "")
+            print(f"{short(fuda)}\t{status}\t{ts_str}\t{ip}\t{per_min}/分\t{memo}")
+
+    elif args.command == "issue":
+        fuda = store.issue(ip="cli", memo=args.memo, per_min=args.per_min)
+        print(f"札: {fuda}")
+        base = os.environ.get("MCP_PUBLIC_BASE", "").rstrip("/")
+        prefix = os.environ.get("MCP_FUDA_PREFIX", "/mcp/")
+        if not prefix.startswith("/"):
+            prefix = "/" + prefix
+        if not prefix.endswith("/"):
+            prefix += "/"
+        if base:
+            print(f"URL: {base}{prefix}{fuda}")
+
+    elif args.command == "stop":
+        target = args.target.strip()
+        if len(target) < 8:
+            sys.stderr.write("エラー: 札は先頭 8 字以上で指定してください\n")
+            sys.exit(1)
+        matches = [f for f, r in store.records.items() if r.get("alive") and (f == target or f.startswith(target))]
+        if not matches:
+            sys.stderr.write("エラー: 該当する有効な札がありません\n")
+            sys.exit(1)
+        if len(matches) > 1:
+            sys.stderr.write(f"エラー: 複数の札に前方一致しました（{len(matches)} 件）。より長く指定してください\n")
+            sys.exit(1)
+        fuda_to_stop = matches[0]
+        store.stop(fuda_to_stop)
+        print(f"停止しました: {short(fuda_to_stop)} ({fuda_to_stop})")
+
+
+if __name__ == "__main__":
+    main()
