@@ -12,6 +12,9 @@
 - 全道具がローカル PostgreSQL 直結。API サーバ（:8000）依存は撤去済み。
 - search_mtg_cards は素の一致検索（名前優先→本文 AND・EDHREC 人気順）。
   LLM もルーターも呼ばない＝決定的・応答は 1 秒未満。
+- 門と札（2026-09-07）: 接続 URL は発行ページ（/issue）のボタン一つで札（token_urlsafe）を
+  発行し、/mcp/<札> で待ち受ける。GateASGI が札ごとのレート制限（60/分・find_combos 10/分）
+  を課し、未知の札は 404（not found）で存在を漏らさない。旧パスは legacy 札として当面生かす。
 - mcp SDK は /home/claude/pylibs（boto3 と同じ流儀）。
 
 起動: PYTHONPATH=/home/claude/pylibs \
@@ -212,9 +215,10 @@ if __name__ == "__main__":
         # systemd の TimeoutStopSec=15 に掛かり SIGKILL → 'timeout' 失敗 → OnFailure（Discord＋ビープ）が鳴った。
         # claude.ai のコネクタが SSE を掴んだままにするので、待っても閉じない。SDK の run() は uvicorn.Config に
         # graceful の上限を渡さないため、ここで uvicorn を直接組む。道具は 1 秒未満で返るので 3 秒あれば取りこぼさない）
-        # レート制限の外皮（配布前の門・sisho/ratelimit.py の RateLimiter を参照）。uvicorn の proxy_headers が
-        # X-Forwarded-For を client に解決した後に見るので、Funnel 越しでも実 IP で数えられる。
-        app = _RateLimitASGI(app, _RateLimiter.from_env())
+        # 門と札の外皮（2026-09-07 小片 8・sisho/gate.py を参照）。
+        # 札ごとのレート制限・発行ページ（/issue）・旧パス互換を GateASGI が束ねる。
+        from sisho.gate import GateASGI
+        app = GateASGI.from_env(app, inner_path=http_path)
         uvicorn.run(app, host="127.0.0.1", port=port,
                     log_level=server.settings.log_level.lower(), timeout_graceful_shutdown=3)
     else:
