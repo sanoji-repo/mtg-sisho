@@ -9,12 +9,14 @@ AI 側の記憶や Web の孫引きではなく、一次データから直接引
 
 | 文書 | 内容 |
 | --- | --- |
-| README（本書） | 何ができるか・数字・使い方 |
+| README（本書） | 何ができるか・使い方の入口・ライセンスと制限 |
 | [DATA_MODEL.md](./DATA_MODEL.md) | テーブルと列の一覧（実 DB から 2026-08-23 に採取） |
 | [DESIGN.md](./DESIGN.md) | 設計原則（何で失敗して何を学んだか） |
 | [docs/DATA_SOURCES.md](./docs/DATA_SOURCES.md) | データの出所・利用マナー・ライセンス |
 | [docs/bench/README.md](./docs/bench/README.md) | ベンチマーク台帳（モデル別・回答原文つき） |
 | [docs/PUBLIC_SERVER.md](./docs/PUBLIC_SERVER.md) | 読み取り専用の公開サーバーを別のマシンに構築する手順・規模の見積もりと台数を増やす形 |
+| [docs/SETUP.md](./docs/SETUP.md) | 自分で立てる手順（前提条件・DB 構築・定期運用・MCP サーバーの登録） |
+| [hooks/README.md](./hooks/README.md) | Claude Code の Stop フック（回答前の強制検証） |
 
 ---
 
@@ -45,123 +47,31 @@ AI アシスタント（Claude Code・claude.ai のコネクタ等）にこの�
 SQL の実行結果でも、カード名に当たる列の右隣に完成形の列を自動で添える。
 最後に `verify_answer` が回答文中の名称を DB と突き合わせる。
 
-この「LLM へのプロンプト指示よりも返り値の構造で防ぐ」という方針と、その根拠になった測定結果は下の「測定データ」と DESIGN.md に記載している。
+この「LLM へのプロンプト指示よりも返り値の構造で防ぐ」という方針と、その根拠になった測定結果は [docs/bench/README.md](./docs/bench/README.md) の要約と DESIGN.md に記載している。
 
 ---
 
 ## 測定データ
 
-すべて作者の環境での測定。測定用スクリプト・問題集・回答原文は `docs/bench/` にあり、誰でも同じ手順で再測定できる。
-問題集は DB から決定的に生成している（手動で選別していない）。
-
-### 名前忠実度（2026-08-21・42 問・Claude Opus・`claude -p --model opus` 経由・2026-08 時点の既定版）
-
-「このカードの日本語名は？」型の問いに、DB の正式名と完全一致で答えられた数。
-
-| 条件 | 正解数 |
-| --- | --- |
-| MCP 有り（effort（思考量）low〜max すべて） | **42/42** |
-| MCP 無し（effort low） | 12/42（捏造 20・不明 9） |
-| MCP 無し（effort high＝最良） | 22/42 |
-
-MCP 無しは effort を上げても最大 52%（22/42）。新セットに関する問い（10問）は全 effort で 0〜1/10。学習に含まれない未知のカード名は思考時間を増やしても導出できない。
-MCP 有りは low で十分（思考トークン 0・中央値 6.5 秒）。
-
-### 《日本語名/英語名》の書式適合テスト（2026-08-22・100 問 × 5 試行・計 500 問・Opus low）
-
-素の日本語の問い（書式の事前指示なし）に答えさせ、回答文中のカード名を DB と機械照合した。
-主要指標は**改変ゼロ回答**＝「DB から引いたカード名（英語側が DB に一致）のうち、日本語側を改変していない」回答の数。
-
-| 試行 | サーバー側の変更 | 改変ゼロ回答数 |
-| --- | --- | --- |
-| 1〜2 回目 | 返り値に日本語名を付与 | 96/100・92/100 |
-| 3 回目 | `verify_answer` を新設（57 本で途中停止） | 55/57 |
-| 4 回目 | 完成形 `name_display` を全ツールに展開 | 96/100 |
-| 5 回目 | 「略称禁止」を指示の先頭へ配置 | **97/100** |
-
-残る 3/100 は「《日本語名/英語名》のうち英語側は正しいが、日本語側を記憶で独自翻訳した」ケースで、5 回目の試行後に `verify_answer` の判定ロジック（英語側の一致だけで合格にしていた不備）を修正した。
-同じ問題集で Claude Sonnet（medium）を測定したところ、返り値の日本語名なしで 6/10、日本語名ありで 8/10、`verify_answer` ありで 10/10（n=10）となった。
-
-### 正直に書いておくこと
-
-- **claude.ai（Web・スマホのカスタムコネクタ）は MCP サーバーの `instructions` を読み込まない**（anthropics/claude-ai-mcp #93・2026-08-22 時点で未解決）。
-  上記の測定は `claude -p`（Claude Code）経由で、システムプロンプト/指示が届く環境での上限性能を測定している。claude.ai 経由に届くのは**ツールの説明文と返り値のみ**であるため、
-  重要なフォーマットルールはツールの説明文の先頭と返り値自身に含めている（ブラウザでの手動テスト 3 問では改変ゼロを確認）。
-- 「ツールを呼び出さず、内部記憶のみでカードに言及した」回答はサーバー側では検出できない。指標を「DB から取得した名称を改変しないこと」に置いているのはそのためである。
-  DB を経由しない言及（記憶・創作）は別枠として扱い、発生を抑制する工夫は行うが、100% の防止は保証しない。
-- サンプル数は n=42 および n=100×5。機械採点は完全一致（表記ゆれも不一致判定）。正解は DB の値であり、DB 側のデータ不備は検出できない。
+名前忠実度（2026-08-21・42 問・Claude Opus）: MCP 有りは全 effort で 42/42、MCP 無しは最良でも 22/42。
+《日本語名/英語名》の書式適合（2026-08-22・100 問 × 5 試行・Opus low）: 改変ゼロ回答 97/100（5 回目）。
+測定の条件・回答原文・正直に書いておくこと・再測定の手順は [docs/bench/README.md](./docs/bench/README.md)。
 
 ---
 
-## データ（2026-09-07 時点）
+## データ
 
-| 種類 | 件数 | 出所 |
-| --- | ---: | --- |
-| カード | 31,843 枚（うち日本語名あり 30,731・日本語本文あり 30,412）＋ Arena 専用 887 枚（`digital` 列で区別・2026-08-31 合流・日本語名あり 857 枚） | Scryfall バルクデータ |
-| 総合ルール | 条文 3,317＋用語集 739（2026-08-07 版） | Wizards of the Coast 配布の Comprehensive Rules |
-| 公式裁定 | 77,960 件（2026-08-06 取得・重複 38 行を整理） | Scryfall rulings バルク（出典は Wizards 公式） |
-| 実デッキ | 302,325 本（最新 2026-09-06） | MTGO 公式デッキリスト 284,617 本・MTGTop8 10,843 本・Moxfield（多人数統率者戦）4,134 本・MTGJSON（構築済み製品）2,731 本 |
-| 採用率 | フォーマット別（Standard/Pioneer/Modern/Legacy/Vintage/Pauper/Premodern/Commander/Duel Commander ほか） | 上記の実デッキから再計算 |
-| 共起 | 60 枚構築 809,108 組・統率者戦 2,143,267 組 | 同上 |
-| リミテッド（ドラフト）統計 | 34 セット・10,509 行（セット×カードの勝率とピック順・2026-09-04 集計・表 `limited_card_stats`）＋色の組み合わせ・相性・ランク帯・ピック側の集計 5 表（`limited_color_stats` ほか） | 17Lands Public Datasets（CC BY 4.0）から派生した集計値 |
+件数の表は [DATA_MODEL.md](./DATA_MODEL.md) の頭にある（2026-09-07 時点）。
 
 **このリポジトリにデータ本体は含まれていない。** リポジトリに含まれるのは DB を構築・更新するためのスクリプト群と MCP サーバー実装である。
 データ出所ごとの取得マナーとライセンス・著作権表示は [docs/DATA_SOURCES.md](./docs/DATA_SOURCES.md) を参照。
-Moxfield 由来のデータについては、プレイヤー名・Moxfield の URL・デッキ ID を公開側の DB および MCP ツールの返り値に含めず、集計と匿名化した内容の照会のみに用いる（2026-08-22 に先方へ説明し異議なし・2026-08-30 に「ユーザー名が出なければ匿名の個別デッキ照会も可」と回答・帰属表示は不要との返答）。
-リミテッド統計は [17Lands](https://www.17lands.com/) が CC BY 4.0 で公開している Public Datasets（ドラフトのピック単位・ゲーム単位の生データ）から、セット×カードの集計値だけを作ったものである。生データは DB にもリポジトリにも含めず再配布しない。MCP ツールの返り値にも出典「17Lands」を添えている。
 
 ---
 
 ## 使い方
 
-### 前提条件
-
-- PostgreSQL 18（ローカル・既定ポート 5435）。拡張モジュール `pg_trgm`（曖昧名検索用）が必要。
-- Python 3.12・`pip install -r requirements.txt`。MCP SDK（`mcp`）も requirements.txt に含まれる。
-- 接続情報は `.env`（`env.example` をコピーして作成）。パスワードはコード内に直書きしない。
-- サーバー本体のパスはリポジトリ相対で解決される。一部の更新・バッチスクリプト内に作者環境のパス（`/mnt/new_hdd/...`・`/mnt/mtg_rag`）が残っている箇所があるが、環境変数で上書き可能（各スクリプト冒頭のコメントを参照）。
-
-### DB を構築する
-
-| 順序 | スクリプト | 実行内容 |
-| --- | --- | --- |
-| 1 | `src/sync_oracle_cards.py --apply` | Scryfall の oracle_cards バルクからカード本体を取り込み・更新（新カード INSERT＋既存 UPDATE）。テーブル定義は DATA_MODEL.md 参照。※前身の初回インポート処理はベクトル埋め込みに依存していたため除外 |
-| 2 | `src/add_face_cmcs.py`・`src/add_face_types.py` | 両面・分割カードの「唱えられる面」に関する導出列を計算・追加 |
-| 3 | `src/extract_japanese.py` | all_cards バルクから日本語名・日本語本文を抽出（公式翻訳のみ・非公式訳は除外） |
-| 4 | `src/enrich_*.py` | 印刷情報・表面キーワード・マナ加速/除去/ドロー/サーチの導出列を付与（すべて冪等） |
-| 5 | `src/import_rules.py`・`src/import_rulings.py` | 総合ルールと公式裁定をインポート |
-| 6 | `src/import_decks.py`・`src/scrape_mtgtop8.py`・`src/scrape_mtgo.py`・`src/scrape_moxfield.py` | 実デッキデータを取得。取得済みデータは自動スキップ（同一コマンドで差分更新可能） |
-| 7 | `src/fix_deck_links.py` → `src/recompute_card_format_strength.py` → `src/build_edh_cooccurrence.py` | デッキのカード名を card_id に紐付け → フォーマット別採用率を計算 → 共起データを生成 |
-
-新セット発売時の一括更新バッチの雛形として `sh/convoy_20260821.sh`（退避 → 取得 → 搬入 → 導出 → 日本語 → 検収）を用意している。
-※ `mtg_probability` などの確率計算を利用する場合は、DB 構築後に `sql/prob_functions.sql` を PostgreSQL に投入する必要がある。
-
-### 定期運用・更新
-
-| スクリプト | 実行周期 | 処理内容 |
-| --- | --- | --- |
-| `sh/nightly_cron_driver.sh` | 毎日 03:00〜10:00 | MTGTop8・MTGO・Moxfield の差分取得を並行実行し、完了後に共起データを全件再集計 |
-| `sh/mtgo_backfill_cron.sh` | 4 時間おき（毎時 30 分） | MTGO 公式デッキリストの過去分を 1 便に 1 か月分ずつ遡って取得（キューファイルを 1 行ずつ消化） |
-| `sh/weekly_pgdump.sh` | 毎週日曜 00:00 | PostgreSQL の論理バックアップを取得（4世代保持） |
-| `src/check_freshness.py` | 手動 | Scryfall・総合ルール・公式裁定のデータ鮮度を確認 |
-
-### MCP サーバーの登録
-
-標準入出力（stdio）で利用する場合の設定例（Claude Code の `.mcp.json` など）:
-
-```json
-{
-  "mcpServers": {
-    "sisho": {
-      "command": "/path/to/venv/bin/python",
-      "args": ["/path/to/mtg-sisho/src/mcp_server.py"]
-    }
-  }
-}
-```
-
-HTTP 経由で常駐させる場合は `deploy/mtg-rag-mcp.service`（systemd の user unit・`127.0.0.1:8765`）を使用する。
-エンドポイントの待ち受けパスは環境変数 `MCP_HTTP_PATH` で変更可能（公開ホスト名は証明書の透明性ログ（CTログ）等で露出するため、パスを秘匿して簡易的なアクセス制御としている。認証機能は未実装）。
+- 自分で立てる: [docs/SETUP.md](./docs/SETUP.md)（前提条件・DB 構築・定期運用・MCP サーバーの登録）
+- Claude Code で回答前の強制検証: [hooks/README.md](./hooks/README.md)
 
 ### クライアント別の対応状況と機能
 
@@ -169,23 +79,8 @@ HTTP 経由で常駐させる場合は `deploy/mtg-rag-mcp.service`（systemd �
 | --- | --- | --- | --- |
 | claude.ai（無料プラン） | カスタムコネクタ 1 枠（公式サポートに「Free users are limited to one custom connector」と明記） | ツールの説明文と返り値のみ（`instructions` は無視される） | 不可 |
 | claude.ai（Pro 以上） | カスタムコネクタ | 同上 | 不可 |
-| Claude Code（Pro 以上） | stdio または HTTP 接続 | 説明文・返り値・`instructions` | **可能**（下記の Stop フックを使用） |
+| Claude Code（Pro 以上） | stdio または HTTP 接続 | 説明文・返り値・`instructions` | **可能**（[hooks/README.md](./hooks/README.md) の Stop フックを使用） |
 | 独自アプリケーション（API） | 任意の実装 | 全情報 | 可能（レスポンス受信後に検証・再生成を制御） |
-
-### Claude Code 向け: 回答前の強制検証（Stop フック）
-
-LLM はプロンプト指示のみでは 97〜99% 程度の遵守率にとどまる（上記の測定結果参照）。完全性を期すには、クライアント側で「回答生成 → 機械検証 → 不合格なら再生成指示 → 最終出力」を強制する仕組みが必要である。
-`hooks/sisho_stop_verify.py` は Claude Code の **Stop フック**（応答終了直前に外部スクリプトを割り込ませ、出力を差し戻して修正続行させる仕組み）に対応しており、
-モデルの最終出力テキストを `verify_answer` と同等のロジックで検証し、DB に存在しない名称や書式の崩れがあれば理由と候補をフィードバックして再生成させる。
-なお、2 回目の再試行でも不合格の場合は、無限ループを防ぐためそのまま出力させる設計となっている。設定例は `hooks/settings.example.json` を参照。
-`claude -p`（headless モード）での動作も確認済み（2026-08-23）。※claude.ai の Web インターフェースには適用不可。
-
-### ベンチマークの実行
-
-- `src/bench_names.py` — 名前忠実度の測定（MCP 有り/無し・モデル × effort）
-- `src/gen_jaformat_questions.py` → `src/bench_jaformat.py` — 《日本語名/英語名》の書式検証（問題集は DB から決定的に自動生成）
-
-いずれも `claude -p` を使用して実行する。測定結果は `docs/bench/` の台帳に記録する。
 
 ---
 

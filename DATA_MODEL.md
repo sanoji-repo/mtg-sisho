@@ -7,6 +7,18 @@ MCP の `query_mtg_database` はこれらを読み取り専用の役割（`reado
 名前が二つあるカード（両面・出来事・分割 850 枚）は **面ごとの列**（`name_en_front/back`・`name_ja_front/back`）を正本とし、結合名 `card_name`／`japanese_name`／`name_display` は DB が自動で作る生成列（2026-08-31）。
 プレイヤー名は工場側の `players` 表（`deck_list.player_id` で参照）に隔離し、公開側の DB には名前も ID も置かない（2026-08-31・`deck_list.player_name` 列は廃止）。
 
+## 件数（2026-09-07 時点・README から移した）
+
+| 種類 | 件数 | 出所 |
+| --- | ---: | --- |
+| カード | 31,843 枚（うち日本語名あり 30,731・日本語本文あり 30,412）＋ Arena 専用 887 枚（`digital` 列で区別・2026-08-31 合流・日本語名あり 857 枚） | Scryfall バルクデータ |
+| 総合ルール | 条文 3,317＋用語集 739（2026-08-07 版） | Wizards of the Coast 配布の Comprehensive Rules |
+| 公式裁定 | 77,960 件（2026-08-06 取得・重複 38 行を整理） | Scryfall rulings バルク（出典は Wizards 公式） |
+| 実デッキ | 302,325 本（最新 2026-09-06） | MTGO 公式デッキリスト 284,617 本・MTGTop8 10,843 本・Moxfield（多人数統率者戦）4,134 本・MTGJSON（構築済み製品）2,731 本 |
+| 採用率 | フォーマット別（Standard/Pioneer/Modern/Legacy/Vintage/Pauper/Premodern/Commander/Duel Commander ほか） | 上記の実デッキから再計算 |
+| 共起 | 60 枚構築 809,108 組・統率者戦 2,143,267 組 | 同上 |
+| リミテッド（ドラフト）統計 | 34 セット・10,509 行（セット×カードの勝率とピック順・2026-09-04 集計・表 `limited_card_stats`）＋色の組み合わせ・相性・ランク帯・ピック側の集計 5 表（`limited_color_stats` ほか） | 17Lands Public Datasets（CC BY 4.0）から派生した集計値 |
+
 ## テーブル一覧
 
 | テーブル | 行数 | 役割 |
