@@ -79,19 +79,19 @@ sudo -u postgres env DB_PASS_ROAI=<.env と同じ値> PGUSER=postgres PGHOST=/va
 ### 4b. 中身を自動で追従させる（論理レプリケーション・2026-08-30 から本線）
 
 §4 の dump→復元は「箱の初期化・作り直し」に使い、日々の中身は工場（家の VM）から論理レプリケーションで追従させる。
-向きは **工場＝publisher・箱＝subscriber**（箱が工場の PG に繋ぎに行く）。箱の「外へ出ない」姿勢に、この 1 口だけ針の穴を開ける。
+向きは 工場＝publisher・箱＝subscriber（箱が工場の PG に繋ぎに行く）。箱の「外へ出ない」姿勢に、この 1 口だけ針の穴を開ける。
 
 工場側（VM）:
 1. PostgreSQL を `wal_level=logical` にして再起動（docker compose なら command に `-c wal_level=logical`）。`max_slot_wal_keep_size` も置く（箱が長く落ちても工場のディスクが埋まらない保険）。
 2. 箱から届く口を開ける（docker の ports に Tailscale の IP・Tailscale ACL に `tag:sisho → <VM>:5435`）。pg_hba は `host all all all scram-sha-256` があれば足りる。
-3. `sh/sisho_repl/01_vm_publication.sql` を流す（ロール `sisho_repl`＝REPLICATION＋公開する列だけ SELECT／publication `sisho_pub`＝19 表（`limited_card_stats`・17Lands 追加集計 5 表 `limited_*`・`mtg_sets` を含む・`make_public_dump.sh` の TABLES と同じ）・**全表を明示の列指定**——ただし主キーの無い `mtg_cards_v2_nonlegal`（REPLICA IDENTITY FULL）だけは列指定なし。列指定を付けると UPDATE/DELETE が「Column list used by the publication does not cover the replica identity」で拒否される（2026-08-31 実測））。
+3. `sh/sisho_repl/01_vm_publication.sql` を流す（ロール `sisho_repl`＝REPLICATION＋公開する列だけ SELECT／publication `sisho_pub`＝19 表（`limited_card_stats`・17Lands 追加集計 5 表 `limited_*`・`mtg_sets` を含む・`make_public_dump.sh` の TABLES と同じ）・全表を明示の列指定——ただし主キーの無い `mtg_cards_v2_nonlegal`（REPLICA IDENTITY FULL）だけは列指定なし。列指定を付けると UPDATE/DELETE が「Column list used by the publication does not cover the replica identity」で拒否される（2026-08-31 実測））。
    - `deck_list` の列指定に `player_name` を入れない＝名前は箱へ流れない。
    - 生成列（`mtg_cards_v2.name_display`）は列指定に入れない（箱が自分で計算する。入れると箱側で "incompatible generated column"）。
    - 主キーの無い表（`mtg_cards_v2_nonlegal`）は `REPLICA IDENTITY FULL`。
 
 箱側:
 1. `~postgres/.pgpass` に `<VM>:5435:rag_dev:sisho_repl:<パスワード>`（接続文字列に秘密を埋めない）。
-2. `sh/sisho_repl/02_box_subscription.sql` を postgres で流す＝ `deck_list.deck_name` の NOT NULL を外す → Moxfield 行の `source_url`/`deck_name` を NULL にするトリガ（**ENABLE ALWAYS**——購読側の apply は既定のトリガを鳴らさない）→ 12 表を空に → `CREATE SUBSCRIPTION sisho_sub`。初回コピーは約 0.9GB（回転 HDD で 30 分）。
+2. `sh/sisho_repl/02_box_subscription.sql` を postgres で流す＝ `deck_list.deck_name` の NOT NULL を外す → Moxfield 行の `source_url`/`deck_name` を NULL にするトリガ（ENABLE ALWAYS——購読側の apply は既定のトリガを鳴らさない）→ 12 表を空に → `CREATE SUBSCRIPTION sisho_sub`。初回コピーは約 0.9GB（回転 HDD で 30 分）。
 3. 稼働中の箱に表を後から足すとき（2026-08-31 の `limited_card_stats` が実例）は `sh/sisho_repl/04_box_add_limited_card_stats.sql`（2026-09-02 の追加集計 5 表は `15_vm_add_limited_extra.sql`／`16_box_add_limited_extra.sql`・2026-09-03 の `mtg_sets` は `17_vm_add_mtg_sets.sql`／`18_box_add_mtg_sets.sql`）を postgres で流す＝表を作って `readonly_ai` に SELECT → `ALTER SUBSCRIPTION sisho_sub REFRESH PUBLICATION`（3MB・数秒）。新しく作る箱は §4 の dump に表ごと入っているので不要。`/tmp` に置いた SQL は `chmod 644`（postgres が読めるように・600 のままだと Permission denied）。
 4. 確認: 箱 `SELECT srsubstate, count(*) FROM pg_subscription_rel GROUP BY 1`（13 行・全部 r）／工場 `SELECT slot_name, active, wal_status FROM pg_replication_slots`（active・reserved）。
 
@@ -104,7 +104,7 @@ sudo -u postgres env DB_PASS_ROAI=<.env と同じ値> PGUSER=postgres PGHOST=/va
 
 ### 5. MCP を常駐させる
 
-**推奨（2026-08-30・公開サーバーで採用）: 専用ユーザーで動かす。** MCP に穴があっても sudo 持ちのユーザーに届かないようにする。
+推奨（2026-08-30・公開サーバーで採用）: 専用ユーザーで動かす。MCP に穴があっても sudo 持ちのユーザーに届かないようにする。
 
 ```bash
 sudo useradd -r -m -s /usr/sbin/nologin mcp                 # sudo 無し・ログイン不可
@@ -147,9 +147,9 @@ VM 側の Funnel を止め、claude.ai のコネクタの URL を公開サーバ
 
 前提: Funnel は家のルーターにも tailnet にも入口を開けない（入ってくるのは箱の 127.0.0.1:8765 への HTTP だけ）。守るのは「MCP に穴があったとき、箱の外へ広がらないこと」。
 
-1. **MCP は専用ユーザー**（§5・sudo 無し・コード読み取り専用・書けるのはログ置き場だけ・systemd の砂場）
-2. **Tailscale ACL**: 公開サーバー → 他ノードは拒否（§2）
-3. **ufw は外向きも既定拒否**: 許すのは ルーター宛 DNS/DHCP・Tailscale（41641/3478 udp・tailscale0）・80/443 tcp（Tailscale 制御・DERP・Discord・apt・pip）・NTP（123 udp・4460 tcp）。**家の LAN 宛はルーター以外拒否**（Tailscale 直結用の 41641/udp だけ例外）。これで乗っ取られても LAN の他の機械に届かず、踏み台としても 80/443 宛しか出られない。
+1. MCP は専用ユーザー（§5・sudo 無し・コード読み取り専用・書けるのはログ置き場だけ・systemd の砂場）
+2. Tailscale ACL: 公開サーバー → 他ノードは拒否（§2）
+3. ufw は外向きも既定拒否: 許すのは ルーター宛 DNS/DHCP・Tailscale（41641/3478 udp・tailscale0）・80/443 tcp（Tailscale 制御・DERP・Discord・apt・pip）・NTP（123 udp・4460 tcp）。家の LAN 宛はルーター以外拒否（Tailscale 直結用の 41641/udp だけ例外）。これで乗っ取られても LAN の他の機械に届かず、踏み台としても 80/443 宛しか出られない。
 
 ```bash
 sudo ufw default deny outgoing
@@ -162,7 +162,7 @@ sudo ufw reload
 ```
 適用の前に LAN 直の ssh（inbound 22 from LAN）を控えに残しておく。適用後に Tailscale の直結（`tailscale ping`）・DNS・Discord・apt が通ること、LAN の他の機械と外の 22/25 が拒否されることを実測する。
 
-4. **Lynis で答え合わせ**: `sudo apt install lynis && sudo lynis audit system` → 警告は全部潰す・提案は「この箱に意味があるか」で選ぶ（企業向け項目=外部ログホスト・auditd・GRUB パスワード等は見送ってよい）。unit の砂場は `systemd-analyze security mtg-rag-mcp` の点数で確認（公開サーバーの実測: 7.8 → 1.3・Hardening index 64 → 72・2026-08-30）。
+4. Lynis で答え合わせ: `sudo apt install lynis && sudo lynis audit system` → 警告は全部潰す・提案は「この箱に意味があるか」で選ぶ（企業向け項目=外部ログホスト・auditd・GRUB パスワード等は見送ってよい）。unit の砂場は `systemd-analyze security mtg-rag-mcp` の点数で確認（公開サーバーの実測: 7.8 → 1.3・Hardening index 64 → 72・2026-08-30）。
 
 残る性質の違う穴: 秘密パスを知られたときの DoS（レート制限は未実装）・pip の供給元・物理。
 
@@ -183,7 +183,7 @@ sudo ufw reload
 
 - 機体: Lenovo G50-30・Celeron N2830（2 コア・2014 年・AVX 無し）・RAM 3.3GB・HDD 1 本。DB 本体は約 0.9GB で RAM のキャッシュに全部収まる。
 - 実測（2026-08-30〜09-07・道具ログ 8 日・1,594 回）: 1 分あたり最大 17 回・同時実行の最大 1・DB 時間の中央値 0.30 秒。
-- 実測の天井（2026-09-07・VM から tailnet 越しに 20 秒ずつ・閉ループ）: 軽い呼び出し（名前検索）は同時 4 で毎秒 11 本・CPU 89%、同時 8 でも毎秒 11 本のまま（CPU 97%・p50 0.68 秒）＝**毎分およそ 670 回が天井**。今の客足の 40 倍・入口のレート制限（全体 300 回/分）の 2.2 倍なので、先に上限になるのはレート制限。1 本あたりの CPU はおよそ 0.29 コア秒で、DB より Python と TLS の取り分が大きい（内訳は未測定）。
+- 実測の天井（2026-09-07・VM から tailnet 越しに 20 秒ずつ・閉ループ）: 軽い呼び出し（名前検索）は同時 4 で毎秒 11 本・CPU 89%、同時 8 でも毎秒 11 本のまま（CPU 97%・p50 0.68 秒）＝毎分およそ 670 回が天井。今の客足の 40 倍・入口のレート制限（全体 300 回/分）の 2.2 倍なので、先に上限になるのはレート制限。1 本あたりの CPU はおよそ 0.29 コア秒で、DB より Python と TLS の取り分が大きい（内訳は未測定）。
 - 重い呼び出しが 4 本同時（相方検索の構築 scope・1 本 5 秒）に走って CPU が 97% でも、軽い呼び出しは p90 0.53 秒で返り続けた（下の「DB の席」の予約席が効く・エラー 0）。
 - 先に詰まる所は CPU でなく (1) 重い集計（相方検索の構築 scope: 1〜7 秒） (2) キャッシュに無い読み（HDD）。手を打つ順: 重い集計を夜間便で表にする → HDD を SSD に → 台数を増やす。
 - DB の席（2026-09-07）: 同時実行は 5 席。重い線（自由 SQL・相方検索）は 4 席まで・軽い線は statement_timeout 1 秒で、切られたら席を返して重い線（10 秒）に並び直す。順番待ちは 20 秒で「混雑」を返す。重い問い合わせが 4 本並んでも、軽い問い合わせの席が 1 つ必ず残る。
@@ -265,5 +265,5 @@ sudo ufw reload
 ### 旧パスの閉じ方と弱点
 
 - 旧パスの閉じ方: `.env` に `MCP_LEGACY_PATH=0` を指定してサーバーを再起動すると、従来の共通パス（`MCP_HTTP_PATH` の値・秘密の長いパス）へのアクセスは即座に 404 となり、札付き URL のみが受け付けられるようになる（札付き URL の接頭辞 `/mcp/` とは別物）。閉じた瞬間に claude.ai に登録済みの既存コネクタは全部切れる。閉じる前に発行ページへ誘導する期間を置く。旧パスの find_combos は接続元 IP ごと 10/分。claude.ai の出口 IP は共有なので実質 30 個ほどで分け合う＝札に移る動機の一つ。
-- 探りへの備え: 無い札・知らないパス・発行ページへの要求は**接続元 IP の枠（60/分）で数える**（超えれば 429・404 は返さない）。他所のページからの自動投稿は Sec-Fetch-Site で弾く・curl は通る＝運営の手動発行用。正しい札の呼び出しは IP の枠を使わない（claude.ai の出口 IP は利用者で共有されるため札ごとの枠だけで数える）。札は 192 ビットの乱数なので総当たりでは当たらないが、枠が無いと 404 が「無料で叩き放題の口」になる（2026-09-07 本人指摘・旧 RateLimitASGI の振る舞いの復元）。 他所のページからの自動投稿は `Sec-Fetch-Site` が `cross-site` なら 403。これは今のブラウザが送るヘッダに頼った備えで、送らない相手（curl・古いブラウザ）には効かない＝運営の手動発行はそのまま通る。同じ tailnet の別ホストからは same-site になるので弾かない。
+- 探りへの備え: 無い札・知らないパス・発行ページへの要求は接続元 IP の枠（60/分）で数える（超えれば 429・404 は返さない）。他所のページからの自動投稿は Sec-Fetch-Site で弾く・curl は通る＝運営の手動発行用。正しい札の呼び出しは IP の枠を使わない（claude.ai の出口 IP は利用者で共有されるため札ごとの枠だけで数える）。札は 192 ビットの乱数なので総当たりでは当たらないが、枠が無いと 404 が「無料で叩き放題の口」になる（2026-09-07 本人指摘・旧 RateLimitASGI の振る舞いの復元）。 他所のページからの自動投稿は `Sec-Fetch-Site` が `cross-site` なら 403。これは今のブラウザが送るヘッダに頼った備えで、送らない相手（curl・古いブラウザ）には効かない＝運営の手動発行はそのまま通る。同じ tailnet の別ホストからは same-site になるので弾かない。
 - 弱点: 接続 URL は HTTP のパスそのものであるため、Web ブラウザの履歴、プロキシやサーバーのアクセスログ、クライアント側の設定画面に残る。利用者は無くした場合は発行ページで新しく取り直すだけでよい（`bin/fuda stop` は運営が漏れた札や濫用した札を止めるための道具）。
