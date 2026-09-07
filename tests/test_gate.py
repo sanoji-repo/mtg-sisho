@@ -708,10 +708,11 @@ def test_gate_asgi_issue_csrf_sec_fetch_site(tmp_path):
     assert parse_response(sent_slash)[0] == 200
 
 
-def test_gate_asgi_from_env_warns_empty_public_base(monkeypatch, caplog):
+def test_gate_asgi_from_env_warns_empty_public_base(tmp_path, monkeypatch, caplog):
     """17. B-2: MCP_PUBLIC_BASE が空のとき起動時に警告を出す。"""
     import logging
     monkeypatch.delenv("MCP_PUBLIC_BASE", raising=False)
+    monkeypatch.setenv("MCP_FUDA_FILE", str(tmp_path / "f.tsv"))     # 環境の実ファイルを読まない（Opus C-15）
     async def dummy(scope, receive, send): pass
     with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
         GateASGI.from_env(dummy)
@@ -818,6 +819,96 @@ def test_fuda_store_errors_and_permissions(tmp_path, monkeypatch, caplog):
     assert status == 503
     assert headers.get("retry-after") == "60"
     assert "今は発行できません" in body.decode("utf-8")
+
+
+def test_uvicorn_kwargs_defined_before_main():
+    """20. B-9: _uvicorn_kwargs の定義が __main__ ブロックより前にある（後ろだと HTTP 起動が NameError＝Opus A-3）。
+    実行せず ast で行番号を比べる。"""
+    import ast
+    src_path = os.path.join(os.path.dirname(__file__), "..", "src", "mcp_server.py")
+    tree = ast.parse(open(src_path, encoding="utf-8").read())
+    def_line = next(n.lineno for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_uvicorn_kwargs")
+    main_line = next(n.lineno for n in tree.body if isinstance(n, ast.If)
+                     and isinstance(n.test, ast.Compare) and getattr(n.test.left, "id", "") == "__name__")
+    assert def_line < main_line, f"_uvicorn_kwargs（{def_line} 行）は __main__（{main_line} 行）より前に置く"
+
+
+def test_server_http_startup_smoke(tmp_path):
+    """21. B-9: 本物の起動経路（python src/mcp_server.py http <port>）で uvicorn が待ち受けに入り /issue が 200 を返す。
+    import 経路だけの試験では A-3（定義順の NameError）を捕まえられなかった。DB は要らない（起動と発行ページだけ）。"""
+    import subprocess, socket, time, urllib.request
+    src_path = os.path.join(os.path.dirname(__file__), "..", "src", "mcp_server.py")
+    with socket.socket() as s_:
+        s_.bind(("127.0.0.1", 0)); port = s_.getsockname()[1]
+    env = dict(os.environ)
+    env.update({"MCP_FUDA_FILE": str(tmp_path / "fuda.tsv"), "MCP_TOOL_LOG": str(tmp_path / "tools.log"),
+                "MCP_PUBLIC_BASE": "https://smoke.example", "MCP_STATELESS": "1", "MCP_HTTP_PATH": "/old-secret"})
+    proc = subprocess.Popen([sys.executable, src_path, "http", str(port)], env=env,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    try:
+        deadline = time.time() + 15
+        while time.time() < deadline:
+            if proc.poll() is not None:
+                out = proc.stdout.read()
+                raise AssertionError(f"サーバーが起動前に終了した（rc={proc.returncode}）:\n{out[-2000:]}")
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                    break
+            except OSError:
+                time.sleep(0.2)
+        else:
+            raise AssertionError("15 秒待っても待ち受けに入らない")
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/issue", timeout=5) as r:
+            assert r.status == 200 and "text/html" in r.headers.get("content-type", "")
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/issue", data=b"", timeout=5) as r:
+            body = r.read().decode("utf-8")
+            assert r.status == 200 and "https://smoke.example/mcp/" in body
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
+def test_issue_global_daily_limit_from_tsv(tmp_path):
+    """22. B-10: 全体の 1 日の枠も TSV の issue 行で数える（再起動で消えない）。新しい IP でも 429。25 時間前なら 200。"""
+    import datetime as _dt
+    fuda_file = str(tmp_path / "fuda.tsv")
+    now = _dt.datetime.now().astimezone()
+
+    def write_rows(age_hours, n):
+        ts = (now - _dt.timedelta(hours=age_hours)).isoformat()
+        with open(fuda_file, "w", encoding="utf-8") as f:
+            for i in range(n):
+                f.write(f"{ts}\tissue\t{'x' * 24}{i:08d}\t198.51.100.{i % 250}\t60\t\n")
+
+    async def inner_app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    def gate_for():
+        store = FudaStore(fuda_file, dt_now=lambda: _dt.datetime.now().astimezone())
+        return GateASGI(inner_app, store, RateLimiter(per_ip=60, global_=300),
+                        RateLimiter(per_ip=3, global_=100, window=86400.0, exempt=""),
+                        inner_path="/mcp", prefix="/mcp/", public_base="https://base.example.com")
+
+    write_rows(1, 100)
+    _, sent = asyncio.run(run_asgi_request(gate_for(), "/issue", method="POST", client_ip="203.0.113.99"))
+    status, headers, _ = parse_response(sent)
+    assert status == 429 and headers["retry-after"].isdigit()
+    write_rows(25, 100)
+    _, sent = asyncio.run(run_asgi_request(gate_for(), "/issue", method="POST", client_ip="203.0.113.99"))
+    assert parse_response(sent)[0] == 200
+
+
+def test_issue_never_starts_with_dash(tmp_path, monkeypatch):
+    """23. C-12: 先頭が - の札は引き直す（argparse がオプションと読んで bin/fuda stop に渡せない）。"""
+    import sisho.gate as gate_mod
+    draws = iter(["-" + "a" * 31, "-" + "b" * 31, "c" * 32])
+    monkeypatch.setattr(gate_mod.secrets, "token_urlsafe", lambda n: next(draws))
+    store = FudaStore(str(tmp_path / "fuda.tsv"))
+    assert store.issue("192.0.2.9") == "c" * 32
 
 
 if __name__ == "__main__":
