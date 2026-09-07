@@ -50,11 +50,11 @@ def test_entry_line_shape_is_unchanged_and_exit_line_follows():
     rows = _lines()
     assert len(rows) == 2, f"1 呼び出し＝入口 1 行＋出口 1 行（{rows}）"
     entry, end = rows
-    # 入口（Step 2 から不変）: 時刻・道具名・引数の JSON
-    assert len(entry) == 3 and entry[1] == "find_combos"
+    # 入口: 時刻・道具名・引数の JSON・札（2026-09-07 末尾に札を追加）
+    assert len(entry) == 4 and entry[1] == "find_combos"
     assert json.loads(entry[2]) == {"n": 0, "commanders": None, "limit": 10}
-    # 出口: 時刻・end・道具名・outcome・所要秒・DB 回数・DB 秒
-    assert len(end) == 7, f"出口の列数（{end}）"
+    # 出口: 時刻・end・道具名・outcome・所要秒・DB 回数・DB 秒・札
+    assert len(end) == 8, f"出口の列数（{end}）"
     assert end[1] == "end" and end[2] == "find_combos" and end[3] == "empty_query"
     assert float(end[4]) >= 0 and end[5] == "0" and float(end[6]) == 0.0
     assert len(end[0]) == len(entry[0]), "時刻の形は入口と同じ"

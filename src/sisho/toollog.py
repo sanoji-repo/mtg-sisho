@@ -28,6 +28,7 @@ import os
 import time
 
 from sisho import errors
+from sisho.context import CURRENT_FUDA
 from sisho.paths import repo_path
 
 
@@ -98,14 +99,16 @@ def _log_tool(name: str, args: dict) -> None:
         arg_s = json.dumps(args, ensure_ascii=False)[:TOOL_LOG_MAX]
     except Exception:
         return                   # 整形の失敗も道具を殺さない（共通化前は try の中にあった）
-    _append_row(name, arg_s)
+    fuda = CURRENT_FUDA.get() or ""
+    _append_row(name, arg_s, fuda)
 
 
 def _log_tool_end(name: str, outcome: str, elapsed: float,
                   db_calls: int, db_seconds: float) -> None:
     """道具の出口の 1 行（2026-09-06 Step 7）。引数は繰り返さない（入口の行にある）。"""
     try:
-        row = ("end", name, outcome, f"{elapsed:.3f}", str(db_calls), f"{db_seconds:.3f}")
+        fuda = CURRENT_FUDA.get() or ""
+        row = ("end", name, outcome, f"{elapsed:.3f}", str(db_calls), f"{db_seconds:.3f}", fuda)
     except Exception:
         return                   # 整形の失敗も道具を殺さない（共通化前は try の中にあった）
     _append_row(*row)

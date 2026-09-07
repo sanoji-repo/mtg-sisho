@@ -32,6 +32,7 @@ SQL_REJECTED = "sql_rejected"                   # 入口の鞘が SQL を拒否�
 # ─── 想定外・外の世界 ───
 BUSY = "busy"                                   # DB の席取りが順番待ちを超えた（失敗でなく混雑）
 UPSTREAM_UNREACHABLE = "upstream_unreachable"   # 外部 API（Commander Spellbook）に届かない
+RATE_LIMITED = "rate_limited"                   # 外部 API を守るための札ごとの枠
 DB_ERROR = "db_error"                           # DB からの例外（生の例外文を素通しする）
 
 #: 名前 → 意味（報告と試験のための一覧。ここに無い名前を返り値に載せない）
@@ -47,6 +48,7 @@ KINDS: dict[str, str] = {
     SQL_REJECTED: "入口の鞘が SQL を拒否した（複文・SELECT/WITH 以外）",
     BUSY: "DB の席取りが順番待ちの上限を超えた＝混雑（失敗ではない・待って呼び直す）",
     UPSTREAM_UNREACHABLE: "外部 API に届かない（この道具だけの障害・他の道具は影響なし）",
+    RATE_LIMITED: "外部 API を守るための札ごとの枠（指定秒数待って呼び直す）",
     DB_ERROR: "DB からの例外（生の例外文を先頭 200〜400 字そのまま載せる）",
 }
 

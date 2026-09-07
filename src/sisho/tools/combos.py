@@ -8,8 +8,14 @@ import json
 import os
 
 from sisho import errors
+from sisho.context import CURRENT_FUDA
 from sisho.db import _db
+from sisho.ratelimit import RateLimiter
 from sisho.toollog import _log_tool
+
+_COMBOS_PER_MIN = int(os.environ.get("MCP_COMBOS_PER_MIN", "10"))
+_COMBOS_GLOBAL_MIN = int(os.environ.get("MCP_COMBOS_GLOBAL_MIN", "60"))
+_combos_limiter = RateLimiter(per_ip=_COMBOS_PER_MIN, global_=_COMBOS_GLOBAL_MIN, exempt="")
 
 
 # ─── Commander Spellbook（2026-09-04 本人 GO「API 解放されてるんだから使わせてもよくね」）───
@@ -66,6 +72,15 @@ def find_combos(card_names: list[str], commanders: list[str] | None = None, limi
             errors.OUT_OF_RANGE,
             f"card_names が多すぎます: {len(names)} 枚（上限 120 枚）。デッキ 1 本ぶんに絞って呼び直す")
     limit = max(1, min(int(limit), 30))
+
+    # 外部 API（Commander Spellbook）を守るための札ごとの枠
+    fuda = CURRENT_FUDA.get()
+    key = fuda if fuda else "anon"
+    ok, retry = _combos_limiter.check(key)
+    if not ok:
+        return errors.err_json(
+            errors.RATE_LIMITED,
+            f"コンボ検索の回数が多すぎます（この接続 URL は 1 分に 10 回まで）。{retry} 秒待ってから呼び直す")
     # 日本語名 → 英語名（DB）。英語名はそのまま。見つからない名前はそのまま送る（Spellbook 側で無視される）
     resolved: dict[str, str] = {}
     try:
