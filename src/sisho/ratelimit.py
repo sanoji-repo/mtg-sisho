@@ -54,7 +54,7 @@ class RateLimiter:
         while dq and dq[0] <= cut:
             dq.popleft()
 
-    def check(self, ip: str) -> tuple[bool, int]:
+    def check(self, ip: str, per: int | None = None) -> tuple[bool, int]:
         """(通すか, 待つ秒数)。通すときはその時刻を記録する。"""
         if self._is_exempt(ip):
             return True, 0
@@ -73,9 +73,11 @@ class RateLimiter:
         else:
             self.buckets.move_to_end(ip)
             self._prune(dq, now)
-        if self.per_ip and len(dq) >= self.per_ip:
+        per_limit = per if per is not None else self.per_ip
+        if per_limit and len(dq) >= per_limit:
             retry = max(1, int(dq[0] + self.window - now) + 1)
-            self._deny(ip, f"IP 別 {self.per_ip}/分", now)
+            why = f"札 {per_limit}/分" if ip.startswith("fuda:") else f"IP 別 {per_limit}/分"
+            self._deny(ip, why, now)
             return False, retry
         if self.global_ and len(self.total) >= self.global_:
             retry = max(1, int(self.total[0] + self.window - now) + 1)
@@ -87,9 +89,26 @@ class RateLimiter:
 
     def _deny(self, ip: str, why: str, now: float) -> None:
         self.denied += 1
-        if now - self._last_warn.get(ip, -1e9) >= self.window:  # IP ごと 1 分に 1 行（洪水でログを埋めない）
+        if now - self._last_warn.get(ip, -1e9) >= self.window:  # 鍵ごと 1 分に 1 行（洪水でログを埋めない）
             self._last_warn[ip] = now
-            _rate_log.warning("[rate] 429 ip=%s reason=%s denied_total=%d", ip, why, self.denied)
+            if ip.startswith("fuda:"):
+                short_fuda = ip[5:13]
+                _rate_log.warning("[gate] 429 fuda=%s reason=%s denied_total=%d", short_fuda, why, self.denied)
+            else:
+                _rate_log.warning("[rate] 429 ip=%s reason=%s denied_total=%d", ip, why, self.denied)
+
+
+async def send_429(send, retry: int, message: str) -> None:
+    """HTTP 429（JSON-RPC error 本文＋Retry-After ヘッダ）を送信する共通関数。"""
+    body = json.dumps({"jsonrpc": "2.0", "id": None, "error": {
+        "code": -32000,
+        "message": message}},
+        ensure_ascii=False).encode("utf-8")
+    headers = [(b"content-type", b"application/json; charset=utf-8"),
+               (b"retry-after", str(retry).encode()),
+               (b"content-length", str(len(body)).encode())]
+    await send({"type": "http.response.start", "status": 429, "headers": headers})
+    await send({"type": "http.response.body", "body": body})
 
 
 class RateLimitASGI:
@@ -106,13 +125,6 @@ class RateLimitASGI:
         ok, retry = self.limiter.check(ip)
         if ok:
             return await self.app(scope, receive, send)
-        body = json.dumps({"jsonrpc": "2.0", "id": None, "error": {
-            "code": -32000,
-            "message": (f"混雑: 呼び出しが多すぎます（この接続元からの上限に達しました）。{retry} 秒待ってから"
-                        "もう一度呼んでください。まとめて引ける問いは 1 回の SQL に寄せると回数が減ります。")}},
-            ensure_ascii=False).encode("utf-8")
-        headers = [(b"content-type", b"application/json; charset=utf-8"),
-                   (b"retry-after", str(retry).encode()),
-                   (b"content-length", str(len(body)).encode())]
-        await send({"type": "http.response.start", "status": 429, "headers": headers})
-        await send({"type": "http.response.body", "body": body})
+        message = (f"混雑: 呼び出しが多すぎます（この接続元からの上限に達しました）。{retry} 秒待ってから"
+                   "もう一度呼んでください。まとめて引ける問いは 1 回の SQL に寄せると回数が減ります。")
+        return await send_429(send, retry, message)
