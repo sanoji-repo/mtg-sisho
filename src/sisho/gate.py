@@ -33,7 +33,7 @@ class FudaStore:
     def __init__(self, path: str, clock=time.monotonic, dt_now=None):
         self.path = path
         self._clock = clock
-        self._dt_now = dt_now if dt_now is not None else datetime.datetime.now
+        self._dt_now = dt_now if dt_now is not None else (lambda: datetime.datetime.now().astimezone())
         self.records: dict[str, dict] = {}
         self.events: list[tuple[datetime.datetime, str, str, str]] = []
         self.broken_lines: int = 0
@@ -66,6 +66,8 @@ class FudaStore:
                     ts_s, ev_type, fuda, ip, per_s, memo = cols[:6]
                     try:
                         dt = datetime.datetime.fromisoformat(ts_s)
+                        if dt.tzinfo is None:
+                            dt = dt.astimezone()
                         per_min = int(per_s) if per_s.isdigit() else 60
                     except Exception:
                         self.broken_lines += 1
@@ -85,8 +87,10 @@ class FudaStore:
                         self.events.append((dt, "stop", fuda, ip))
                     else:
                         self.broken_lines += 1
-        except OSError:
-            pass
+            if self.broken_lines > 0:
+                _gate_log.warning("[gate] fuda.tsv に壊れた行 %d", self.broken_lines)
+        except OSError as e:
+            _gate_log.error("[gate] fuda.tsv を読めない path=%s err=%s", self.path, e)
 
     def reload_if_changed(self) -> None:
         """mtime または size が変わっていたら再読み込み（確認は 1 秒に 1 回まで）。"""
@@ -110,10 +114,18 @@ class FudaStore:
             per_min = int(os.environ.get("MCP_FUDA_PER_MIN", "60"))
         memo_clean = " ".join((memo or "").split())
         now_dt = self._dt_now()
+        if now_dt.tzinfo is None:
+            now_dt = now_dt.astimezone()
         ts_s = now_dt.isoformat()
-        os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
-        with open(self.path, "a", encoding="utf-8") as f:
-            f.write(f"{ts_s}\tissue\t{fuda}\t{ip}\t{per_min}\t{memo_clean}\n")
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
+            fd = os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+            with os.fdopen(fd, "a", encoding="utf-8") as f:
+                f.write(f"{ts_s}\tissue\t{fuda}\t{ip}\t{per_min}\t{memo_clean}\n")
+        except OSError as e:
+            _gate_log.error("[gate] fuda.tsv への書き込み失敗 path=%s err=%s", self.path, e)
+            raise
+
         try:
             st = os.stat(self.path)
             self._last_mtime = st.st_mtime
@@ -136,13 +148,22 @@ class FudaStore:
         if fuda not in self.records or not self.records[fuda].get("alive", False):
             return False
         rec = self.records[fuda]
-        rec["alive"] = False
         now_dt = self._dt_now()
+        if now_dt.tzinfo is None:
+            now_dt = now_dt.astimezone()
         ts_s = now_dt.isoformat()
         ip = rec.get("ip", "")
         per_min = str(rec.get("per_min", ""))
-        with open(self.path, "a", encoding="utf-8") as f:
-            f.write(f"{ts_s}\tstop\t{fuda}\t{ip}\t{per_min}\t\n")
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
+            fd = os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+            with os.fdopen(fd, "a", encoding="utf-8") as f:
+                f.write(f"{ts_s}\tstop\t{fuda}\t{ip}\t{per_min}\t\n")
+        except OSError as e:
+            _gate_log.error("[gate] fuda.tsv への書き込み失敗 path=%s err=%s", self.path, e)
+            raise
+
+        rec["alive"] = False
         try:
             st = os.stat(self.path)
             self._last_mtime = st.st_mtime
@@ -164,6 +185,8 @@ class FudaStore:
         """直近 seconds 秒間の指定 IP からの発行回数を数える。"""
         self.reload_if_changed()
         now = self._dt_now()
+        if now.tzinfo is None:
+            now = now.astimezone()
         count = 0
         for dt, ev_type, fuda, ev_ip in self.events:
             if ev_type == "issue" and ev_ip == ip:
@@ -341,7 +364,25 @@ class GateASGI:
                 await send({"type": "http.response.body", "body": body})
                 return
 
-            fuda = self.store.issue(ip, memo="web")
+            try:
+                fuda = self.store.issue(ip, memo="web")
+            except OSError:
+                body = (
+                    '<!DOCTYPE html>\n<html lang="ja">\n<head>\n<meta charset="utf-8">\n'
+                    '<title>発行エラー</title>\n</head>\n<body>\n'
+                    '<h1>今は発行できません。しばらくしてからもう一度</h1>\n'
+                    '</body>\n</html>'
+                ).encode("utf-8")
+                headers = [
+                    (b"content-type", b"text/html; charset=utf-8"),
+                    (b"cache-control", b"no-store"),
+                    (b"retry-after", b"60"),
+                    (b"content-length", str(len(body)).encode()),
+                ]
+                await send({"type": "http.response.start", "status": 503, "headers": headers})
+                await send({"type": "http.response.body", "body": body})
+                return
+
             _gate_log.info("[gate] issue ip=%s fuda=%s", ip, short(fuda))
             base = _build_base_url(scope, self.public_base)
             full_url = f"{base}{self.prefix}{fuda}"

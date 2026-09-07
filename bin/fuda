@@ -56,7 +56,11 @@ def main():
             print(f"{short(fuda)}\t{status}\t{ts_str}\t{ip}\t{per_min}/分\t{memo}")
 
     elif args.command == "issue":
-        fuda = store.issue(ip="cli", memo=args.memo, per_min=args.per_min)
+        try:
+            fuda = store.issue(ip="cli", memo=args.memo, per_min=args.per_min)
+        except OSError as e:
+            sys.stderr.write(f"エラー: 札を発行できませんでした: {e}\n")
+            sys.exit(1)
         print(f"札: {fuda}")
         base = os.environ.get("MCP_PUBLIC_BASE", "").rstrip("/")
         prefix = os.environ.get("MCP_FUDA_PREFIX", "/mcp/")
@@ -80,7 +84,11 @@ def main():
             sys.stderr.write(f"エラー: 複数の札に前方一致しました（{len(matches)} 件）。より長く指定してください\n")
             sys.exit(1)
         fuda_to_stop = matches[0]
-        store.stop(fuda_to_stop)
+        try:
+            store.stop(fuda_to_stop)
+        except OSError as e:
+            sys.stderr.write(f"エラー: 札を停止できませんでした: {e}\n")
+            sys.exit(1)
         print(f"停止しました: {short(fuda_to_stop)} ({fuda_to_stop})")
 
 

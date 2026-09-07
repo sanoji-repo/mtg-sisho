@@ -30,9 +30,13 @@ class Clock:
 
 class MockTime:
     def __init__(self, now_dt):
+        if now_dt.tzinfo is None:
+            now_dt = now_dt.astimezone()
         self.now_dt = now_dt
 
     def __call__(self):
+        if self.now_dt.tzinfo is None:
+            self.now_dt = self.now_dt.astimezone()
         return self.now_dt
 
 
@@ -77,7 +81,7 @@ def parse_response(sent):
 def test_fuda_store_crud(tmp_path):
     """1. FudaStore: 発行 → lookup で生きている／stop → lookup が None／ファイルを別の FudaStore で開き直しても同じ状態／壊れた行（列不足）は無視／issued_in が直近だけ数える。"""
     fuda_file = str(tmp_path / "fuda.tsv")
-    base_dt = datetime.datetime(2026, 9, 7, 12, 0, 0)
+    base_dt = datetime.datetime(2026, 9, 7, 12, 0, 0).astimezone()
     mock_dt = MockTime(base_dt)
 
     store1 = FudaStore(fuda_file, dt_now=mock_dt)
@@ -467,7 +471,7 @@ def test_combos_fuda_rate_limit(monkeypatch):
 def test_gate_asgi_issue_persistence_after_restart(tmp_path):
     """11. 再起動後の 24h 枠: 既存 TSV に 1 時間前の同一 IP issue 3 行がある状態で新しい FudaStore＋新しい issue_limiter を組んで POST → 429。25 時間前なら 200。"""
     fuda_file = str(tmp_path / "fuda.tsv")
-    base_dt = datetime.datetime(2026, 9, 7, 12, 0, 0)
+    base_dt = datetime.datetime(2026, 9, 7, 12, 0, 0).astimezone()
     ip = "203.0.113.88"
 
     async def dummy_app(scope, receive, send):
@@ -759,6 +763,61 @@ def test_combos_legacy_per_ip_rate_limit(monkeypatch, caplog):
         finally:
             CURRENT_FUDA.reset(token_fuda2)
     assert any("[gate] 429 fuda=tokn1234" in r.message for r in caplog.records)
+
+
+def test_fuda_store_errors_and_permissions(tmp_path, monkeypatch, caplog):
+    """19. B-5: 読めないパスで _load が空で起動し caplog に error。壊れた行で warning。
+    C-4: 新規作成時のパーミッションが 0o600 (umask 0o022 下でも)。
+    書き込み先が無いときの POST が 503。"""
+    import logging
+    import stat
+
+    # 1. C-4: 新規作成後の stat が 0o600
+    old_umask = os.umask(0o022)
+    try:
+        fuda_file = str(tmp_path / "fuda_perm.tsv")
+        store = FudaStore(fuda_file)
+        fuda = store.issue("192.0.2.1")
+        mode = stat.S_IMODE(os.stat(fuda_file).st_mode)
+        assert mode == 0o600
+    finally:
+        os.umask(old_umask)
+
+    # 2. B-5: 読めないパス（ディレクトリを path に渡すなど）で error ログ
+    unreadable_dir = str(tmp_path / "unreadable_dir")
+    os.makedirs(unreadable_dir, exist_ok=True)
+    with caplog.at_level(logging.ERROR, logger="uvicorn.error"):
+        store_bad = FudaStore(unreadable_dir)
+        assert len(store_bad.records) == 0
+    assert any("[gate] fuda.tsv を読めない" in r.message for r in caplog.records)
+
+    # 3. B-5: 壊れた行で warning ログ
+    broken_file = str(tmp_path / "broken.tsv")
+    with open(broken_file, "w", encoding="utf-8") as f:
+        f.write("bad\tline\n")
+        f.write("too\tfew\tcols\t3\n")
+    with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+        store_broken = FudaStore(broken_file)
+        assert store_broken.broken_lines == 2
+    assert any("[gate] fuda.tsv に壊れた行 2" in r.message for r in caplog.records)
+
+    # 4. B-5: 書き込み先が無い（OSError）ときの POST が 503 HTML + Retry-After: 60
+    def fail_open(*args, **kwargs):
+        raise OSError("Permission denied (test)")
+
+    async def dummy(scope, receive, send): pass
+    limiter = RateLimiter(per_ip=60, global_=300)
+    issue_limiter = RateLimiter(per_ip=10, global_=100)
+    fuda_file503 = str(tmp_path / "fuda_503.tsv")
+    store503 = FudaStore(fuda_file503)
+    gate = GateASGI(dummy, store503, limiter, issue_limiter)
+
+    monkeypatch.setattr(os, "open", fail_open)
+    _, sent = asyncio.run(run_asgi_request(gate, "/issue", method="POST", client_ip="203.0.113.77"))
+    status, headers, body = parse_response(sent)
+    assert status == 503
+    assert headers.get("retry-after") == "60"
+    assert "今は発行できません" in body.decode("utf-8")
 
 
 if __name__ == "__main__":
