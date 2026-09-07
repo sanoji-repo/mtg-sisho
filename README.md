@@ -10,6 +10,7 @@ AI 側の記憶や Web の孫引きではなく、一次データから直接引
 | 文書 | 内容 |
 | --- | --- |
 | README（本書） | 何ができるか・使い方の入口・ライセンスと制限 |
+| [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md) | はじめての人向け: つないで最初の問いを投げるまで |
 | [DATA_MODEL.md](./DATA_MODEL.md) | テーブルと列の一覧（実 DB から 2026-08-23 に採取） |
 | [DESIGN.md](./DESIGN.md) | 設計原則（何で失敗して何を学んだか） |
 | [docs/DATA_SOURCES.md](./docs/DATA_SOURCES.md) | データの出所・利用マナー・ライセンス |
@@ -70,6 +71,7 @@ SQL の実行結果でも、カード名に当たる列の右隣に完成形の�
 
 ## 使い方
 
+- つないで使う（はじめての人向け）: [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md)
 - 自分で立てる: [docs/SETUP.md](./docs/SETUP.md)（前提条件・DB 構築・定期運用・MCP サーバーの登録）
 - Claude Code で回答前の強制検証: [hooks/README.md](./hooks/README.md)
 
