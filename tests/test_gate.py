@@ -342,21 +342,24 @@ def test_gate_asgi_issue_page(tmp_path):
     assert "text/html" in headers["content-type"]
     assert "今日はもう発行できません" in body.decode("utf-8")
 
-    # PUT -> 405
+    # PUT -> 405 (content-length あり)
     _, sent_put = asyncio.run(run_asgi_request(gate, "/issue", method="PUT", client_ip=ip))
-    assert parse_response(sent_put)[0] == 405
+    status_put, hdr_put, _ = parse_response(sent_put)
+    assert status_put == 405
+    assert hdr_put.get("content-length") == str(len(b"Method Not Allowed"))
 
-    # MCP_PUBLIC_BASE が空の場合は x-forwarded-host から組む
+    # MCP_PUBLIC_BASE が空の場合は X-Forwarded-Host を見ず Host ヘッダから組む（B-2）
     gate_no_base = GateASGI(inner_app, store, limiter,
                             RateLimiter(per_ip=3, global_=100, window=86400.0, exempt="", clock=clock),
                             inner_path="/mcp", prefix="/mcp/", public_base="")
     _, sent_fwd = asyncio.run(run_asgi_request(
         gate_no_base, "/issue", method="POST", client_ip="203.0.113.60",
-        headers={"x-forwarded-host": "tunnel.ts.net", "x-forwarded-proto": "https"}
+        headers={"host": "sisho.example", "x-forwarded-host": "evil.example.com", "x-forwarded-proto": "http"}
     ))
     status, _, body = parse_response(sent_fwd)
     assert status == 200
-    assert "https://tunnel.ts.net/mcp/" in body.decode("utf-8")
+    assert "https://sisho.example/mcp/" in body.decode("utf-8")
+    assert "evil.example.com" not in body.decode("utf-8")
 
 
 def test_send_429_shared_shape():
@@ -656,6 +659,55 @@ def test_uvicorn_kwargs_disables_access_log():
     assert kw.get("host") == "127.0.0.1"
     assert kw.get("port") == 8765
     assert kw.get("timeout_graceful_shutdown") == 3
+
+
+def test_gate_asgi_issue_csrf_sec_fetch_site(tmp_path):
+    """16. B-7: /issue の POST は Sec-Fetch-Site: cross-site なら 403、same-origin または無しなら 200。C-8: /issue/ 末尾スラッシュも受ける。"""
+    fuda_file = str(tmp_path / "fuda.tsv")
+    store = FudaStore(fuda_file)
+    async def dummy(scope, receive, send): pass
+    limiter = RateLimiter(per_ip=60, global_=300)
+    issue_limiter = RateLimiter(per_ip=10, global_=100)
+    gate = GateASGI(dummy, store, limiter, issue_limiter)
+
+    # 1. cross-site -> 403
+    _, sent_cross = asyncio.run(run_asgi_request(
+        gate, "/issue", method="POST", client_ip="203.0.113.1",
+        headers={"sec-fetch-site": "cross-site"}
+    ))
+    status, hdr, body = parse_response(sent_cross)
+    assert status == 403
+    assert "このページの「発行する」ボタンから発行してください" in body.decode("utf-8")
+    assert "content-length" in hdr
+
+    # 2. same-origin -> 200
+    _, sent_same = asyncio.run(run_asgi_request(
+        gate, "/issue", method="POST", client_ip="203.0.113.2",
+        headers={"sec-fetch-site": "same-origin"}
+    ))
+    assert parse_response(sent_same)[0] == 200
+
+    # 3. ヘッダ無し (curl等) -> 200
+    _, sent_none = asyncio.run(run_asgi_request(
+        gate, "/issue", method="POST", client_ip="203.0.113.3"
+    ))
+    assert parse_response(sent_none)[0] == 200
+
+    # 4. 末尾スラッシュ /issue/ も受け付ける (C-8)
+    _, sent_slash = asyncio.run(run_asgi_request(
+        gate, "/issue/", method="GET", client_ip="203.0.113.4"
+    ))
+    assert parse_response(sent_slash)[0] == 200
+
+
+def test_gate_asgi_from_env_warns_empty_public_base(monkeypatch, caplog):
+    """17. B-2: MCP_PUBLIC_BASE が空のとき起動時に警告を出す。"""
+    import logging
+    monkeypatch.delenv("MCP_PUBLIC_BASE", raising=False)
+    async def dummy(scope, receive, send): pass
+    with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+        GateASGI.from_env(dummy)
+    assert any("[gate] MCP_PUBLIC_BASE が空" in r.message for r in caplog.records)
 
 
 if __name__ == "__main__":
