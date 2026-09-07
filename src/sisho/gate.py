@@ -226,7 +226,20 @@ class GateASGI:
                    issue_path=issue_path, legacy_on=legacy_on,
                    public_base=public_base)
 
-    async def _respond_404(self, send) -> None:
+    async def _respond_404(self, send, ip: str | None = None) -> None:
+        """404。ip を渡したときは**探りとして IP の枠で数える**（2026-09-07 本人指摘）。
+
+        無い札・知らないパスへの探りは DB に触らず軽いので、枠の外に置くと「無料で叩き放題の口」
+        になる（旧 RateLimitASGI は全要求を IP で数えていた＝8/30 の GCP からの 404 連発の実例）。
+        札の総当たりは 192 ビットで現実に当たらないが、CPU とログの洪水は枠で止める。
+        枠を超えた探りには 404 でなく 429 を返す（存在の情報は与えない・待ち秒だけ）。
+        """
+        if ip is not None:
+            ok, retry = self.limiter.check(ip)
+            if not ok:
+                msg = (f"混雑: 呼び出しが多すぎます（この接続元からの上限に達しました）。{retry} 秒待ってから"
+                       "もう一度呼んでください。")
+                return await send_429(send, retry, msg)
         headers = [
             (b"content-type", b"text/plain; charset=utf-8"),
             (b"content-length", b"9"),
@@ -349,6 +362,9 @@ class GateASGI:
         ip = client[0] if client else "?"
 
         if path == self.issue_path:
+            ok, retry = self.limiter.check(ip)     # 発行ページも IP の枠（60/分）で数える
+            if not ok:
+                return await send_429(send, retry, f"混雑: 呼び出しが多すぎます。{retry} 秒待ってからもう一度開いてください。")
             return await self._handle_issue(scope, receive, send, ip)
 
         m = self._fuda_re.fullmatch(path)
@@ -356,7 +372,7 @@ class GateASGI:
             fuda = m.group(1)
             rec = self.store.lookup(fuda)
             if rec is None:
-                return await self._respond_404(send)
+                return await self._respond_404(send, ip)
             ok, retry = self.limiter.check("fuda:" + fuda, per=rec["per_min"])
             if not ok:
                 msg = (f"混雑: 呼び出しが多すぎます（この接続 URL からの上限に達しました）。{retry} 秒待ってから"
@@ -373,7 +389,7 @@ class GateASGI:
 
         if path == self.inner_path:
             if not self.legacy_on:
-                return await self._respond_404(send)
+                return await self._respond_404(send, ip)
             ok, retry = self.limiter.check(ip)
             if not ok:
                 msg = (f"混雑: 呼び出しが多すぎます（この接続元からの上限に達しました）。{retry} 秒待ってから"
@@ -385,4 +401,4 @@ class GateASGI:
             finally:
                 CURRENT_FUDA.reset(token)
 
-        return await self._respond_404(send)
+        return await self._respond_404(send, ip)

@@ -600,5 +600,53 @@ def test_bin_fuda_cli(tmp_path):
     assert "-" not in cols
 
 
+def test_gate_asgi_probes_are_rate_limited(tmp_path):
+    """14. 探り（無い札・知らないパス・閉じた旧パス・発行ページ）は IP の枠で数える（2026-09-07 本人指摘＝旧 RateLimitASGI の振る舞いの復元）。
+    札付きの正しい呼び出しは IP の枠を消費しない（claude.ai の出口 IP は共有）。除外 IP の探りは数えない。"""
+    fuda_file = str(tmp_path / "fuda.tsv")
+    store = FudaStore(fuda_file)
+    fuda = store.issue("192.0.2.1")
+
+    async def inner_app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    clock = Clock(1000.0)
+    limiter = RateLimiter(per_ip=3, global_=1000, clock=clock)
+    issue_limiter = RateLimiter(per_ip=3, global_=100, window=86400.0, exempt="", clock=clock)
+    gate = GateASGI(inner_app, store, limiter, issue_limiter, inner_path="/mcp", prefix="/mcp/", legacy_on=False)
+    ip = "203.0.113.77"
+
+    # 正しい札の呼び出しは IP の枠を減らさない（5 回呼んでも探りの枠 3 は残る）
+    for _ in range(5):
+        _, sent = asyncio.run(run_asgi_request(gate, f"/mcp/{fuda}", client_ip=ip))
+        assert parse_response(sent)[0] == 200
+    # 探り 3 回は 404・4 回目は 429（存在の情報は与えない・Retry-After だけ）
+    probes = ["/mcp/" + "x" * 32, "/nothing", "/mcp"]
+    for path in probes:
+        _, sent = asyncio.run(run_asgi_request(gate, path, client_ip=ip))
+        assert parse_response(sent)[0] == 404, path
+    _, sent = asyncio.run(run_asgi_request(gate, "/mcp/" + "y" * 32, client_ip=ip))
+    status, headers, body = parse_response(sent)
+    assert status == 429 and headers["retry-after"].isdigit()
+    assert b"not found" not in body
+    # 別の IP は巻き添えにならない・除外 IP（127.0.0.1）は何度でも 404
+    _, sent = asyncio.run(run_asgi_request(gate, "/nothing", client_ip="203.0.113.78"))
+    assert parse_response(sent)[0] == 404
+    for _ in range(10):
+        _, sent = asyncio.run(run_asgi_request(gate, "/nothing", client_ip="127.0.0.1"))
+        assert parse_response(sent)[0] == 404
+    # 窓が滑れば戻る
+    clock.t += 61
+    _, sent = asyncio.run(run_asgi_request(gate, "/nothing", client_ip=ip))
+    assert parse_response(sent)[0] == 404
+    # 発行ページの GET も IP の枠（この IP は今 1 回使った → あと 2 回は 200・次は 429）
+    for _ in range(2):
+        _, sent = asyncio.run(run_asgi_request(gate, "/issue", method="GET", client_ip=ip))
+        assert parse_response(sent)[0] == 200
+    _, sent = asyncio.run(run_asgi_request(gate, "/issue", method="GET", client_ip=ip))
+    assert parse_response(sent)[0] == 429
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
