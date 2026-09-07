@@ -222,3 +222,47 @@ sudo ufw reload
 ## 索引（2026-09-04）
 
 索引は論理レプリケーションで運ばれないので、工場と公開サーバーの両方で作る（`sh/sisho_repl/21_both_add_indexes.sql`・`CREATE INDEX CONCURRENTLY`＝適用と道具を止めない）。公開サーバーの統計（`pg_stat_user_tables` の順次走査・`pg_stat_user_indexes` の使用回数）で足りない索引と使われない索引を定期的に見る。膨張は `pgstattuple` の `pgstatindex()` で葉の密度を測る（新品は約 90%・40% 未満は作り直し）。公開サーバーの `readonly_ai` は `max_parallel_workers_per_gather = 0`（2 コアで席 5 の取り合いを避ける）。
+
+## 門と札（2026-09-07）
+
+接続 URL を一人ひとりに「札」（`secrets.token_urlsafe(24)`・32 字）として配り、札ごとにレート制限を課す仕組み（小片 8）。
+身元は聞かず名簿も持たない。発行ページ（`/issue`）のボタン一つで配る。
+
+### 環境変数
+
+| 変数名 | 既定値 | 説明 |
+| --- | --- | --- |
+| `MCP_FUDA_FILE` | `<repo>/state/fuda.tsv` | 札の台帳 TSV（箱では `/var/log/mtg-sisho/fuda.tsv`） |
+| `MCP_FUDA_PREFIX` | `/mcp/` | 札付き接続 URL のパス接頭辞（`/mcp/<札>`） |
+| `MCP_FUDA_PER_MIN` | `60` | 札ごとの 1 分間あたりの呼び出し枠 |
+| `MCP_ISSUE_PER_DAY` | `3` | 発行元 IP ごとの 1 日あたりの最大発行数 |
+| `MCP_ISSUE_GLOBAL_DAY` | `100` | サーバー全体の 1 日あたりの最大発行総数 |
+| `MCP_LEGACY_PATH` | `1` | 旧パス（`/mcp`）の有効化フラグ（`0` で旧パスを閉じる） |
+| `MCP_PUBLIC_BASE` | 空 | 発行ページが表示する接続 URL の基底 URL。空ならリクエストのヘッダから自動構築 |
+| `MCP_ISSUE_PATH` | `/issue` | 接続 URL 発行ページのパス |
+| `MCP_COMBOS_PER_MIN` | `10` | 外部 API（Commander Spellbook）を守るための札ごとの 1 分間あたりの枠 |
+| `MCP_COMBOS_GLOBAL_MIN` | `60` | Commander Spellbook 照会の全体の 1 分間あたりの枠 |
+
+### fuda.tsv の置き場と行の形
+
+台帳は SQLite や DB ではなく追記専用の TSV ファイル（1 行 1 事象・最新行が真）。
+箱では ProtectSystem=strict のため書ける場所が `/var/log/mtg-sisho` に限られ、logrotate（`*.log` を週 1 で copytruncate）の対象外とするため拡張子は `.tsv` とする。
+
+各行の構成（タブ区切り 6 列）:
+`ISO時刻 \t 事象 \t 札 \t IP \t 分あたりの枠 \t メモ`
+- 事象: `issue`（発行）または `stop`（停止）
+- 札: 32 文字のランダム文字列（URL-safe）
+- メモ: 改行・タブを空白に潰したメモ文字列
+
+### 発行ページと bin/fuda の使い方
+
+- 発行ページの住所: `https://<ホスト>/issue`。ボタンを押すと専用の接続 URL（`https://<ホスト>/mcp/<札>`）が払い出される。
+- 管理ツール `bin/fuda`（箱では `sudo -u mcp bin/fuda` で実行）:
+  - 一覧表示: `bin/fuda list`（停止済みも含める場合は `--all`）
+  - 手動発行: `bin/fuda issue [--memo "テスト用"]`（札の全文と、`MCP_PUBLIC_BASE` があれば完成 URL を表示）
+  - 札の停止: `bin/fuda stop <札の先頭8字以上または全文>`（一意に定まらない場合は拒否）
+
+### 旧パスの閉じ方と弱点
+
+- 旧パスの閉じ方: `.env` に `MCP_LEGACY_PATH=0` を指定してサーバーを再起動すると、従来の共通パス（`/mcp`）へのアクセスは即座に 404 となり、札付き URL のみが受け付けられるようになる。
+- 弱点: 接続 URL は HTTP のパスそのものであるため、Web ブラウザの履歴、プロキシやサーバーのアクセスログ、クライアント側の設定画面に残る。無くした場合は `bin/fuda stop` で停止し、発行ページで新しく取り直す。

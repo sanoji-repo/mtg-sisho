@@ -108,4 +108,5 @@ Sisho is unofficial Fan Content permitted under the Fan Content Policy. Not appr
 - 公開口のレート制限: 接続元 IP ごと 60 回/分・全体 300 回/分（超過は HTTP 429 と JSON-RPC の error で理由を返す）。詳細は `docs/PUBLIC_SERVER.md`。
 - 入力の記録: この接続先に送られた道具の入力（検索語・SQL・カード名など）は、障害対応と品質改善のためサーバー側に記録する。第三者には渡さない。
 - 答えの責任の所在: 答えの文章を作るのは利用者側の AI である。Sisho が返すのは一次データから引いた値で、その値は記録から確認できる。
+- 接続 URL は合言葉として扱う（URL は履歴やログに残る。無くしたら発行ページで取り直す）。
 - 認証は無い。無保証の実験的な提供であり、問題の報告は GitHub の Issues へ。
