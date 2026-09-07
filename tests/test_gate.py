@@ -648,5 +648,15 @@ def test_gate_asgi_probes_are_rate_limited(tmp_path):
     assert parse_response(sent)[0] == 429
 
 
+def test_uvicorn_kwargs_disables_access_log():
+    """15. A-1: uvicorn.run に渡す引数に access_log=False が含まれ、札の全文が journal に流れない。"""
+    from mcp_server import _uvicorn_kwargs
+    kw = _uvicorn_kwargs(8765, "info")
+    assert kw.get("access_log") is False
+    assert kw.get("host") == "127.0.0.1"
+    assert kw.get("port") == 8765
+    assert kw.get("timeout_graceful_shutdown") == 3
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

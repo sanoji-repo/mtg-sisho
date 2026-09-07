@@ -219,7 +219,24 @@ if __name__ == "__main__":
         # 札ごとのレート制限・発行ページ（/issue）・旧パス互換を GateASGI が束ねる。
         from sisho.gate import GateASGI
         app = GateASGI.from_env(app, inner_path=http_path)
-        uvicorn.run(app, host="127.0.0.1", port=port,
-                    log_level=server.settings.log_level.lower(), timeout_graceful_shutdown=3)
+        kw = _uvicorn_kwargs(port, server.settings.log_level.lower())
+        uvicorn.run(app, **kw)
     else:
         server.run("stdio")
+
+
+def _uvicorn_kwargs(port: int, log_level: str) -> dict:
+    """uvicorn.run に渡す引数（試験用に関数へ切り出し）。
+
+    uvicorn の既定のアクセスログは要求行＝パス＝札の全文を書く。
+    門の [gate] と道具ログで観測は足りる。
+    Opus のレビュー A-1・2026-09-07。
+    """
+    return {
+        "host": "127.0.0.1",
+        "port": port,
+        "log_level": log_level,
+        "timeout_graceful_shutdown": 3,
+        "access_log": False,
+    }
+
