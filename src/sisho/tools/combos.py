@@ -8,7 +8,7 @@ import json
 import os
 
 from sisho import errors
-from sisho.context import CURRENT_FUDA
+from sisho.context import CURRENT_CLIENT_IP, CURRENT_FUDA
 from sisho.db import _db
 from sisho.ratelimit import RateLimiter
 from sisho.toollog import _log_tool
@@ -73,9 +73,14 @@ def find_combos(card_names: list[str], commanders: list[str] | None = None, limi
             f"card_names が多すぎます: {len(names)} 枚（上限 120 枚）。デッキ 1 本ぶんに絞って呼び直す")
     limit = max(1, min(int(limit), 30))
 
-    # 外部 API（Commander Spellbook）を守るための札ごとの枠
+    # 外部 API（Commander Spellbook）を守るための枠（B-4・C-1）
     fuda = CURRENT_FUDA.get()
-    key = fuda if fuda else "anon"
+    if fuda == "legacy":
+        key = "legacy:" + (CURRENT_CLIENT_IP.get() or "?")
+    elif fuda:
+        key = "fuda:" + fuda
+    else:
+        key = "anon"
     ok, retry = _combos_limiter.check(key)
     if not ok:
         return errors.err_json(

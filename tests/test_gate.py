@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from sisho.context import CURRENT_FUDA
+from sisho.context import CURRENT_CLIENT_IP, CURRENT_FUDA
 from sisho.gate import FudaStore, GateASGI, short
 from sisho.ratelimit import RateLimiter, RateLimitASGI, send_429
 import sisho.toollog as toollog
@@ -271,9 +271,11 @@ def test_gate_asgi_legacy_path(tmp_path):
     fuda_file = str(tmp_path / "fuda.tsv")
     store = FudaStore(fuda_file)
     fuda_inside = []
+    client_ip_inside = []
 
     async def inner_app(scope, receive, send):
         fuda_inside.append(CURRENT_FUDA.get())
+        client_ip_inside.append(CURRENT_CLIENT_IP.get())
         await send({"type": "http.response.start", "status": 200, "headers": []})
         await send({"type": "http.response.body", "body": b"ok"})
 
@@ -286,6 +288,8 @@ def test_gate_asgi_legacy_path(tmp_path):
     _, sent1 = asyncio.run(run_asgi_request(gate, "/mcp", client_ip="198.51.100.1"))
     assert parse_response(sent1)[0] == 200
     assert fuda_inside == ["legacy"]
+    assert client_ip_inside == ["198.51.100.1"]
+    assert CURRENT_CLIENT_IP.get() == ""
 
     # IP枠が per_ip=1 のため、同一 IP からの 2 回目は 429
     _, sent2 = asyncio.run(run_asgi_request(gate, "/mcp", client_ip="198.51.100.1"))
@@ -708,6 +712,53 @@ def test_gate_asgi_from_env_warns_empty_public_base(monkeypatch, caplog):
     with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
         GateASGI.from_env(dummy)
     assert any("[gate] MCP_PUBLIC_BASE が空" in r.message for r in caplog.records)
+
+
+def test_combos_legacy_per_ip_rate_limit(monkeypatch, caplog):
+    """18. B-4: 旧パス (CURRENT_FUDA="legacy") の find_combos は CURRENT_CLIENT_IP ごとに数える。
+    片方の IP が 10 回枠を使い切っても、もう片方の IP は通る。
+    C-1: 札の拒否ログが [gate] 429 fuda= になる。"""
+    import logging
+
+    def fake_post(payload):
+        return {"results": {"included": [], "almostIncluded": [], "almostIncludedByAddingColors": []}}
+
+    monkeypatch.setattr(combos, "_spellbook_post", fake_post)
+    clock = Clock(1000.0)
+    test_limiter = RateLimiter(per_ip=10, global_=60, clock=clock, exempt="")
+    monkeypatch.setattr(combos, "_combos_limiter", test_limiter)
+
+    token_fuda = CURRENT_FUDA.set("legacy")
+    token_ip1 = CURRENT_CLIENT_IP.set("198.51.100.1")
+    try:
+        for _ in range(10):
+            res = combos.find_combos(["Sol Ring"])
+            assert "error_kind" not in json.loads(res)
+
+        # 11 回目は IP 1 が 429
+        res11 = combos.find_combos(["Sol Ring"])
+        assert json.loads(res11).get("error_kind") == "rate_limited"
+
+        # 別の IP 2 は巻き添えにならず通る
+        token_ip2 = CURRENT_CLIENT_IP.set("198.51.100.2")
+        try:
+            res_ip2 = combos.find_combos(["Sol Ring"])
+            assert "error_kind" not in json.loads(res_ip2)
+        finally:
+            CURRENT_CLIENT_IP.reset(token_ip2)
+    finally:
+        CURRENT_CLIENT_IP.reset(token_ip1)
+        CURRENT_FUDA.reset(token_fuda)
+
+    # C-1: 札の拒否ログが [gate] 429 fuda= で記録されることの確認
+    with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+        token_fuda2 = CURRENT_FUDA.set("tokn1234")
+        try:
+            for _ in range(11):
+                combos.find_combos(["Sol Ring"])
+        finally:
+            CURRENT_FUDA.reset(token_fuda2)
+    assert any("[gate] 429 fuda=tokn1234" in r.message for r in caplog.records)
 
 
 if __name__ == "__main__":
