@@ -184,9 +184,8 @@ def _get_header(scope: dict, name: str) -> str:
 def _build_base_url(scope: dict, public_base: str) -> str:
     if public_base:
         return public_base.rstrip("/")
-    proto = _get_header(scope, "x-forwarded-proto") or "https"
-    host = _get_header(scope, "x-forwarded-host") or _get_header(scope, "host") or "localhost"
-    return f"{proto}://{host}".rstrip("/")
+    host = _get_header(scope, "host") or "localhost"
+    return f"https://{host}".rstrip("/")
 
 
 class GateASGI:
@@ -216,6 +215,9 @@ class GateASGI:
         legacy_on = os.environ.get("MCP_LEGACY_PATH", "1") in ("1", "true", "yes")
         public_base = os.environ.get("MCP_PUBLIC_BASE", "")
         issue_path = os.environ.get("MCP_ISSUE_PATH", "/issue")
+
+        if not public_base:
+            _gate_log.warning("[gate] MCP_PUBLIC_BASE が空: 発行ページの URL は Host ヘッダから組む（公開サーバーでは必ず設定）")
 
         store = FudaStore(fuda_file)
         limiter = RateLimiter.from_env()
@@ -276,6 +278,24 @@ class GateASGI:
             while more_body:
                 msg = await receive()
                 more_body = msg.get("more_body", False)
+
+            # 第三者サイトからの自動投稿（CSRF）を防ぐ: Sec-Fetch-Site が cross-site なら 403
+            sec_site = _get_header(scope, "sec-fetch-site").lower()
+            if sec_site == "cross-site":
+                body = (
+                    '<!DOCTYPE html>\n<html lang="ja">\n<head>\n<meta charset="utf-8">\n'
+                    '<title>発行エラー</title>\n</head>\n<body>\n'
+                    '<h1>このページの「発行する」ボタンから発行してください</h1>\n'
+                    '</body>\n</html>'
+                ).encode("utf-8")
+                headers = [
+                    (b"content-type", b"text/html; charset=utf-8"),
+                    (b"cache-control", b"no-store"),
+                    (b"content-length", str(len(body)).encode()),
+                ]
+                await send({"type": "http.response.start", "status": 403, "headers": headers})
+                await send({"type": "http.response.body", "body": body})
+                return
 
             # TSV の永続記録から直近 24 時間の発行枠を検査（サーバー再起動対策）
             if self.issue_limiter.per_ip and self.store.issued_in(ip, 86400) >= self.issue_limiter.per_ip:
@@ -346,12 +366,14 @@ class GateASGI:
             await send({"type": "http.response.body", "body": body})
             return
 
+        body_405 = b"Method Not Allowed"
         headers = [
             (b"content-type", b"text/plain; charset=utf-8"),
             (b"allow", b"GET, POST"),
+            (b"content-length", str(len(body_405)).encode()),
         ]
         await send({"type": "http.response.start", "status": 405, "headers": headers})
-        await send({"type": "http.response.body", "body": b"Method Not Allowed"})
+        await send({"type": "http.response.body", "body": body_405})
 
     async def __call__(self, scope, receive, send):
         if scope.get("type") != "http":
@@ -361,7 +383,7 @@ class GateASGI:
         client = scope.get("client")
         ip = client[0] if client else "?"
 
-        if path == self.issue_path:
+        if path.rstrip("/") == self.issue_path.rstrip("/"):
             ok, retry = self.limiter.check(ip)     # 発行ページも IP の枠（60/分）で数える
             if not ok:
                 return await send_429(send, retry, f"混雑: 呼び出しが多すぎます。{retry} 秒待ってからもう一度開いてください。")
