@@ -110,6 +110,8 @@ class FudaStore:
     def issue(self, ip: str, memo: str = "", per_min: int | None = None) -> str:
         """新しい札を発行して TSV に追記する。"""
         fuda = secrets.token_urlsafe(24)
+        while fuda.startswith("-"):     # 先頭の - は argparse がオプションと読む＝bin/fuda stop に渡せない（Opus C-12）
+            fuda = secrets.token_urlsafe(24)
         if per_min is None:
             per_min = int(os.environ.get("MCP_FUDA_PER_MIN", "60"))
         memo_clean = " ".join((memo or "").split())
@@ -181,15 +183,15 @@ class FudaStore:
             return dict(rec)
         return None
 
-    def issued_in(self, ip: str, seconds: float = 86400) -> int:
-        """直近 seconds 秒間の指定 IP からの発行回数を数える。"""
+    def issued_in(self, ip: str | None, seconds: float = 86400) -> int:
+        """直近 seconds 秒間の発行回数。ip を指定すればその IP・None なら全体（Opus B-10）。"""
         self.reload_if_changed()
         now = self._dt_now()
         if now.tzinfo is None:
             now = now.astimezone()
         count = 0
         for dt, ev_type, fuda, ev_ip in self.events:
-            if ev_type == "issue" and ev_ip == ip:
+            if ev_type == "issue" and (ip is None or ev_ip == ip):
                 diff = (now - dt).total_seconds()
                 if 0 <= diff <= seconds:
                     count += 1
@@ -272,6 +274,17 @@ class GateASGI:
         await send({"type": "http.response.start", "status": 404, "headers": headers})
         await send({"type": "http.response.body", "body": b"not found"})
 
+    def _issue_retry_after(self, ip: str | None) -> int:
+        """発行の枠を超えたときの待ち秒＝直近 24 時間で最も古い issue 行が窓を出るまで。ip None は全体。"""
+        now = self.store._dt_now()
+        if now.tzinfo is None:
+            now = now.astimezone()
+        dts = [dt for dt, ev, _, ev_ip in self.store.events
+               if ev == "issue" and (ip is None or ev_ip == ip) and 0 <= (now - dt).total_seconds() <= 86400]
+        if not dts:
+            return 86400
+        return max(1, int(86400 - (now - min(dts)).total_seconds()) + 1)
+
     async def _handle_issue(self, scope, receive, send, ip: str) -> None:
         method = scope.get("method", "GET").upper()
         if method == "GET":
@@ -320,16 +333,13 @@ class GateASGI:
                 await send({"type": "http.response.body", "body": body})
                 return
 
-            # TSV の永続記録から直近 24 時間の発行枠を検査（サーバー再起動対策）
-            if self.issue_limiter.per_ip and self.store.issued_in(ip, 86400) >= self.issue_limiter.per_ip:
-                now = self.store._dt_now()
-                matching_dts = [dt for dt, ev_type, _, ev_ip in self.store.events
-                                if ev_type == "issue" and ev_ip == ip and 0 <= (now - dt).total_seconds() <= 86400]
-                if matching_dts:
-                    oldest = min(matching_dts)
-                    retry = max(1, int(86400 - (now - oldest).total_seconds()) + 1)
-                else:
-                    retry = 86400
+            # TSV の永続記録から直近 24 時間の発行枠を検査（IP ごと・全体とも＝再起動で消えない・Opus B-1/B-10）。
+            # issue_limiter は数値（per_ip・global_）の置き場で、メモリの deque は使わない（失敗した発行で枠が痩せない・C-14）
+            per_ip, global_ = self.issue_limiter.per_ip, self.issue_limiter.global_
+            over_ip = bool(per_ip) and self.store.issued_in(ip, 86400) >= per_ip
+            over_all = bool(global_) and self.store.issued_in(None, 86400) >= global_
+            if over_ip or over_all:
+                retry = self._issue_retry_after(ip if over_ip else None)
                 body = (
                     '<!DOCTYPE html>\n<html lang="ja">\n<head>\n<meta charset="utf-8">\n'
                     '<title>発行上限</title>\n</head>\n<body>\n'
@@ -346,23 +356,6 @@ class GateASGI:
                 await send({"type": "http.response.body", "body": body})
                 return
 
-            ok, retry = self.issue_limiter.check(ip)
-            if not ok:
-                body = (
-                    '<!DOCTYPE html>\n<html lang="ja">\n<head>\n<meta charset="utf-8">\n'
-                    '<title>発行上限</title>\n</head>\n<body>\n'
-                    '<h1>今日はもう発行できません。明日また来てください</h1>\n'
-                    '</body>\n</html>'
-                ).encode("utf-8")
-                headers = [
-                    (b"content-type", b"text/html; charset=utf-8"),
-                    (b"cache-control", b"no-store"),
-                    (b"retry-after", str(retry).encode()),
-                    (b"content-length", str(len(body)).encode()),
-                ]
-                await send({"type": "http.response.start", "status": 429, "headers": headers})
-                await send({"type": "http.response.body", "body": body})
-                return
 
             try:
                 fuda = self.store.issue(ip, memo="web")
