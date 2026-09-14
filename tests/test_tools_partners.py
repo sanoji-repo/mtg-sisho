@@ -79,13 +79,20 @@ def test_partners_limit_bounds():
 
 
 def test_partners_exclude_lands():
-    """exclude_lands=True で土地を落とす（汎用フェッチが上位を占めるのを避ける口）。"""
-    with_lands = fp("Lightning Bolt", "constructed", 5)
-    no_lands = fp("Lightning Bolt", "constructed", 5, True)
-    assert "《乾燥台地/Arid Mesa》" in with_lands, "既定では土地が上位に来る"
-    for name in ("乾燥台地", "沸騰する小湖", "山/Mountain"):
+    """exclude_lands=True で土地を落とす（汎用フェッチが上位を占めるのを避ける口）。
+
+    2026-09-14: 「《乾燥台地/Arid Mesa》が上位 5 に居ること」で縫っていたが、実デッキが
+    増えて 7 位へ動いたので落ちた（変更前のコードでも同じ順位＝データの動き）。
+    このファイルの方針どおり順位や数字でなく「土地が居る／消える」の性質で縫い直す。
+    """
+    with_lands = fp("Lightning Bolt", "constructed", 10)
+    no_lands = fp("Lightning Bolt", "constructed", 10, True)
+
+    assert any(n in with_lands for n in ("乾燥台地", "沸騰する小湖", "溢れかえる岸辺")), (
+        f"既定では土地（フェッチランド）が上位に来る（{with_lands[:200]}）")
+    for name in ("乾燥台地", "沸騰する小湖", "溢れかえる岸辺", "蒸気孔", "山/Mountain"):
         assert name not in no_lands, f"exclude_lands で土地が消える（{name}）"
-    assert len(_rows(no_lands)) == 5, "土地を抜いても本数は埋まる"
+    assert len(_rows(no_lands)) == 10, "土地を抜いても本数は埋まる"
 
 
 def test_partners_order_by_lift():
@@ -107,3 +114,48 @@ def test_partners_two_faced_card_name():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# ─── 分母の表（2026-09-14・#819）───────────────────────────────
+# 分母は毎回 deck_cards（1,376 万行）から数え直していたのをやめ、夜間便が作る
+# card_scope_deck_counts / scope_deck_counts から引くようにした。
+# 表を作るのは工場側（mtg_rag の src/recompute_card_format_strength.py）で、
+# scope → source の対応は **partners.py の _SCOPE_SOURCES が正本・あちらは写し**。
+# 写しがずれると分母だけ別の母集団になり、pct と lift が静かに狂うので試験で縫う。
+
+def test_scope_tables_cover_every_scope():
+    """道具が知っている scope は、すべて分母の表にある（commander は edh の別名なので除く）。"""
+    want = {s for s in partners._SCOPE_SOURCES if s != "commander"}
+
+    rows = partners._db("SELECT scope, n_decks FROM scope_deck_counts", ())
+    have = {r[0] for r in rows}
+
+    assert want <= have, (
+        f"分母の表に無い scope がある（道具 {sorted(want)} / 表 {sorted(have)}）＝"
+        "工場の SCOPE_SOURCES が partners.py の写しとしてずれているか、夜間便が回っていない")
+    for scope, n in rows:
+        assert n > 0, f"scope {scope} の総デッキ数が 0（集計が壊れている）"
+
+
+def test_scope_table_matches_live_count():
+    """表の分母が、その場で数えた値と一致する（夜間便の集計が現物とずれていない）。
+
+    値そのものは毎晩動くので、突き合わせは「同じ問いを 2 通りで解いて差が無いこと」で縫う。
+    重い集計を避けるため、デッキ数の少ない precon で見る。
+    """
+    src = list(partners._SCOPE_SOURCES["precon"])
+
+    tbl = partners._db("SELECT n_decks FROM scope_deck_counts WHERE scope = %s", ("precon",))
+    live = partners._db("SELECT count(*) FROM deck_list WHERE source = ANY(%s)", (src,))
+
+    assert tbl and tbl[0][0] == live[0][0], (
+        f"precon の分母が現物とずれている（表 {tbl} / 実測 {live[0][0]}）")
+
+
+def test_partners_pct_is_a_percentage():
+    """pct は 0〜100 に収まる（分母を表から引くようにしても割り算の意味が変わっていない）。"""
+    out = fp("Lightning Bolt", scope="constructed", limit=5)
+    pcts = [float(x) for x in re.findall(r"(\d+\.\d+)%", out)]
+
+    assert pcts, f"pct が読めない（{out[:120]}）"
+    assert all(0.0 <= v <= 100.0 for v in pcts), f"pct が百分率の範囲外（{pcts}）"

@@ -95,6 +95,9 @@ def find_partner_cards(card_name: str, scope: str = "edh",
     deck_src = _SCOPE_SOURCES.get(scope)
     if not deck_src:
         return f"scope が不正: {scope}（edh/constructed/pauper/vintage/precon）"
+    # 分母の表（card_scope_deck_counts・scope_deck_counts）の鍵。commander は edh の別名なので
+    # 表には edh だけを入れてある（2026-09-14・#819）。
+    scope_key = "edh" if scope == "commander" else scope
     if scope in ("edh", "commander"):
         pair_sql = (
             "  SELECT e.card_id_b AS pid, e.deck_count AS cnt"
@@ -123,27 +126,34 @@ def find_partner_cards(card_name: str, scope: str = "edh",
             # name_en_front に索引（mtg_cards_v2_name_en_front_idx・VM と箱の両方に張る）→ BitmapOr で 0.6 秒。
             "  ON (cc.card_name = x.pname OR cc.name_en_front = x.pname)"
             " GROUP BY cc.id")
+    # 2026-09-14（#819）: 分母を夜間便の表から引く。以前は呼ばれるたびに
+    # pool（deck_list の source 絞り込み・constructed は 33 万行）を作り、そこへ
+    # deck_cards（1,376 万行）を JOIN して da と nb を数え直していた。実測ではこれが
+    # constructed で全体の 48%・edh で 31% を占めていた（残りは共起の集計）。
+    # 表は card_scope_deck_counts（scope, card_id → n_decks）と scope_deck_counts。
+    # 数え方は同じ（board を区別せず・土地も含み・二重計上も除かない）＝答えは変わらない。
+    # 表が無い/その scope の行が無いときは 0 件でなく従来どおり数えるのでなく、
+    # pct と lift が NULL になる（下の COALESCE で分母 0 を避ける）＝夜間便が回れば埋まる。
     rows = _db(
-        "WITH pool AS (SELECT id FROM deck_list WHERE source = ANY(%(dsrc)s)),"
-        " npool AS (SELECT count(*) AS n FROM pool),"
-        " da AS (SELECT count(DISTINCT dc.deck_id) AS n FROM deck_cards dc"
-        "        JOIN pool p ON p.id = dc.deck_id"
-        "        WHERE dc.card_id IN (SELECT id FROM mtg_cards_v2 WHERE card_name = ANY(%(names)s))),"
+        "WITH da AS (SELECT COALESCE(max(d.n_decks), 0) AS n FROM card_scope_deck_counts d"
+        "            JOIN mtg_cards_v2 m ON m.id = d.card_id"
+        "            WHERE d.scope = %(scope)s AND m.card_name = ANY(%(names)s)),"
+        " npool AS (SELECT COALESCE(max(n_decks), 0) AS n FROM scope_deck_counts"
+        "           WHERE scope = %(scope)s),"
         " agg AS (" + resolve + "),"
         " top AS (SELECT agg.pid, agg.n_ab FROM agg JOIN mtg_cards_v2 c ON c.id = agg.pid"
         "         WHERE agg.n_ab >= %(min_ab)s" + land_cond +
         "         ORDER BY agg.n_ab DESC LIMIT %(pool_limit)s),"
-        " nb AS (SELECT dc.card_id, count(DISTINCT dc.deck_id) AS n FROM deck_cards dc"
-        "        JOIN pool p ON p.id = dc.deck_id"
-        "        WHERE dc.card_id IN (SELECT pid FROM top) GROUP BY dc.card_id)"
+        " nb AS (SELECT d.card_id, d.n_decks AS n FROM card_scope_deck_counts d"
+        "        WHERE d.scope = %(scope)s AND d.card_id IN (SELECT pid FROM top))"
         " SELECT c.card_name, c.name_display, t.n_ab,"
         "        round(100.0 * t.n_ab / greatest(da.n, 1), 1) AS pct,"
         "        round((t.n_ab::numeric / greatest(da.n, 1))"
-        "              / nullif(nb.n::numeric / npool.n, 0), 1) AS lift"
+        "              / nullif(nb.n::numeric / nullif(npool.n, 0), 0), 1) AS lift"
         " FROM top t JOIN mtg_cards_v2 c ON c.id = t.pid"
         " LEFT JOIN nb ON nb.card_id = t.pid, da, npool"
         " ORDER BY " + order_sql + " LIMIT %(limit)s",
-        {"names": names, "dsrc": deck_src, "csrc": deck_src,
+        {"names": names, "dsrc": deck_src, "csrc": deck_src, "scope": scope_key,
          "min_ab": min_ab, "pool_limit": pool_limit, "limit": limit},
         lane=LANE_HEAVY)
     if not rows:
