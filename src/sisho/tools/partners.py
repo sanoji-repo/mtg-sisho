@@ -85,12 +85,22 @@ def find_partner_cards(card_name: str, scope: str = "edh",
     limit = max(1, min(int(limit), 30))
     if order_by not in ("count", "lift"):
         return f"order_by が不正: {order_by}（count / lift）"
-    land_cond = " AND c.type_line NOT ILIKE '%%Land%%'" if exclude_lands else ""
+    land_where = " WHERE c.type_line NOT ILIKE '%%Land%%'" if exclude_lands else ""
     names = _name_variants(name)
     # lift 順は母集団を広めに取ってから並べ替える（count 順は最初から limit で足りる）
     pool_limit = 400 if order_by == "lift" else limit
     min_ab = 10 if order_by == "lift" else 1
-    order_sql = "lift DESC NULLS LAST" if order_by == "lift" else "n_ab DESC"
+    # 2026-09-14: mtg_cards_v2 と突き合わせる前に候補を絞る（下の top）。土地かどうかは
+    # mtg_cards_v2 にしか無いので、exclude_lands のときは落ちる分を見込んで多めに取る。
+    # 実測（《太陽の指輪/Sol Ring》= EDH の最悪ケース）: 上位 20 件のうち非土地 6・
+    # 上位 50 件のうち 27・上位 100 件のうち 62。10 倍取れば実用上は一度で足りるが、
+    # 足りなければ下で cand_limit=None（LIMIT NULL＝無制限）にして引き直す＝答えは変わらない。
+    cand_limit = pool_limit * 10 if exclude_lands else pool_limit
+    # 同値の決着まで決めて並びを決定的にする（2026-09-14）。同居数が同じカードは多く
+    # （例: 「6 本同居」が何十枚もある）、決着手段が無いと「どれが上位 15 に残るか」が
+    # 実行計画に左右される＝候補の絞り方を変えると別のカードが返っていた。id で決着させる。
+    order_sql = ("lift DESC NULLS LAST, t.n_ab DESC, t.pid" if order_by == "lift"
+                 else "n_ab DESC, t.pid")
     # デッキ側 source（分母とペアの母集団を揃える）
     deck_src = _SCOPE_SOURCES.get(scope)
     if not deck_src:
@@ -134,16 +144,22 @@ def find_partner_cards(card_name: str, scope: str = "edh",
     # 数え方は同じ（board を区別せず・土地も含み・二重計上も除かない）＝答えは変わらない。
     # 表が無い/その scope の行が無いときは 0 件でなく従来どおり数えるのでなく、
     # pct と lift が NULL になる（下の COALESCE で分母 0 を避ける）＝夜間ジョブが回れば埋まる。
-    rows = _db(
+    sql = (
         "WITH da AS (SELECT COALESCE(max(d.n_decks), 0) AS n FROM card_scope_deck_counts d"
         "            JOIN mtg_cards_v2 m ON m.id = d.card_id"
         "            WHERE d.scope = %(scope)s AND m.card_name = ANY(%(names)s)),"
         " npool AS (SELECT COALESCE(max(n_decks), 0) AS n FROM scope_deck_counts"
         "           WHERE scope = %(scope)s),"
         " agg AS (" + resolve + "),"
-        " top AS (SELECT agg.pid, agg.n_ab FROM agg JOIN mtg_cards_v2 c ON c.id = agg.pid"
-        "         WHERE agg.n_ab >= %(min_ab)s" + land_cond +
-        "         ORDER BY agg.n_ab DESC LIMIT %(pool_limit)s),"
+        # 候補を先に絞ってから mtg_cards_v2 と突き合わせる（2026-09-14）。以前は agg の全行
+        # （《太陽の指輪/Sol Ring》で 12,651 行）を JOIN してから並べて上位を取っていた＝
+        # 3 枚返すのに 12,651 枚の type_line を引いていた。実測 371MB・箱では 10 秒 timeout。
+        # 先に絞ると 75MB・答えは一字一句同じ（docs/me/db_diagnostics_20260914_partners_cold.md）。
+        " top AS (SELECT cand.pid, cand.n_ab FROM"
+        "           (SELECT agg.pid, agg.n_ab FROM agg WHERE agg.n_ab >= %(min_ab)s"
+        "            ORDER BY agg.n_ab DESC, agg.pid LIMIT %(cand_limit)s) cand"
+        "         JOIN mtg_cards_v2 c ON c.id = cand.pid" + land_where +
+        "         ORDER BY cand.n_ab DESC, cand.pid LIMIT %(pool_limit)s),"
         " nb AS (SELECT d.card_id, d.n_decks AS n FROM card_scope_deck_counts d"
         "        WHERE d.scope = %(scope)s AND d.card_id IN (SELECT pid FROM top))"
         " SELECT c.card_name, c.name_display, t.n_ab,"
@@ -152,10 +168,15 @@ def find_partner_cards(card_name: str, scope: str = "edh",
         "              / nullif(nb.n::numeric / nullif(npool.n, 0), 0), 1) AS lift"
         " FROM top t JOIN mtg_cards_v2 c ON c.id = t.pid"
         " LEFT JOIN nb ON nb.card_id = t.pid, da, npool"
-        " ORDER BY " + order_sql + " LIMIT %(limit)s",
-        {"names": names, "dsrc": deck_src, "csrc": deck_src, "scope": scope_key,
-         "min_ab": min_ab, "pool_limit": pool_limit, "limit": limit},
-        lane=LANE_HEAVY)
+        " ORDER BY " + order_sql + " LIMIT %(limit)s")
+    params = {"names": names, "dsrc": deck_src, "csrc": deck_src, "scope": scope_key,
+              "min_ab": min_ab, "pool_limit": pool_limit, "limit": limit,
+              "cand_limit": cand_limit}
+    rows = _db(sql, params, lane=LANE_HEAVY)
+    if exclude_lands and len(rows) < limit:
+        # 候補の中の非土地が足りなかった＝絞らずに引き直す（LIMIT NULL は無制限）。
+        # 正しさを候補の数に依存させないための受け皿で、実測では走らない。
+        rows = _db(sql, {**params, "cand_limit": None}, lane=LANE_HEAVY)
     if not rows:
         return f"共起なし: {name}（scope={scope}・英語の正式カード名で指定してください）"
     out = [f"{disp}: {pct}%（{n_ab} 本同居・lift {lift if lift is not None else '?'}）"
