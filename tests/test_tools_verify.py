@@ -195,3 +195,53 @@ def test_verify_name_cache_is_reused(monkeypatch):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# ─── マナ・コストの照合（2026-09-12・claude.ai のドラフト補助で 3 マナを 2 マナと言った事故の門）────
+
+def _head(text):
+    return v(text).split(MARK, 1)[0]
+
+
+def test_mana_mismatch_is_listed_and_text_untouched():
+    """《…》の近くの「N マナ」が DB の cmc と違えば食い違いに挙げる。修正版の本文は変えない。"""
+    t = "《Kutzil, Malamet Exemplar》は 2 マナで軽い。"
+    head = _head(t)
+    assert "マナ・コストの食い違い 1 件" in head
+    assert "{1}{G}{W}" in head and "3 マナ" in head and "答案は 2 マナ" in head
+    assert _fixed(t) == "《マラメトの模範、クチル/Kutzil, Malamet Exemplar》は 2 マナで軽い。"
+
+
+def test_mana_match_is_counted_not_listed():
+    t = "《Kutzil, Malamet Exemplar》は 3 マナ。"
+    head = _head(t)
+    assert "食い違い" not in head and "マナ・コストの照合: 1 件一致" in head
+
+
+def test_mana_reduction_clause_is_note_not_mismatch():
+    """軽減条項のある札は判定せず条項を添える（Quicksand Whirlpool {5}{W}・タップ状態を対象なら {3} 軽減）。"""
+    t = "《Quicksand Whirlpool》は軽減後 4 マナで撃てる。"
+    head = _head(t)
+    assert "食い違い" not in head
+    assert "マナ・コストの注意 1 件" in head and "less to cast" in head and "{5}{W}" in head
+
+
+def test_mana_symbols_are_compared():
+    t = "《Kutzil, Malamet Exemplar》のコストは {1}{G}{W}。"
+    assert "マナ・コストの照合: 1 件一致" in _head(t)
+    assert "食い違い 1 件" in _head("《Kutzil, Malamet Exemplar》のコストは {G}{W}。")
+
+
+def test_mana_x_spell_is_not_judged():
+    assert "マナ・コスト" not in _head("《Walking Ballista》は 2 マナ。")
+
+
+def test_no_mana_claim_adds_nothing():
+    assert "マナ・コスト" not in _head("《Lightning Bolt》は強い。")
+
+
+def test_mana_claim_attributes_to_nearest_name():
+    """2 枚が同じ文にあっても、数字は近い方の名前に付く。"""
+    t = "《Lightning Bolt》は 1 マナ、《Kutzil, Malamet Exemplar》は 3 マナ。"
+    head = _head(t)
+    assert "食い違い" not in head and "2 件一致" in head
