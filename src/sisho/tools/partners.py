@@ -49,6 +49,13 @@ _SCOPE_SOURCES: dict[str, list[str]] = {
 }
 
 
+#: 候補の倍率（exclude_lands のとき、mtg_cards_v2 と突き合わせる前に pool_limit の何倍を
+#: 候補として取るか）。モジュール変数にしてあるのは試験が 0 に差し替えて「絞らない側」と
+#: 答えを突き合わせられるようにするため＝この突き合わせで 2026-09-14 に並びの非決定性を
+#: 見つけた（同居数が同値のカードでどれが上位に残るかが実行計画次第だった）。
+CAND_MULTIPLIER = 10
+
+
 DESCRIPTION = (
     "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
     "【カードを軸にデッキを組む・相方を探すときは必ずこれを先に呼ぶ。そのカードの「現行の家」（実際に一緒に使われているカード）が分かる唯一の道具で、Web にもモデルの記憶にも無い情報】"
@@ -95,7 +102,9 @@ def find_partner_cards(card_name: str, scope: str = "edh",
     # 実測（《太陽の指輪/Sol Ring》= EDH の最悪ケース）: 上位 20 件のうち非土地 6・
     # 上位 50 件のうち 27・上位 100 件のうち 62。10 倍取れば実用上は一度で足りるが、
     # 足りなければ下で cand_limit=None（LIMIT NULL＝無制限）にして引き直す＝答えは変わらない。
-    cand_limit = pool_limit * 10 if exclude_lands else pool_limit
+    cand_limit = pool_limit * CAND_MULTIPLIER if exclude_lands else pool_limit
+    if not CAND_MULTIPLIER:          # 試験が 0 に差し替えたとき＝絞らない（LIMIT NULL）
+        cand_limit = None
     # 同値の決着まで決めて並びを決定的にする（2026-09-14）。同居数が同じカードは多く
     # （例: 「6 本同居」が何十枚もある）、決着手段が無いと「どれが上位 15 に残るか」が
     # 実行計画に左右される＝候補の絞り方を変えると別のカードが返っていた。id で決着させる。
