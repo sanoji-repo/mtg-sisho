@@ -29,11 +29,17 @@ def _names() -> dict:
     #   en_ja: 英語（正式名／表面名／裏面名）→ 同じ粒度の日本語（無ければ None）
     #   ja_full: 日本語（空白抜き）→ 日本語（そのまま）  ja_en: 日本語 → 同じ粒度の英語
     #   裏面名は本物のカード名と同じことがある（prepare 20 枚）→ 裏面は setdefault＝本物のカードが勝つ
-    rows = _db("SELECT card_name, japanese_name, digital, name_en_front, name_en_back, name_ja_front, name_ja_back FROM mtg_cards_v2", ())
-    ja_full, en_ja, ja_en, digital = {}, {}, {}, set()
-    for en, ja, dg, enf, enb, jaf, jab in rows:
+    rows = _db("SELECT card_name, japanese_name, digital, name_en_front, name_en_back, name_ja_front, name_ja_back,"
+               " mana_cost, cmc, oracle_text FROM mtg_cards_v2", ())
+    ja_full, en_ja, ja_en, digital, cost = {}, {}, {}, set(), {}
+    for en, ja, dg, enf, enb, jaf, jab, mc, cmc, otext in rows:
         if dg:
             digital.update(x for x in (en, enf, enb) if x)
+        # 2026-09-12: マナ・コストの照合用（正式名と表面名の両方から引ける）。軽減条項＝自分のコストが下がる文だけ
+        rec = (mc or "", cmc, _reduction_clause(otext or ""))
+        cost[en] = rec
+        if enf:
+            cost.setdefault(enf, rec)
         en_ja[en] = ja
         en_ja[enf] = jaf
         if enb:
@@ -45,8 +51,88 @@ def _names() -> dict:
     # 裸の英語名検出用: 日本語名があり、5 文字以上か空白入り（短い一般語を避ける）
     en_bare = sorted((e for e, j in en_ja.items() if j and (len(e) >= 5 or " " in e)), key=len, reverse=True)
     ja_bare = sorted((j for j in ja_full if len(j) >= 4 and j not in _JA_STOP), key=len, reverse=True)
-    _NAME_CACHE.update({"ts": time.time(), "ja": ja_full, "en": en_ja, "ja_en": ja_en, "en_bare": en_bare, "ja_bare": ja_bare, "digital": digital})
+    _NAME_CACHE.update({"ts": time.time(), "ja": ja_full, "en": en_ja, "ja_en": ja_en, "en_bare": en_bare, "ja_bare": ja_bare, "digital": digital, "cost": cost})
     return _NAME_CACHE
+
+
+_RED_PAT = None
+
+
+def _reduction_clause(oracle: str) -> str:
+    """自分の呪文のコストが下がる条項（1 文）を返す。無ければ空。
+    対象: 「This spell costs … less to cast」型・親和/召集/即興/探査/現出/徘徊（キーワードで下がる）。
+    他人の呪文を安くする文（「Zombie spells you cast cost {1} less」）は拾わない。"""
+    import re
+    global _RED_PAT
+    if _RED_PAT is None:
+        _RED_PAT = re.compile(r"(this spell costs [^.]*less to cast[^.]*\.|\b(?:affinity for [^.(]+|convoke|improvise|delve|emerge|prowl)\b[^.\n]*)", re.I)
+    m = _RED_PAT.search(oracle)
+    return m.group(0).strip()[:160] if m else ""
+
+
+def _mana_check(fixed: str, cost: dict) -> list[str]:
+    """答案の完成形《日本語名/英語名》の近く（同じ文・前 30 字〜後 70 字）にある「N マナ」「{…}」を DB と照合。
+    返り値は行の列（食い違い・注意・一致数）。主張が無ければ空＝何も足さない（毎回の税にしない・2026-09-12 本人）。
+    判定しない物: X を含むコスト・分割（A // B）・面の名前しか分からない札。軽減条項のある札や
+    「軽減・実質・安く・減」を含む文は食い違いにせず、条項の原文を添えて判断を答案側に戻す。"""
+    import re
+    def _fmt(cmc):
+        return str(int(cmc)) if cmc is not None and float(cmc).is_integer() else str(cmc)
+    mism, notes, ok = [], [], 0
+    seen = set()
+    for m in re.finditer(r"《([^《》/]+)/([^《》]+)》", fixed):
+        en = m.group(2).strip()
+        rec = cost.get(en)
+        if not rec:
+            continue
+        mc, cmc, red = rec
+        if "{X}" in mc or " // " in mc or cmc is None:
+            continue
+        left = fixed[max(0, m.start() - 30):m.start()]
+        for sep in ("。", "、", "》", "\n"):          # 前の札の主張（「《A》は 1 マナ、」）を拾わない
+            if sep in left:
+                left = left[left.rfind(sep) + 1:]
+        right = fixed[m.end():m.end() + 70]
+        right = right[:right.find("。")] if "。" in right else right
+        right = right[:right.find("《")] if "《" in right else right
+        window = left + "《》" + right
+        claims = [(int(n), "マナ") for n in re.findall(r"(\d+)\s*マナ", window)]
+        claims += [(sym.replace(" ", ""), "記号") for sym in re.findall(r"(?:\{[0-9XWUBRGCSP/]+\})+", window)]
+        if not claims:
+            continue
+        soft = bool(red) or bool(re.search(r"軽減|実質|安く|減|少なく", window))
+        for val, kind in claims:
+            key = (en, val, kind)
+            if key in seen:
+                continue
+            seen.add(key)
+            if kind == "マナ":
+                if val == int(cmc) if float(cmc).is_integer() else False:
+                    ok += 1
+                elif soft:
+                    notes.append(f"  - 《{m.group(1)}/{en}》: DB は {mc or '（コスト無し）'}（{_fmt(cmc)} マナ）・答案は {val} マナ"
+                                 + (f"＝軽減条項あり「{red}」（軽減後の数字は答案側で確かめる）" if red else "（軽減・実質の文なので判定しない）"))
+                else:
+                    mism.append(f"  - 《{m.group(1)}/{en}》: DB では {mc or '（コスト無し）'}（{_fmt(cmc)} マナ）・答案は {val} マナ")
+            else:
+                if not mc:
+                    continue
+                if val == mc.replace(" ", ""):
+                    ok += 1
+                else:
+                    mism.append(f"  - 《{m.group(1)}/{en}》: DB では {mc}・答案は {val}")
+    lines = []
+    if mism:
+        lines.append(f"マナ・コストの食い違い {len(mism)} 件（DB の mana_cost/cmc と答案の数字が合わない＝DB に合わせて直すこと）:")
+        lines += mism
+    if notes:
+        lines.append(f"マナ・コストの注意 {len(notes)} 件（判定せず・条項を添える）:")
+        lines += notes
+    if ok and not mism and not notes:
+        lines.append(f"マナ・コストの照合: {ok} 件一致。")
+    elif ok:
+        lines.append(f"（他に {ok} 件は DB と一致）")
+    return lines
 
 
 DESCRIPTION = (
@@ -54,7 +140,8 @@ DESCRIPTION = (
     "答案中のカード名を DB に照合し、(1) 《》の中身が DB に無い名前（自分で訳した名前・誤字・略記）を列挙し、"
     "近い正式名の候補を添える (2) 《英語名》・《日本語名》・裸の英語名・裸の日本語名を完成形《日本語名/英語名》に直した"
     "修正版（カード名は完成形《日本語名/英語名》）の全文を返す。未確認の名前が残っていれば、そのカードを search_mtg_cards で引いてから答えること。"
-    "未確認ゼロなら修正版をそのまま答えに使う。Web 不要・DB 直結・1 秒未満。")
+    "(3) 完成形のカード名の近くにある「N マナ」「{…}」を DB の mana_cost/cmc と照合し、食い違いを列挙する（X 呪文・分割は判定しない・"
+    "軽減条項のある札は条項を添えて判定しない）。未確認ゼロ・食い違いゼロなら修正版をそのまま答えに使う。Web 不要・DB 直結・1 秒未満。")
 
 
 def verify_answer(text: str) -> str:
@@ -164,6 +251,8 @@ def verify_answer(text: str) -> str:
     if n_collapse:
         lines.append(f"二重の囲み《《…》》を {n_collapse} 箇所 1 重に畳んでから照合した（畳んだ上で完成形に直す）。")
     lines.append(f"機械修正 {n_fix} 箇所（裸の英語名・《英語名》・《日本語名》・裸の日本語名 → 完成形《日本語名/英語名》）。")
+    # 2026-09-12: 数値の幻覚ガード（claude.ai のドラフト補助で 3 マナを 2 マナと言った事故）。修正版の文字列は変えない
+    lines += _mana_check(fixed, N.get("cost", {}))
     lines.append("---- 修正版（未確認ゼロならこのまま使う） ----")
     lines.append(fixed)
     return "\n".join(lines)
