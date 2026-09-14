@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """enrich_removal.py — oracle から除去メカ・対象型を導出して mtg_cards_v2 に列として持つ。
 
-設計（2026-07-06・本人×Fable）:
+設計（2026-07-06）:
   target_types text[]  … 正規化した対象型＋クエリ頻出 qualifier トークン
                           (creature/permanent/artifact/enchantment/land/planeswalker/
                            player/spell/any + creature_spell/noncreature_spell)
@@ -29,9 +29,9 @@ def strip_reminder(t):
 def castable_oracle(oracle_text, card_faces_json):
     """役割列の導出に使うテキスト＝「手札から唱えられる面」だけの oracle。
     規則は face_cmcs/face_types と同一（mana_cost 非空の面のみ・全面空なら表面
-    フォールバック・2026-07-13 本人の言語化を流用）。前提の明示（design-premise）:
+    フォールバック・2026-07-13 言語化を流用）。前提の明示（design-premise）:
     従来は全文（裏面込み）をパースしており、変身カードの唱えられない裏面にしか無い
-    destroy/exile が役割タグに混ざって機構ゲートを通していた（2026-07-15 本人指摘・
+    destroy/exile が役割タグに混ざって機構ゲートを通していた（2026-07-15 指摘・
     Elesh Norn の destroy=裏面英雄譚 III 章のみ、で実証）。単面カードは従来どおり全文
     ＝導出結果も不変。全面 castable（split/adventure/MDFC）は ' // ' 連結＝oracle_text
     と同形＝これも不変。"""
@@ -209,7 +209,7 @@ def parse(oracle):
     mb = re.search(r'return target ([a-z\- ]*?) to (?:its owner|their|your)', tl)
     if mb and 'hand' in tl and not re.search(r'\b(card|graveyard|exile)\b', mb.group(1)):
         removal.append({"type": "bounce", "targeted": True, "permanent": False})
-    # tuck=対象をライブラリの上/下へ送る or シャッフルして戻す（本人分類: バウンスより硬い＝除去）。
+    # tuck=対象をライブラリの上/下へ送る or シャッフルして戻す（分類: バウンスより硬い＝除去）。
     # 墓地からの戻し（target ... card ... graveyard）は tuck でないので除外。
     mt = re.search(r'(?:put|shuffle) target ([a-z\- ]*?) '
                    r'(?:on (?:the )?(?:top|bottom) of|into) [^.]*?library', tl)

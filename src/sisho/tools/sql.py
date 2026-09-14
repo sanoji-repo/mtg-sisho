@@ -3,7 +3,7 @@
 
 登録（server.tool）は mcp_server.py 側。道具が 2 本あるので説明は道具ごとに
 QUERY_MTG_DATABASE_DESCRIPTION・DESCRIBE_MTG_TABLES_DESCRIPTION と名前を分ける。
-先頭コメントの札（#セット記号）の解決は search 側の道具（sisho/tools/cards.py の
+先頭コメントのタグ（#セット記号）の解決は search 側の道具（sisho/tools/cards.py の
 _resolve_draft_set・_archetype_lines）を借りる＝セットの解決は 1 箇所に置く。
 """
 from sisho.db import DBBusy, LANE_HEAVY, LANE_LIGHT, _db, _db_readonly
@@ -13,7 +13,7 @@ from sisho.toollog import TOOL_LOG_MAX, _log_tool
 from sisho.tools.cards import _archetype_lines, _resolve_draft_set
 
 
-# ─── 自由 SQL の口（2026-08-11・本人発案「エージェント自身が SQL を叩く路線」）───
+# ─── 自由 SQL の口（2026-08-11・発案「エージェント自身が SQL を叩く路線」）───
 # 鞘は三重: (1) readonly_ai ロールと (2) statement_timeout 10 秒は sisho/db.py の
 # _db_readonly（原文の注記もそちらへ一緒に移した）・(3) 入口で SELECT/WITH 以外と複文を
 # 拒否＋行数・セル長の上限で応答を制限（コンテキスト爆発防止）は下の query_mtg_database。
@@ -25,7 +25,7 @@ QUERY_MTG_DATABASE_DESCRIPTION = ("【名前の掟】カード名は返り値の
     "mtg_rules／card_rulings／card_format_strength・edh_card_strength（採用率）／card_cooccurrence・edh_card_cooccurrence_v2（共起）／"
     "mtg_sets（セット発売日・set_type・エキスパンション紀元の突き合わせ用・2026-08-25）／"
     "deck_list・deck_cards（実デッキ・プレイヤー名は players 表に隔離＝非公開・deck_list は player_id）。列名は describe_mtg_tables で確認（推測しない）。"
-    "結果のカード名列の右隣に <列>_display（完成形）を自動同伴＝それをそのまま書く。【内部専用・公開版に載せない（権利札 2026-08-11）】"
+    "結果のカード名列の右隣に <列>_display（完成形）を自動同伴＝それをそのまま書く。【players 表（プレイヤー名）は内部専用＝権利上の理由で公開版のデータには含まれない】"
     "【SQL の 1 行目の掟】必ず `-- 目的` のコメントを 1 行目に書く（例: `-- #SOS 3 パック目の比較`）。"
     "リミテッドの問いでユーザーがセットを示していたら（#SOS のタグ・「SOS のクイックドラフト」等）、コメントに `#セット記号` を含める"
     "（そのセットの色の組み合わせ表が返り値に添う）。構築の問いでは記号を書かない。コメントは読むだけで SQL は書き換えない。"
@@ -34,11 +34,11 @@ QUERY_MTG_DATABASE_DESCRIPTION = ("【名前の掟】カード名は返り値の
       "mtg_land_drops(deck,lands,turn,on_play,mull)・mtg_combo_by_turn(deck,a,b,turn,on_play,mull)・mtg_cards_seen(turn,on_play,mull)。")
 def query_mtg_database(sql: str, max_rows: int = 30) -> str:
     _log_tool("query_mtg_database", {"sql": sql[:max(150, TOOL_LOG_MAX)]})
-    # 先頭コメントの札（2026-09-03 本人「全ての SQL にコメントを付けさせ、届いたら Python を一つ通す」・読むだけで書き換えない）
+    # 先頭コメントのタグ（2026-09-03 方針「全ての SQL にコメントを付けさせ、届いたら Python を一つ通す」・読むだけで書き換えない）
     import re as _re
     _m = _re.match(r"\s*--[^\n]*?#([A-Za-z0-9_\-]{2,40})", sql)
     tag_set = _resolve_draft_set(_m.group(1).strip()) if _m else None
-    # 先頭のコメント行は判定と実行から剥がす（コメントは札であって SQL の一部でない）
+    # 先頭のコメント行は判定と実行から剥がす（コメントはタグであって SQL の一部でない）
     sql = "\n".join(ln for ln in sql.splitlines() if not ln.lstrip().startswith("--")) if sql.lstrip().startswith("--") else sql
 
     max_rows = max(1, min(int(max_rows), 50))
@@ -79,7 +79,7 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
     日本語版なしは「日本語版なし」と明示（NULL と未一致を区別する）。
 
     2026-09-05（Step 5 修正 3）: 入口の「列名が *_display で終わる列が一つでもあれば全停止」を撤去した。
-    脳が `SELECT count(*) AS foo_display` のように無関係な列名を付けた瞬間、結果中のカード名列への
+    クライアントが `SELECT count(*) AS foo_display` のように無関係な列名を付けた瞬間、結果中のカード名列への
     同伴が丸ごと消えていた（実測）＝構造で塞いだはずの穴が名前の付け方で開く。
     判定は列名でなく値・行ごとに置き換える:
       (a) その列のカード名の完成形が**同じ行の別の列に既にある**（`SELECT card_name, name_display` 型）なら添えない
@@ -143,16 +143,16 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
     return new_cols, new_rows, note
 
 
-# 表ごとの注記（出典・列の意味）。返り値に載せる＝脳に確実に届くのは返り値だけ
-# （2026-08-22 本人裁定「MCP の返り値は自己完結」）。変わる事実（収録セット一覧）は固定文にせず実測で添える。
+# 表ごとの注記（出典・列の意味）。返り値に載せる＝クライアントに確実に届くのは返り値だけ
+# （2026-08-22 設計判断「MCP の返り値は自己完結」）。変わる事実（収録セット一覧）は固定文にせず実測で添える。
 # 2026-08-31 まで一覧は relname だけ返していた（スキーマ落ち）→ public 以外の表は「スキーマ名.表名」で返す。
-# 17Lands 集計は同日 limited_card_stats → public.limited_card_stats に統合（本人裁定・表 1 枚に別スキーマは不要）。
+# 17Lands 集計は同日 limited_card_stats → public.limited_card_stats に統合（設計判断・表 1 枚に別スキーマは不要）。
 _TABLE_NOTES = {
     "mtg_cards_v2": (
-        "カード本体。**名前の正本は面の列** name_en_front／name_en_back／name_ja_front／name_ja_back（両面札は 2 面・単面札は back が NULL）。"
+        "カード本体。**名前の正本は面の列** name_en_front／name_en_back／name_ja_front／name_ja_back（両面カードは 2 面・単面カードは back が NULL）。"
         "card_name（『表 // 裏』）・japanese_name（両面揃った時だけ結合、揃わなければ NULL）・name_display（表面の完成形）は面から自動で作る生成列＝書けない。"
         "裏面（出来事・変身後・分割の片方）で引くときは name_en_back／name_ja_back。name_ja_src_front/back は日本語名の出所（scryfall／manual／rule_a／whisper／legacy）。"
-        "digital=true は Arena 専用の札（アルケミー・A- リバランス・Jumpstart: Historic Horizons 等・"
+        "digital=true は Arena 専用のカード（アルケミー・A- リバランス・Jumpstart: Historic Horizons 等・"
         "2026-08-31 に 860 枚を合流）＝紙には存在しない。紙のカードの照会は WHERE NOT digital を付ける。"
         "name_display の「（日本語名未収録）」は Arena に日本語版はあるがこの DB がまだ持っていない印（「（日本語版なし）」とは別）。"),
     "limited_color_stats": (
@@ -167,11 +167,11 @@ _TABLE_NOTES = {
         "列: games, wins, wr, on_play_games, on_play_wins, on_play_wr（先手勝率）, turns_sum, avg_turns（平均ターン数＝環境の速さ）, "
         "mulligans_sum（マリガン率は mulligans_sum/games）。セット全体はランク帯を SUM で合算。"),
     "limited_card_rank_stats": (
-        "17Lands のセット × ランク帯 × 札の GIH WR / GP WR（列: gih_games, gih_wins, gih_wr, gp_games, gp_wins, gp_wr）。"
-        "上位帯で評価が変わる札を見る表。母数が痩せるので gih_games < 500 は書かない。正式名は db_card_name。"),
+        "17Lands のセット × ランク帯 × カードの GIH WR / GP WR（列: gih_games, gih_wins, gih_wr, gp_games, gp_wins, gp_wr）。"
+        "上位帯で評価が変わるカードを見る表。母数が痩せるので gih_games < 500 は書かない。正式名は db_card_name。"),
     "limited_card_pick_stats": (
-        "17Lands のセット × 札のピック側の指標。picks=取られた回数・maindeck_rate=取った札がメインに入った率の平均・"
-        "sideboard_in_rate・avg_event_wins=その札を取ったドラフターの平均勝ち数（event_picks が母数）。正式名は db_card_name。"),
+        "17Lands のセット × カードのピック側の指標。picks=取られた回数・maindeck_rate=取ったカードがメインに入った率の平均・"
+        "sideboard_in_rate・avg_event_wins=そのカードを取ったドラフターの平均勝ち数（event_picks が母数）。正式名は db_card_name。"),
     "limited_card_stats": (
         "17Lands（https://www.17lands.com/）Public Datasets（CC BY 4.0）の Premier Draft（人間対面・Bo1）をセット×カードで集計した"
         "Bo1 ドラフト統計。Quick Draft（ボット対面・Bo1）の問いにもカードの強さの物差しとしてそのまま使う"

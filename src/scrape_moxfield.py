@@ -36,8 +36,8 @@ design note（実測で確定した点・2026-07-21 追加検分）:
   - **bracket は 1〜5 の5段階が実在**（WotC公式は1〜4=Exhibition/Core/Upgraded/
     Optimized。5 は Moxfield 独自の cEDH 拡張とみられる＝実測で bracket=5 かつ
     hubNames=["Competitive"] のデッキを複数確認）。grading_conventions.md R13補足a
-    の「ブラケット文言」は公式1〜4 前提の設計＝5 を含めるかは公式の外なので**本人
-    裁定待ち**（既定は本人指示に従い5段階とも均等に取得・後で SQL 側で bracket<=4
+    の「ブラケット文言」は公式1〜4 前提の設計＝5 を含めるかは公式の外なので**設計者
+    裁定待ち**（既定は方針に従い5段階とも均等に取得・後で SQL 側で bracket<=4
     に絞ることもできる設計＝実データは残す）。
   - bracket は検索クエリのパラメータとしては機能しない（bracket=1 を渡しても
     無視されて全件返る＝実測確認済み）。**取得側でのフィルタは不可能・結果を
@@ -60,7 +60,7 @@ design note（実測で確定した点・2026-07-21 追加検分）:
   # 取得状況確認
   python scrape_moxfield.py --status
 
-  # 本走（本人 GO 後）: bracket 1〜5 それぞれ MostView 上位から100件ずつ
+  # 本走（承認後）: bracket 1〜5 それぞれ MostView 上位から100件ずつ
   python scrape_moxfield.py --sample-by-bracket --per-bracket 100 --brackets 1,2,3,4,5
 """
 

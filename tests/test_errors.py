@@ -3,8 +3,8 @@
 
 縫うのは 3 つ:
   1. error_kind の語彙が 1 箇所にあり、そこに無い名前を返り値に載せられないこと。
-  2. 番号でなく短い英語の名前であること（本人裁定 2026-09-05）。
-  3. 「混雑」（DB の席取り待ち＝待てば通る）が「SQL エラー」「health 失敗」に丸められないこと。
+  2. 番号でなく短い英語の名前であること（設計判断 2026-09-05）。
+  3. 「混雑」（DB のスロット取り待ち＝待てば通る）が「SQL エラー」「health 失敗」に丸められないこと。
 
 DB は要らない（すべて差し替えと純粋な検査）。走らせ方: pytest tests/test_errors.py -v
 """
@@ -46,7 +46,7 @@ def test_err_json_shape_and_unknown_kind_is_refused():
 
 
 def test_db_slot_raises_busy(monkeypatch):
-    """席が空かないときの例外は DBBusy（RuntimeError の子＝知らない受け手は従来どおり）。"""
+    """スロットが空かないときの例外は DBBusy（RuntimeError の子＝知らない受け手は従来どおり）。"""
     monkeypatch.setattr(db, "_DB_WAIT_SEC", 0.05)     # 既定 20 秒を待たない（待ち時間そのものは別の関心）
     slots = db._DB_SLOTS
     held = 0
@@ -64,7 +64,7 @@ def test_db_slot_raises_busy(monkeypatch):
 
 
 def test_busy_is_not_reported_as_sql_error(monkeypatch):
-    """混雑は SQL の誤り・DB の故障と別（丸めると脳が次の一手を間違える）。"""
+    """混雑は SQL の誤り・DB の故障と別（丸めるとクライアントが次の一手を間違える）。"""
     busy = db.DBBusy("混雑: DB の順番待ちが 20 秒を超えました。少し待ってからもう一度呼んでください。")
 
     def raise_busy(*a, **k):

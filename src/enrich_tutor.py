@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""tutor / dig 列の導出 — 「サーチ」と「濾過」を分けて持つ（2026-07-31 本人裁定）。
+"""tutor / dig 列の導出 — 「サーチ」と「濾過」を分けて持つ（2026-07-31 設計判断）。
 
-経緯: ablation（腕の切除実験）で「土地をサーチするカード」が埋め込みなしだと
+経緯: ablation（機能の切除実験）で「土地をサーチするカード」が埋め込みなしだと
 1.000→0.000 になり、辞書では届かないことが判明（GT の grade2 12 枚のうち 3 枚が
 `search` の字面を持たない: Cartographer's Survey・Herd Migration・Slimefoot's Survey）。
-本人の設計案「サーチ列と分けて、何枚見て何枚取るか・残りの行き先・拾えるカード
+設計案「サーチ列と分けて、何枚見て何枚取るか・残りの行き先・拾えるカード
 タイプを持つ濾過列を作る」を実装する。
 
-## 二つの列（本人裁定・境界は「位置を知っているか」）
+## 二つの列（設計判断・境界は「位置を知っているか」）
 
 - **tutor jsonb** = ライブラリ**全域**に条件でアクセスする（位置不問・通常シャッフル）
 - **dig jsonb**   = **上から N 枚**という位置に縛られる（占術・諜報・切削して拾う型を含む）
 
 一枚が両方を持つことがある（実例 Slimefoot's Survey: サーチ 2 枚戦場へ ＋ 上から X 枚
 見て 1 枚残し底へ）。**だから列を分ける**——removal 列で踏んだ「効果と対象が結びつかず
-複数効果の札だけ壊れる」（PHASE2 §14）を設計時点で回収する。
+複数効果のカードだけ壊れる」（PHASE2 §14）を設計時点で回収する。
 
 ## 効果オブジェクトの形（配列＝一つの効果に属する情報を一つの束に）
 
@@ -22,7 +22,7 @@ tutor: {"pick": ["land"|"creature"|"basic_land"|"any"|...],  # 拾えるカー�
         "count": N | null,          # 取る枚数（"up to X"・任意枚数は null＝不定）
         "dest": "battlefield"|"hand"|"graveyard"|"top"|"exile",
         "site": "spell"|"activated"|"triggered"}   # 在り処（本業か付随かの将来の軸・
-                                                   #  Fable の死角 (b) を先に受ける）
+                                                   #  レビューで挙がった死角 (b) を先に受ける）
 dig:   {"look": N | null,           # 見る枚数
         "take": N | null,           # 取る枚数（占術/諜報は 0）
         "pick": [...],              # 拾えるカードタイプ（制限なしは ["any"]）
@@ -33,21 +33,21 @@ dig:   {"look": N | null,           # 見る枚数
                                     #  機能差が実在するので旗を立てる）
         "site": ...}
 
-**「蓄え放題型」は専用の型を作らない**（本人案の要点）——`rest="graveyard"` という値で
+**「蓄え放題型」は専用の型を作らない**（設計案の要点）——`rest="graveyard"` という値で
 表す。同じ器で占術（take=0・rest=top/bottom）も諜報（take=0・rest=graveyard）も
 Impulse（look4/take1/dest=hand/rest=bottom）も Dig Through Time（look7/take2/
 rest=graveyard）も表現できる＝族が増えるたびに列を増やす未来を防ぐ。
 
 不在は NULL（番兵禁止）。導出は冪等（値が変わる行だけ UPDATE）。
 
-## 門は別便（列は豊かに・門は貧しく）
+## 絞り込みは別のジョブ（列は豊かに・絞り込みは貧しく）
 
-「土地をサーチするカード」の門は **tutor.pick ∋ land ∪ dig.pick ∋ land の和集合**
-（本人裁定）。採点は目的ベース・列は機構ベースなので、門を片方に縛ると
+「土地をサーチするカード」の絞り込みは **tutor.pick ∋ land ∪ dig.pick ∋ land の和集合**
+（設計判断）。採点は目的ベース・列は機構ベースなので、絞り込みを片方に縛ると
 Cartographer's Survey（濾過型だが grade 2）が落ちて採点と正面衝突する。
-この便では列だけ作り、門と直行路は測ってから別便で入れる（列→並べ方の順）。
+この回では列だけ作り、絞り込みと直行ルートは測ってから別のジョブで入れる（列→並べ方の順）。
 
-前提の明示（design-premise・崩れたら本人に経路ごと問い直す）:
+前提の明示（design-premise・崩れたら設計者に経路ごと問い直す）:
 1. 面選定は castable_oracle（enrich_removal と同一規則・2026-07-15 共通規約）
 2. 注釈括弧は strip_reminder で除去（「(あなたのライブラリーを切り直す)」等）
 3. 判定単位は文。複数の効果文があれば配列に複数要素が入る
@@ -61,7 +61,7 @@ import sys
 import psycopg2
 from psycopg2.extras import execute_batch, Json
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/（2026-09-05 Step 3・旧: 作者の工場の絶対パス）
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/（2026-09-05 Step 3・旧: 作者の開発環境の絶対パス）
 from db_config import get_db_config
 from enrich_removal import strip_reminder, castable_oracle
 
@@ -107,7 +107,7 @@ def _picks(phrase: str) -> list:
 
 def _site(sentence: str, tline: str) -> str:
     """効果の在り処: 起動型（コロンの左にコスト）／誘発型（when/whenever/at）／呪文本体。
-    R14/R15 の「本業か付随か」の軸がサーチにも来る予兆への備え（列に持つだけで門は読まない）。"""
+    R14/R15 の「本業か付随か」の軸がサーチにも来る予兆への備え（列に持つだけで絞り込みは読まない）。"""
     s = sentence.strip().lower()
     if re.match(r'^[^:.]{1,60}:', s):
         return 'activated'

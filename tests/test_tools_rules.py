@@ -58,7 +58,7 @@ def test_lookup_rule_by_word_and_glossary_tag():
 def test_lookup_rule_multiword_falls_back_to_or():
     """概念の羅列（全語 AND が不発になる問い）でも空で帰さない（OR に降りる）。"""
     r = lr("dies trigger simultaneous", 5)
-    assert "該当なし" not in r and _numbers(r), "AND 不発なら OR で拾う（2026-08-11 の脳のバグ報告）"
+    assert "該当なし" not in r and _numbers(r), "AND 不発なら OR で拾う（2026-08-11 のクライアントのバグ報告）"
 
 
 def test_lookup_rule_limit_bounds():
@@ -75,7 +75,7 @@ def test_lookup_rule_not_found():
 
 
 def test_rulings_exact_name():
-    """英語の正式名で引くと、その札の裁定が「名前（日付）: 本文」で並ぶ。"""
+    """英語の正式名で引くと、そのカードの裁定が「名前（日付）: 本文」で並ぶ。"""
     r = gr("Ragavan, Nimble Pilferer", 3)
     lines = r.split("\n\n")
     assert len(lines) == 3, "limit どおり"
@@ -109,7 +109,7 @@ def test_rulings_limit_bounds():
 
 def test_rulings_not_found():
     r = gr("zzzqqqxxx", 5)
-    assert r.startswith("裁定なし: zzzqqqxxx"), "無い札は裁定なし"
+    assert r.startswith("裁定なし: zzzqqqxxx"), "無いカードは裁定なし"
     assert "英語の正式カード名" in r, "引き方を返り値に載せる"
 
 

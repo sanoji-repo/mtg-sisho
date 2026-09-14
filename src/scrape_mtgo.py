@@ -1,9 +1,9 @@
 """
 scrape_mtgo.py — Magic Online 公式デッキリスト（mtgo.com/decklists）スクレイパー
 =====================================================================================
-2026-08-22 本人 GO「完全に非商用になった今、渋る意味は無い。やろう」。
+2026-08-22 承認「完全に非商用になった今、渋る意味は無い。やろう」。
 
-権利の検査（2026-08-22・実施者 Fable 5）:
+権利の検査（2026-08-22 実施）:
   - 運営は Daybreak Games。利用規約 2026-07-13 版に自動アクセス／スクレイプを
     名指しで禁じる条項は無し（「bot」はウイルス等と並ぶ投稿・送信禁止物の文脈）。
     13(f) 商用利用禁止＝本プロジェクトは非商用（AWS 公開 API は同日退役）。
@@ -98,7 +98,7 @@ def fetch(url: str, retries: int = 3) -> str | None:
             if resp.status_code == 404:
                 return None
             # 302 は「存在しない URL」でも「一時的な失敗」でも返る（同じ URL が 200/302 を
-            # 行き来するのを実測）→ 再試行し、駄目なら諦める。URL は未記録のまま＝次回の便で拾い直す
+            # 行き来するのを実測）→ 再試行し、駄目なら諦める。URL は未記録のまま＝次回のジョブで拾い直す
             time.sleep(REQUEST_INTERVAL * (attempt + 2))
         except requests.RequestException as e:
             print(f"  通信エラー（{attempt+1}/{retries}）: {e}", flush=True)

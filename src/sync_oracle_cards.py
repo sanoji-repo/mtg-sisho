@@ -7,7 +7,7 @@ sync_oracle_cards.py — oracle_cards 起点の English カード同期（go-for
   同名の token / front card / playtest が先に入ると本物カードが弾かれた
   （2026-06-19 監査 docs/me/oracle_cards_existing_audit_20260619.md で 50 件実証）。
 
-方針（監査 rec#2 + 2026-06-19 本人決定）:
+方針（監査 rec#2 + 2026-06-19 の決定）:
   - 英語カード本体は **oracle_cards**（名前単位で 1 オブジェクト）を正準ソースにする。
   - 名前ごとに「本物カード（Vintage 合法・非 token レイアウト）」を解決して採用する。
   - **新規 insert は完全投入**（card_faces_json / set_code / edhrec_rank 等も含む）。

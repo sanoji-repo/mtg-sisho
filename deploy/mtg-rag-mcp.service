@@ -13,9 +13,9 @@
 #
 # 注意 1: mcp SDK は venv に無く /home/claude/pylibs にある（boto3 と同じ流儀）。
 #         PYTHONPATH を落とすと ModuleNotFoundError: No module named 'mcp' で即死する。
-# 注意 2: 2026-08-21 本人裁定「ルーター・門・腕の全撤廃」により全道具が DB 直結に
+# 注意 2: 2026-08-21 設計判断「ルーター・絞り込みゲート・スコア補正部品の全撤廃」により全道具が DB 直結に
 #         なった＝mtg-rag-api(:8000) への依存は撤去済み。待つのは PostgreSQL(5435) だけ。
-# 注意 3: stdio 版（Claude Code の妹たち用）は別経路で、この unit とは無関係に
+# 注意 3: stdio 版（Claude Code 用）は別経路で、この unit とは無関係に
 #         クライアント側が都度起動する。ここで面倒を見るのは HTTP 版だけ。
 
 [Unit]

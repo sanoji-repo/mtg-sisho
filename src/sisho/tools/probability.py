@@ -9,18 +9,18 @@ from sisho.db import LANE_LIGHT, _db
 from sisho.toollog import _log_tool
 
 
-# ─── 確率計算の入口（2026-09-04 本人「あらゆる確率計算をどこかに格納して…」→「ひとまず最低限だけ」）───
+# ─── 確率計算の入口（2026-09-04 方針「あらゆる確率計算をどこかに格納して…」→「ひとまず最低限だけ」）───
 # 計算の本体は DB の SQL 関数（sql/prob_functions.sql・超幾何・IMMUTABLE）。ここは名前付き引数で受けて同じ関数を呼び、
-# 数字と式と入力の復唱を返す薄い入口。LLM に算術をさせない・自由なコード実行は置かない（箱は 2 コア・公開口）。
+# 数字と式と入力の復唱を返す薄い入口。LLM に算術をさせない・自由なコード実行は置かない（公開サーバーは 2 コア・公開口）。
 # データと結合したいときは query_mtg_database から関数を直接呼ぶ（例: SELECT mtg_land_drops(60, 24, 4, true)）。
 _PROB_KINDS = ("at_least", "by_turn", "land_drops", "combo_by_turn")
 
 
 DESCRIPTION = (
     "【確率の計算はこれ。自分で計算しない】デッキの確率を超幾何分布で厳密に計算する（DB の SQL 関数・決定的・1 ミリ秒未満）。"
-    "kind: at_least=N 枚のデッキから D 枚引いて K 枚入りの札が m 枚以上／by_turn=turn ターン目までに K 枚入りの札を m 枚以上"
+    "kind: at_least=N 枚のデッキから D 枚引いて K 枚入りのカードが m 枚以上／by_turn=turn ターン目までに K 枚入りのカードを m 枚以上"
     "（見る枚数=初手 7−マリガン＋引き・先手は turn−1 回・後手は turn 回）／land_drops=turn ターン目まで毎ターン土地を置ける"
-    "（見た札に土地が turn 枚以上）／combo_by_turn=turn ターン目までに A（copies）と B（copies_b）を両方 1 枚以上。"
+    "（見たカードに土地が turn 枚以上）／combo_by_turn=turn ターン目までに A（copies）と B（copies_b）を両方 1 枚以上。"
     "引数: deck_size（60/40/99 等）・copies（当たりの枚数・land_drops では土地の枚数）・copies_b（combo の相方）・"
     "draws（at_least の引く枚数）・turn・on_play（先手 true／後手 false）・at_least（m・既定 1）・mulligans（既定 0）。"
     "返り値の probability を percent と一緒にそのまま書き、formula と cards_seen を添えると読者が検算できる。"
@@ -82,6 +82,6 @@ def mtg_probability(kind: str, deck_size: int = 60, copies: int = 4, copies_b: i
                                     "on_play": None if kind == "at_least" else on_play, "at_least": at_least if kind in ("at_least", "by_turn") else None,
                                     "mulligans": None if kind == "at_least" else mulligans},
            "cards_seen": seen, "probability": round(p, 4), "percent": f"{p * 100:.1f}%", "premise": premise, "formula": formula,
-           "note": "超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。土地の連続配置は『見た札に土地が turn 枚以上』の近似ではなく同値。"}
+           "note": "超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。土地の連続配置は『見たカードに土地が turn 枚以上』の近似ではなく同値。"}
     out["inputs"] = {k: v for k, v in out["inputs"].items() if v is not None}
     return json.dumps(out, ensure_ascii=False, indent=1)

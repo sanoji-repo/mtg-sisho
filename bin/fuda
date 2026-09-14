@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """fuda — 接続 URL の札の発行・停止・一覧（2026-09-07 小片 8）
 
-箱では sudo -u mcp bin/fuda ... で打つ（/var/log/mtg-sisho/fuda.tsv への書き込み権限）。
-箱の環境変数は /opt/mtg-sisho/.env を sudo -u mcp env $(cat /opt/mtg-sisho/.env) で渡すか、MCP_FUDA_FILE=/var/log/mtg-sisho/fuda.tsv を明示。
+公開サーバーでは sudo -u mcp bin/fuda ... で打つ（/var/log/mtg-sisho/fuda.tsv への書き込み権限）。
+公開サーバーの環境変数は /opt/mtg-sisho/.env を sudo -u mcp env $(cat /opt/mtg-sisho/.env) で渡すか、MCP_FUDA_FILE=/var/log/mtg-sisho/fuda.tsv を明示。
 """
 import argparse
 import datetime

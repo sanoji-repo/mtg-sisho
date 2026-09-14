@@ -1,16 +1,16 @@
-"""test_db_lanes.py — DB の席（重い線 4＋バイパス 1）と statement_timeout の単体試験（DB 不要）。
+"""test_db_lanes.py — DB のスロット（重いレーン 4＋バイパス 1）と statement_timeout の単体試験（DB 不要）。
 
 偽 psycopg2 を用いて以下を検証する:
-1. 軽い線: _HEAVY_SLOTS は減らず _DB_SLOTS だけ減る、statement_timeout=1000
-2. 重い線: 両方のスロットが減る、statement_timeout=10000
-3. 並び直し: 軽い線で 57014 発生時に重い線で再実行（warning 1行、2回接続、スロット返却）
-4. 重い線での 57014 は並び直さず例外
-5. 軽い線での 57014 以外の例外は並び直さず例外
-6. 予約席: 重い線が 4 席埋まっても軽い線は通る
+1. 軽いレーン: _HEAVY_SLOTS は減らず _DB_SLOTS だけ減る、statement_timeout=1000
+2. 重いレーン: 両方のスロットが減る、statement_timeout=10000
+3. 並び直し: 軽いレーンで 57014 発生時に重いレーンで再実行（warning 1行、2回接続、スロット返却）
+4. 重いレーンでの 57014 は並び直さず例外
+5. 軽いレーンでの 57014 以外の例外は並び直さず例外
+6. 予約スロット: 重いレーンが 4 スロット埋まっても軽いレーンは通る
 7. query_mtg_database は lane="heavy" で呼ぶ、describe_mtg_tables は heavy でない
 8. find_partner_cards 本体は lane="heavy" で呼ぶ
-9. 既定は重い線（2026-09-14 反転）
-10. 軽い線を宣言してよい形かの静的検査（大きな表・全行展開・Seq Scan 確定は不可）
+9. 既定は重いレーン（2026-09-14 反転）
+10. 軽いレーンを宣言してよい形かの静的検査（大きな表・全行展開・Seq Scan 確定は不可）
 """
 import ast
 import logging
@@ -96,9 +96,9 @@ def fake_db_lanes(monkeypatch):
 
 
 def test_light_lane_slots_and_options(fake_db_lanes):
-    """1. 軽い線（lane='light' を明示）: _HEAVY_SLOTS は減らず _DB_SLOTS だけ 1 減る。options に statement_timeout=1000。
+    """1. 軽いレーン（lane='light' を明示）: _HEAVY_SLOTS は減らず _DB_SLOTS だけ 1 減る。options に statement_timeout=1000。
 
-    2026-09-14: 既定を重い線へ反転したので、軽い線は明示したときだけ通る（宣言し忘れは安全側）。
+    2026-09-14: 既定を重いレーンへ反転したので、軽いレーンは明示したときだけ通る（宣言し忘れは安全側）。
     """
     slot_during = {}
 
@@ -117,15 +117,15 @@ def test_light_lane_slots_and_options(fake_db_lanes):
     assert res == [("ok",)]
     assert len(calls) == 1
     assert "statement_timeout=1000" in calls[0]["options"]
-    assert slot_during["heavy"] == h_before, "軽い線では _HEAVY_SLOTS は消費しない"
-    assert slot_during["db"] == d_before - 1, "軽い線では _DB_SLOTS を 1 消費する"
+    assert slot_during["heavy"] == h_before, "軽いレーンでは _HEAVY_SLOTS は消費しない"
+    assert slot_during["db"] == d_before - 1, "軽いレーンでは _DB_SLOTS を 1 消費する"
     assert db._HEAVY_SLOTS._value == h_before, "終了後に戻る"
     assert db._DB_SLOTS._value == d_before, "終了後に戻る"
     assert conns[0].closed is True
 
 
 def test_heavy_lane_slots_and_options(fake_db_lanes):
-    """2. 重い線（lane='heavy'）: 呼び出し中に両方 1 減る。options に statement_timeout=10000。"""
+    """2. 重いレーン（lane='heavy'）: 呼び出し中に両方 1 減る。options に statement_timeout=10000。"""
     slot_during = {}
 
     def on_connect(kwargs):
@@ -143,8 +143,8 @@ def test_heavy_lane_slots_and_options(fake_db_lanes):
     assert res == [("heavy_ok",)]
     assert len(calls) == 1
     assert "statement_timeout=10000" in calls[0]["options"]
-    assert slot_during["heavy"] == h_before - 1, "重い線では _HEAVY_SLOTS を 1 消費する"
-    assert slot_during["db"] == d_before - 1, "重い線では _DB_SLOTS も 1 消費する"
+    assert slot_during["heavy"] == h_before - 1, "重いレーンでは _HEAVY_SLOTS を 1 消費する"
+    assert slot_during["db"] == d_before - 1, "重いレーンでは _DB_SLOTS も 1 消費する"
     assert db._HEAVY_SLOTS._value == h_before, "終了後に戻る"
     assert db._DB_SLOTS._value == d_before, "終了後に戻る"
     assert conns[0].closed is True
@@ -165,7 +165,7 @@ def test_light_lane_retries_in_heavy_lane_on_57014(fake_db_lanes, caplog):
     res = db._db("SELECT slow", (), lane=db.LANE_LIGHT)
 
     assert res == [("retry_ok",)]
-    assert len(calls) == 2, "1回目軽い線、2回目重い線で計2回接続"
+    assert len(calls) == 2, "1回目軽いレーン、2回目重いレーンで計2回接続"
     assert "statement_timeout=1000" in calls[0]["options"]
     assert "statement_timeout=10000" in calls[1]["options"]
     assert conns[0].closed is True, "1回目の接続も close されている"
@@ -183,7 +183,7 @@ def test_light_lane_retries_in_heavy_lane_on_57014(fake_db_lanes, caplog):
 
 
 def test_heavy_lane_57014_no_retry(fake_db_lanes):
-    """4. 重い線での 57014 はそのまま例外（connect 1 回・並び直さない）。"""
+    """4. 重いレーンでの 57014 はそのまま例外（connect 1 回・並び直さない）。"""
     setup = fake_db_lanes
     calls, recorded, conns = setup(
         exc_sequence=[QueryCanceledError("heavy timeout")],
@@ -195,7 +195,7 @@ def test_heavy_lane_57014_no_retry(fake_db_lanes):
     with pytest.raises(QueryCanceledError, match="heavy timeout"):
         db._db("SELECT heavy_slow", (), lane=db.LANE_HEAVY)
 
-    assert len(calls) == 1, "重い線では再試行しない"
+    assert len(calls) == 1, "重いレーンでは再試行しない"
     assert conns[0].closed is True
     assert len(recorded) == 1
     assert db._HEAVY_SLOTS._value == h_before
@@ -203,7 +203,7 @@ def test_heavy_lane_57014_no_retry(fake_db_lanes):
 
 
 def test_light_lane_other_exception_no_retry(fake_db_lanes):
-    """5. 軽い線での 57014 以外の例外はそのまま例外（並び直さない）。"""
+    """5. 軽いレーンでの 57014 以外の例外はそのまま例外（並び直さない）。"""
     setup = fake_db_lanes
     calls, recorded, conns = setup(
         exc_sequence=[OtherDBError("syntax error")],
@@ -223,7 +223,7 @@ def test_light_lane_other_exception_no_retry(fake_db_lanes):
 
 
 def test_reserved_slot_for_light_lane(fake_db_lanes, monkeypatch):
-    """6. 予約席: _HEAVY_SLOTS を 4 回埋めても軽い線の _db は通る。_DB_SLOTS も埋めると両方 DBBusy。"""
+    """6. 予約スロット: _HEAVY_SLOTS を 4 回埋めても軽いレーンの _db は通る。_DB_SLOTS も埋めると両方 DBBusy。"""
     monkeypatch.setattr(db, "_DB_WAIT_SEC", 0.05)
     setup = fake_db_lanes
     setup(rows=[("fast_ok",)])
@@ -232,28 +232,28 @@ def test_reserved_slot_for_light_lane(fake_db_lanes, monkeypatch):
     d_acquired = []
 
     try:
-        # 重い線の席（4席）を全部埋める
+        # 重いレーンのスロット（4スロット）を全部埋める
         for _ in range(4):
             assert db._HEAVY_SLOTS.acquire(timeout=0.01) is True
             h_acquired.append(db._HEAVY_SLOTS)
 
         assert db._HEAVY_SLOTS._value == 0
 
-        # 重い線のクエリは席が取れず DBBusy
+        # 重いレーンのクエリはスロットが取れず DBBusy
         with pytest.raises(db.DBBusy, match="混雑"):
             db._db("SELECT heavy", (), lane=db.LANE_HEAVY)
 
-        # 軽い線のクエリは予約席（1席）があるので通る！
+        # 軽いレーンのクエリは予約スロット（1スロット）があるので通る！
         res = db._db("SELECT fast", (), lane=db.LANE_LIGHT)
         assert res == [("fast_ok",)]
 
-        # さらに _DB_SLOTS の残り席も埋める
+        # さらに _DB_SLOTS の残りスロットも埋める
         while db._DB_SLOTS.acquire(timeout=0.01):
             d_acquired.append(db._DB_SLOTS)
 
         assert db._DB_SLOTS._value == 0
 
-        # 全席埋まると軽い線も DBBusy
+        # 全スロット埋まると軽いレーンも DBBusy
         with pytest.raises(db.DBBusy, match="混雑"):
             db._db("SELECT fast", (), lane=db.LANE_LIGHT)
 
@@ -309,15 +309,15 @@ def test_find_partner_cards_uses_heavy_lane(monkeypatch):
     assert calls[0]["lane"] == db.LANE_HEAVY
 
 
-# ─── 9・10: 既定の向きと、軽い線を宣言してよい形（2026-09-14 本人裁定で既定を反転）───
-# なぜ反転したか: 宣言し忘れの害が非対称だから。重いものを軽い線に入れると 1 秒を捨てて
+# ─── 9・10: 既定の向きと、軽いレーンを宣言してよい形（2026-09-14 設計判断で既定を反転）───
+# なぜ反転したか: 宣言し忘れの害が非対称だから。重いものを軽いレーンに入れると 1 秒を捨てて
 # やり直し、失敗もする（9/12 の _valid_formats は 11 秒待って落ち、format の検査が黙って
-# 止まった）。軽いものを重い線に入れる害は「4 席の順番待ちに加わる」だけ。掟「誤発動＝有害・
+# 止まった）。軽いものを重いレーンに入れる害は「4 スロットの順番待ちに加わる」だけ。掟「誤発動＝有害・
 # 取り逃し＝無害」に合わせ、忘れたら遅くなるだけの側へ倒す。
 # 副産物として、危ないのは「軽い」と宣言する側だけになり、検査対象が有限になる（＝下の 10）。
 
 def test_default_lane_is_heavy(fake_db_lanes):
-    """9. 既定は重い線。宣言し忘れが安全側に倒れることを縫う。"""
+    """9. 既定は重いレーン。宣言し忘れが安全側に倒れることを縫う。"""
     setup = fake_db_lanes
     calls, recorded, conns = setup(rows=[("ok",)])
 
@@ -325,16 +325,16 @@ def test_default_lane_is_heavy(fake_db_lanes):
 
     assert len(calls) == 1
     assert "statement_timeout=10000" in calls[0]["options"], (
-        f"既定は重い線＝10 秒（実際: {calls[0]['options']}）")
+        f"既定は重いレーン＝10 秒（実際: {calls[0]['options']}）")
 
 
-#: 軽い線（予約席）に混ぜてはいけない形。表の大きさ・全行展開・索引に乗らない関数比較。
+#: 軽いレーン（予約スロット）に混ぜてはいけない形。表の大きさ・全行展開・索引に乗らない関数比較。
 LIGHT_LANE_FORBIDDEN = (
     ("deck_cards", "1,376 万行の表"),
     ("deck_list", "43 万行の表"),
-    ("jsonb_object_keys", "全行の jsonb 展開（9/12 に箱で 10 秒 timeout した形）"),
+    ("jsonb_object_keys", "全行の jsonb 展開（9/12 に公開サーバーで 10 秒 timeout した形）"),
     ("similarity(", "関数比較は pg_trgm 索引に乗らない（#850）"),
-    ("COUNT(*) FROM mtg_cards_v2", "全表 COUNT（箱では冷えると桁が変わる）"),
+    ("COUNT(*) FROM mtg_cards_v2", "全表 COUNT（公開サーバーでは冷えると桁が変わる）"),
 )
 
 
@@ -359,7 +359,7 @@ def _light_lane_calls(path):
 
 
 def test_light_lane_only_for_safe_shapes():
-    """10. 軽い線を宣言してよいのは索引で点を引く形だけ（危ない形が混ざったら落とす）。"""
+    """10. 軽いレーンを宣言してよいのは索引で点を引く形だけ（危ない形が混ざったら落とす）。"""
     src = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "src", "sisho"))
     checked, bad = 0, []
     for dirpath, _dirs, files in os.walk(src):
@@ -374,8 +374,8 @@ def test_light_lane_only_for_safe_shapes():
                 for pat, why in LIGHT_LANE_FORBIDDEN:
                     if pat in sql:
                         bad.append(f"{os.path.relpath(path, src)}:{lineno} に「{pat}」（{why}）: {sql[:70]}")
-    assert checked >= 15, f"軽い線の宣言が急に減った（{checked} 箇所）＝既定の反転が戻されていないか"
-    assert not bad, "軽い線に重い形が混ざっている:\n" + "\n".join(bad)
+    assert checked >= 15, f"軽いレーンの宣言が急に減った（{checked} 箇所）＝既定の反転が戻されていないか"
+    assert not bad, "軽いレーンに重い形が混ざっている:\n" + "\n".join(bad)
 
 
 def test_light_lane_shape_check_catches_bad(tmp_path):

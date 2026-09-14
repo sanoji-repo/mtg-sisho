@@ -18,10 +18,10 @@ _COMBOS_GLOBAL_MIN = int(os.environ.get("MCP_COMBOS_GLOBAL_MIN", "60"))
 _combos_limiter = RateLimiter(per_ip=_COMBOS_PER_MIN, global_=_COMBOS_GLOBAL_MIN, exempt="")
 
 
-# ─── Commander Spellbook（2026-09-04 本人 GO「API 解放されてるんだから使わせてもよくね」）───
+# ─── Commander Spellbook（2026-09-04 承認「API 解放されてるんだから使わせてもよくね」）───
 # 取り込まず都度呼ぶ（8/29 survey: 第三者ツールからの API 表示は公式 docs で許容・データのライセンスは明文なし＝再配布は灰
-# → DB に持たない）。返り値に出典と前提の原文を必ず載せる（本人「2 枚だけでは成立しない前提付きが多い」）。
-# bracketTag・結果タグは正確性に欠ける実例（7/28・EDH Build Helper）があるので「参考」と明記。箱の砂場から backend へは
+# → DB に持たない）。返り値に出典と前提の原文を必ず載せる（方針「2 枚だけでは成立しない前提付きが多い」）。
+# bracketTag・結果タグは正確性に欠ける実例（7/28・EDH Build Helper）があるので「参考」と明記。公開サーバーの砂場から backend へは
 # AF_INET 許可で到達済み（9/4 実測 200・1.0 秒）。時間制限 6 秒・失敗はこの道具だけが「届かない」を返す。
 _SPELLBOOK_URL = os.environ.get("SPELLBOOK_URL", "https://backend.commanderspellbook.com/find-my-combos")
 _SPELLBOOK_TIMEOUT = float(os.environ.get("SPELLBOOK_TIMEOUT", "6"))
@@ -55,7 +55,7 @@ DESCRIPTION = (
     "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く。】"
     "【コンボを探すときはこれ。記憶で組み合わせを書かない】手持ちのカード名（英語名・日本語名どちらでも）を渡すと、"
     "Commander Spellbook（公開 API・都度照会・出典を必ず添える）から、いま組めるコンボ（included）・あと 1 枚で組めるコンボ"
-    "（almost_included）・色を足せば組めるコンボ（by_adding_colors）を返す。各コンボに使う札（完成形）・生み出す効果・"
+    "（almost_included）・色を足せば組めるコンボ（by_adding_colors）を返す。各コンボに使うカード（完成形）・生み出す効果・"
     "**前提の原文（prerequisites）**・人気・出典 URL。前提付きのコンボは前提をそのまま書く（2 枚で成立するとは限らない）。"
     "bracket タグは参考（正確性に欠ける実例あり）。commanders に統率者名を入れると統率者領域を考慮する。"
     "デッキ 1 本（最大 120 枚）を渡す使い方が本来の形。日本語名は DB で英語名に直してから照会する。")

@@ -40,7 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_edh_cooc_v2_b ON edh_card_cooccurrence_v2 (card_i
 # deck_cards を対象条件で絞った上で自己 JOIN → デッキ内ペアを source 別に集計。
 # card_id_a < card_id_b の正規順を JOIN 条件で強制。
 # 完全同一リスト（全 board・枚数込みの署名一致）は source 内で 1 本に潰す
-# （2026-08-20 重複除去便。EDH は重複 2.4% と軽微だが構築側と規約を揃える）。
+# （2026-08-20 重複除去ジョブ。EDH は重複 2.4% と軽微だが構築側と規約を揃える）。
 AGG_SQL = """
 INSERT INTO edh_card_cooccurrence_v2 (card_id_a, card_id_b, source, deck_count)
 WITH keep AS (

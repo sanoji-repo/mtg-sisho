@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# nightly_cron_driver.sh — cron 起点の夜間便ドライバ（2026-07-22 設計・Fable）
+# nightly_cron_driver.sh — cron 起点の夜間ジョブドライバ（2026-07-22 設計）
 # ============================================================================
-# 仕様（本人 GO 2026-07-22 22:15 JST）:
+# 仕様（承認 2026-07-22 22:15 JST）:
 #   - cron が毎日 03:00 JST に起動。VM が点いていない夜は cron ごと沈黙＝自然に不発
 #     （3時に電源が入っている場合のみ始動、の指示をそのまま cron の性質で実現）。
 #   - 1 パス = MTGTop8 レーンと Moxfield レーンを並行起動し、両方の完了を待つ。
@@ -14,7 +14,7 @@
 #
 # ジョブ列の変更: 下の JOBS_TOP8 / JOBS_MOX の既定値を編集する
 #   （meta コードは年替わりで変わる。2026: ST=341 PI=340 MO=339 LE=338 VI=337 PAU=342・
-#     EDH=343 は本人裁定によりスキップ）。
+#     EDH=343 は設計判断によりスキップ）。
 #
 # テスト用の環境変数（通常運用では未設定でよい）:
 #   NIGHTLY_END_HOUR   この時になったら新規起動をやめる（既定 10）
@@ -32,12 +32,12 @@ END_HOUR="${NIGHTLY_END_HOUR:-10}"
 INTERVAL="${NIGHTLY_INTERVAL:-600}"
 MAX_PASSES="${NIGHTLY_MAX_PASSES:-0}"
 JOBS_TOP8="${NIGHTLY_JOBS_TOP8-mtgtop8:ST:341 mtgtop8:PI:340 mtgtop8:MO:339 mtgtop8:LE:338 mtgtop8:VI:337 mtgtop8:PAU:342}"
-# per-bracket 上限（2026-07-26 本人 GO「上限を増やしておこう」で 300→1000）:
+# per-bracket 上限（2026-07-26 承認「上限を増やしておこう」で 300→1000）:
 # 300 は Moxfield の在庫切れでなく自分で決めたバケット上限だった（bracket 2〜5 が
 # 揃って 300 で頭打ち＝満杯で早期打ち切り）。天井は Moxfield 側の totalResults=10000
 # キャップの方（bracket 1 の 31 件はそちらの本物の枯れ）。
 JOBS_MOX="${NIGHTLY_JOBS_MOX-moxfield:2,3,4,5:1000}"
-# MTGO 公式デッキリスト（2026-08-22 新設・本人 GO）。今月分を毎晩差分取得。月初は前月の
+# MTGO 公式デッキリスト（2026-08-22 新設・承認）。今月分を毎晩差分取得。月初は前月の
 # 取りこぼしも拾うため 1〜3 日は前月も並べる（cur と prev の 2 ジョブ・同一レーン直列）
 JOBS_MTGO="${NIGHTLY_JOBS_MTGO-mtgo:cur:all}"
 if [ "$(date +%d)" -le 3 ]; then JOBS_MTGO="mtgo:$(date -d 'last month' +%Y-%m):all $JOBS_MTGO"; fi
@@ -50,7 +50,7 @@ flock -n 8 || { echo "[$(date '+%F %T')] driver 二重起動を検出・中止" 
 
 dlog() { echo "[$(date '+%F %T')] $*" >> "$DLOG"; }
 
-dlog "=== 夜間便ドライバ開始（${END_HOUR}:00 以降は新規起動なし・休憩 ${INTERVAL}s）==="
+dlog "=== 夜間ジョブドライバ開始（${END_HOUR}:00 以降は新規起動なし・休憩 ${INTERVAL}s）==="
 dlog "TOP8 ジョブ列: ${JOBS_TOP8:-（無効）}"
 dlog "MOX  ジョブ列: ${JOBS_MOX:-（無効）}"
 dlog "MTGO ジョブ列: ${JOBS_MTGO:-（無効）}"
@@ -102,17 +102,17 @@ while :; do
   sleep "$INTERVAL"
 done
 
-# EDH 共起 v2 の洗い替え（2026-08-01 本人依頼「共起を取り込むのも Cron の中で」）:
+# EDH 共起 v2 の洗い替え（2026-08-01 の依頼「共起を取り込むのも Cron の中で」）:
 # build_edh_cooccurrence.py は TRUNCATE→INSERT の冪等・実測 83 秒。ループを抜けた
 # 時点でこのドライバが起動したレーンは全部完了済み＝夜の新入りデッキ込みで再集計できる。
-# 失敗しても夜間便全体は失敗扱いにしない（共起は検索本線でなく壁打ち道具箱の材料）。
+# 失敗しても夜間ジョブ全体は失敗扱いにしない（共起は検索本線でなく壁打ち道具箱の材料）。
 dlog "--- EDH 共起 v2 洗い替え開始 ---"
 /mnt/new_hdd/my_rag_env/bin/python "$REPO/src/build_edh_cooccurrence.py" >> "$LOGDIR/cooccurrence.log" 2>&1
 dlog "--- EDH 共起 v2 洗い替え完了 rc=$? ---"
 
-# 構築系共起（card_cooccurrence）の洗い替え（2026-08-22 本人裁定・MTGO 公式を採用率と共起に乗せる便）:
+# 構築系共起（card_cooccurrence）の洗い替え（2026-08-22 設計判断・MTGO 公式を採用率と共起に乗せる便）:
 # mtgtop8 系 3 source（MTGO 転載行は被覆期間で除外）＋ mtgo 系 4 source を update_cooccurrence で
-# source ごとに DELETE→INSERT（冪等・実測 4 分強）。失敗しても夜間便全体は失敗扱いにしない。
+# source ごとに DELETE→INSERT（冪等・実測 4 分強）。失敗しても夜間ジョブ全体は失敗扱いにしない。
 dlog "--- 構築系共起 洗い替え開始 ---"
 PYTHONPATH=/home/claude/pylibs:$REPO/src /mnt/new_hdd/my_rag_env/bin/python - >> "$LOGDIR/cooccurrence.log" 2>&1 <<'PYEOF'
 import psycopg2

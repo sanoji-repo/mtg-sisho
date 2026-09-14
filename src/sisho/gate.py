@@ -184,7 +184,7 @@ class FudaStore:
         return None
 
     def issued_in(self, ip: str | None, seconds: float = 86400) -> int:
-        """直近 seconds 秒間の発行回数。ip を指定すればその IP・None なら全体（Opus B-10）。"""
+        """直近 seconds 秒間の発行回数。ip を指定すればその IP・None なら全体（内部レビュー B-10）。"""
         self.reload_if_changed()
         now = self._dt_now()
         if now.tzinfo is None:
@@ -254,7 +254,7 @@ class GateASGI:
                    public_base=public_base)
 
     async def _respond_404(self, send, ip: str | None = None) -> None:
-        """404。ip を渡したときは**探りとして IP の枠で数える**（2026-09-07 本人指摘）。
+        """404。ip を渡したときは**探りとして IP の枠で数える**（2026-09-07 指摘）。
 
         無い札・知らないパスへの探りは DB に触らず軽いので、枠の外に置くと「無料で叩き放題の口」
         になる（旧 RateLimitASGI は全要求を IP で数えていた＝8/30 の GCP からの 404 連発の実例）。

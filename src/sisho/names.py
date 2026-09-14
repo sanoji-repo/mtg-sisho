@@ -15,10 +15,10 @@ DESIGN 12（名前が複数あるものは面ごとの列で持つ）の帰結�
 実測で確かめた 2 つの実装の意味差（2026-09-05・rag_dev）:
   - `name_en_front` も `name_en_back` も DB 内で重複なし（実測 0 件）＝1 つの名前に当たる行は最大 2 行
     （表で当たる行 1 つ・裏で当たる行 1 つ）。
-  - 単面札は `card_name = name_en_front`（`name_en_back IS NULL AND card_name <> name_en_front` は 0 件）。
+  - 単面カードは `card_name = name_en_front`（`name_en_back IS NULL AND card_name <> name_en_front` は 0 件）。
     つまり partners 側の `name_en_back IS NOT NULL` の絞りが落とすのは「その名前そのもの」だけで、
     partners は元の名前を候補の先頭に必ず持つ＝**絞りを外しても候補の集合は変わらない**（重複除去で消える）。
-  - 裏面名が別の本物のカード名と同じ札は 21 枚（例: `Emeritus of Ideation // Ancestral Recall` の
+  - 裏面名が別の本物のカード名と同じカードは 21 枚（例: `Emeritus of Ideation // Ancestral Recall` の
     裏面名 `Ancestral Recall`）。`ORDER BY (name_en_front = %s) DESC` は本物のカード（表面一致）を先に置く
     ＝DESIGN 12 の「正式名 → 表面名 → 裏面名」の順そのもの。
   - 大文字小文字はどちらの実装も区別する（`=` の完全一致・`lower()` を掛けていない）＝ここでも変えない。
@@ -48,7 +48,7 @@ def resolve_face_name(name: str) -> list[str]:
 
 
 def face_display(en: str, ja: str | None, digital: bool = False) -> str:
-    """面の完成形。ja があれば《ja/en》・無ければ「en（日本語版なし）」・digital の札は「en（日本語名未収録）」。"""
+    """面の完成形。ja があれば《ja/en》・無ければ「en（日本語版なし）」・digital のカードは「en（日本語名未収録）」。"""
     if ja:
         return f"《{ja}/{en}》"
     note = "日本語名未収録" if digital else "日本語版なし"

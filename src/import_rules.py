@@ -3,7 +3,7 @@
 import_rules.py — MTG 総合ルール（Comprehensive Rules）の搬入（2026-07-31 新設）
 ================================================================================
 目的: Agentic RAG の参照資料として、総合ルールの条文と用語集を DB に構造化して置く。
-本人の発案「用語集とかルール文をエージェントが参照してよりよい答えを導きやすいように」。
+発案「用語集とかルール文をエージェントが参照してよりよい答えを導きやすいように」。
 
 なぜ S3 のファイルでなく DB か:
   - 検索装置一式（FTS・pgvector・Data API）が既に Postgres に建っている
@@ -15,7 +15,7 @@ import_rules.py — MTG 総合ルール（Comprehensive Rules）の搬入（2026
   - 原文は英語正本（オラクル本文も英語・条番号は日英共通）。text_ja は不在なら
     NULL（番兵禁止）＝日本語訳の公式 txt が見つかったら後から埋める
   - 主用途は「安いモデルに正確な資料を持たせる」（7/30 段位表: 7B/Nova 級は
-    知識が薄い）。Opus 級を賢くする道具ではない
+    知識が薄い）。上位モデルを賢くする道具ではない
   - 冪等: 同じファイル・同じ版なら 2 走目は差分ゼロ（TRUNCATE→INSERT）
   - 原文の置き場は data/rules/（WotC 配布物＝リポジトリに含めない・.gitignore 済み。
     売り物に混ぜない棚は Moxfield データと同じ扱い）
@@ -38,7 +38,7 @@ import sys
 
 import psycopg2
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/（2026-09-05 Step 3・旧: 作者の工場の絶対パス）
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/（2026-09-05 Step 3・旧: 作者の開発環境の絶対パス）
 from db_config import DB_CONFIG
 
 DDL = """

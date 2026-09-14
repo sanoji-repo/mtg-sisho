@@ -3,7 +3,7 @@
 
 分割（src/sisho/ へのパッケージ化）で **道具名・description・引数の署名・docstring が
 一字でもずれたら落ちる** ための機械の目。DESIGN の掟「MCP の返り値（と description）は
-脳に届く契約」＝文言は振る舞いの一部なので、リファクタリングの前後で同一であることを
+クライアントに届く契約」＝文言は振る舞いの一部なので、リファクタリングの前後で同一であることを
 snapshot と突き合わせて確かめる。
 
 snapshot（tests/snapshots/tools.json）は **分割前の main の実物**から採った。
@@ -12,7 +12,7 @@ snapshot（tests/snapshots/tools.json）は **分割前の main の実物**か�
 
 DB 依存の注意: search_mtg_cards と query_mtg_database の description は起動時に DB から
 読んだ収録セット一覧（_SETS_HEAD／_SETS_BLURB）を埋め込む＝環境で変わる。
-その部分は {SETS_HEAD}／{SETS_BLURB} の札に置き換えて（正規化して）比べ、
+その部分は {SETS_HEAD}／{SETS_BLURB} のプレースホルダに置き換えて（正規化して）比べ、
 DB が無くて一覧が空の環境では description の照合だけ skip する（署名・docstring は照合する）。
 
 走らせ方: pytest tests/test_tool_contract.py -v
@@ -36,7 +36,7 @@ _DB_DEPENDENT_DESCRIPTION = {"search_mtg_cards", "query_mtg_database"}
 
 
 def _normalize(text):
-    """環境で変わる収録セット一覧を札に置き換える（長い方から先に）。"""
+    """環境で変わる収録セット一覧をプレースホルダに置き換える（長い方から先に）。"""
     if not text:
         return text
     for token, value in sorted((("{SETS_BLURB}", m._SETS_BLURB), ("{SETS_HEAD}", m._SETS_HEAD)),
@@ -114,8 +114,8 @@ def test_tool_contract(name):
     assert got["function_name"] == exp["function_name"], f"{name}: 関数名"
     assert got["signature"] == exp["signature"], f"{name}: 引数の名前・型注釈・既定値"
     assert got["parameters"] == exp["parameters"], f"{name}: 引数の JSON Schema"
-    # Python 3.13+ はコンパイル時に docstring の共通インデントを剥がす（3.12 の snapshot と箱 3.14 で
-    # 空白だけ違う・2026-09-05 箱で実測）→ 両側を inspect.cleandoc で揃えて比べる
+    # Python 3.13+ はコンパイル時に docstring の共通インデントを剥がす（3.12 の snapshot と公開サーバー 3.14 で
+    # 空白だけ違う・2026-09-05 公開サーバーで実測）→ 両側を inspect.cleandoc で揃えて比べる
     assert _cleandoc(got["doc"]) == _cleandoc(exp["doc"]), f"{name}: docstring は移動しても消さない・変えない"
 
 

@@ -1,6 +1,6 @@
 """bench_jaformat.py — 日本語の問いに《日本語名》で答えたかのベンチ（2026-08-22）。
 
-目的: MCP の instructions（カード名は利用者の言語・《》で囲む・英語は初出に一度）だけで、脳が
+目的: MCP の instructions（カード名は利用者の言語・《》で囲む・英語は初出に一度）だけで、クライアントが
 日本語の問いに《日本語名》で答えるかを、モデル × effort の常設編成（Sonnet medium／Sonnet xhigh／Opus low）
 で数字にする。名前忠実度ベンチ（bench_names.py）と同じ器＝ `claude -p` headless・MCP 有りのみ・
 組み込み道具は全切り・cwd はリポジトリ外・再開可能。外部課金なし（Claude の枠）。
@@ -88,11 +88,11 @@ def score(text, ja, en, en_has_ja):
     ok, bad, arch, en_in, altered = [], [], [], [], []
     for b in brackets:
         nb = _norm(b)
-        if "/" in b and " // " not in b:                       # 完成形《日本語名/英語名》（8/22 夕・本人裁定）
+        if "/" in b and " // " not in b:                       # 完成形《日本語名/英語名》（8/22 夕・設計判断）
             jp, ep = b.split("/", 1)
             if _norm(jp) in ja and ep.strip() in en:
                 ok.append(b); continue
-            if ep.strip() in en_has_ja:                          # 英語半分は DB のカード・日本語半分が違う＝DB 由来名の改変（本人の物差し 8/22 夜）
+            if ep.strip() in en_has_ja:                          # 英語半分は DB のカード・日本語半分が違う＝DB 由来名の改変（採点の物差し 8/22 夜）
                 altered.append(b); continue
         if nb in ja or (b in en and b not in en_has_ja):
             ok.append(b)
@@ -101,7 +101,7 @@ def score(text, ja, en, en_has_ja):
         elif b in ARCHETYPES:
             arch.append(b)
         elif any((len(n) >= 5 or " " in n) and n in b for n in en_has_ja):
-            altered.append(b)      # 《》の中に DB の英語名が入っているのに完成形でない（「/」でなく「、」で繋ぐ等）＝改変（8/23 本人指摘・「/」の有無で逃がさない）
+            altered.append(b)      # 《》の中に DB の英語名が入っているのに完成形でない（「/」でなく「、」で繋ぐ等）＝改変（8/23 指摘・「/」の有無で逃がさない）
         else:
             bad.append(b)          # DB のどの名前でもない＝創作訳・略記・誤字
     # 《》の外を見る: 《》本体・初出括弧・斜体を消す
@@ -214,7 +214,7 @@ def main():
         rows.append(f"| {m} | {e} | {agg['pass']}/{n} | **{agg['no_alter']}/{n}** | {agg['no_bad']}/{n} | {agg['bracket_ok']}/{agg['n_bracket']} | {agg['altered']} | {agg['bracket_bad']} | {agg['en_in']} | {agg['arch']} | "
                     f"{agg['bare_en']} | {agg['bare_ja']} | {agg['no_bracket']} | {agg['missing']} | {tm} | {sm} |")
     lines = [f"# 《日本語名》書式ベンチ — {len(qs)} 問・{os.path.basename(a.out)}", "",
-             "pass=《》1個以上・《》の中身が全部 DB 一致・《》外に裸の英語名/日本語名なし。**改変ゼロ答案=DB から引いた名前（英語半分が DB に一致）を一字も変えていない（本人の物差し 8/22 夜）**。創作訳ゼロ答案=改変もなく DB に無い名前もない（アーキタイプ名は別勘定）。機械採点は近似（答案原文は q*.json）。", "",
+             "pass=《》1個以上・《》の中身が全部 DB 一致・《》外に裸の英語名/日本語名なし。**改変ゼロ答案=DB から引いた名前（英語半分が DB に一致）を一字も変えていない（採点の物差し 8/22 夜）**。創作訳ゼロ答案=改変もなく DB に無い名前もない（アーキタイプ名は別勘定）。機械採点は近似（答案原文は q*.json）。", "",
              "| model | effort | pass | **改変ゼロ答案** | 創作訳ゼロ答案 | 《》DB一致/《》総数 | 改変（英語半分はDB・日本語半分が違う） | 《》不一致（DBに無い名） | 《》内英語名（日本語名あり） | 《》内アーキタイプ名 | 裸英語名 | 裸日本語名 | 《》ゼロ答案 | 欠落 | ターン中央値 | 秒中央値 |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"] + rows
     lines += ["", "## 明細（pass 以外）", ""]

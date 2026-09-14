@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# make_public_dump.sh — 公開サーバー（読み取り専用の公開箱）用の pg_dump を作る（2026-08-23・工場側＝家の VM で走らせる）
+# make_public_dump.sh — 公開サーバー（読み取り専用）用の pg_dump を作る（2026-08-23・開発側＝家の VM で走らせる）
 # =========================================================================
-# 背景: 公開する MCP の後ろを家の PC から別の箱（Pi／シンクライアント／VPS）へ出すため、
+# 背景: 公開する MCP の後ろを家の PC から別の公開サーバー（Pi／シンクライアント／VPS）へ出すため、
 #       「公開サーバーに要る表だけ」を -Fc で書き出す。bak_*・埋め込み表・eval/query_log・共起 v1 は含めない。
 #       実測（2026-08-23・VM）: 表 12 本・約 75MB・12 秒（ジャッジパネルの評価者が計測）。
 # 方式: コンテナ内 pg_dump 18（ホストの pg_dump は 17 でサーバ 18 に不可）を docker exec。
@@ -9,7 +9,7 @@
 #       readonly_ai を作って GRANT し直す＝「役割が無いから失敗」を構造で消す）。
 #       -t で表を名指し＝拡張（pg_trgm）は dump に入らない → 復元側で CREATE EXTENSION する。
 # 注意: プレイヤー名は 2026-08-31 から players 表（表指定に含めない）にだけあり、deck_list.player_name 列は廃止＝dump に名前は入らない。
-#       復元側の DROP COLUMN IF EXISTS は旧 dump 用の保険。dump は自分の箱の間（Tailscale 私有網）でしか動かさない＝再配布ではない。
+#       復元側の DROP COLUMN IF EXISTS は旧 dump 用の保険。dump は自分の公開サーバーの間（Tailscale 私有網）でしか動かさない＝再配布ではない。
 # 出力: /mnt/new_hdd/db_archives/sisho_public_YYYYMMDD.dump と .sha256
 # 使い方: sh/make_public_dump.sh            （出力先は PUBLIC_DUMP_DIR で上書き可）
 set -u

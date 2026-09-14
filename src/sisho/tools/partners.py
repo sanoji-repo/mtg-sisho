@@ -51,17 +51,17 @@ _SCOPE_SOURCES: dict[str, list[str]] = {
 
 DESCRIPTION = (
     "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
-    "【カードを軸にデッキを組む・相方を探すときは必ずこれを先に呼ぶ。そのカードの「現行の家」（実際に一緒に使われている札）が分かる唯一の道具で、Web にもモデルの記憶にも無い情報】"
+    "【カードを軸にデッキを組む・相方を探すときは必ずこれを先に呼ぶ。そのカードの「現行の家」（実際に一緒に使われているカード）が分かる唯一の道具で、Web にもモデルの記憶にも無い情報】"
     "指定カードと同じデッキに入りやすいカード（共起）を実デッキ集計から返す。"
     "Phase 2 のデッキ壁打ち用。scope: 'edh'（統率者・既定）/ 'constructed'"
     "（mtgtop8＋MTGO 公式の 60 枚構築）/ 'pauper' / 'vintage' / 'precon'（公式構築済み製品）。"
     "exclude_lands=True で土地を除く（汎用フェッチ等が上位を占めがちなため）。"
     "返り値は同居率 pct と lift（偶然同居の期待値比）付き。order_by='lift' で"
-    "汎用札を沈めて専属シナジー順に並べ替え（既定は同居数順・2026-08-25）。"
+    "汎用カードを沈めて専属シナジー順に並べ替え（既定は同居数順・2026-08-25）。"
     "カード名は英語の正式名でも表面の名前でもよい（両面・分割カードの表記ゆれは"
     "道具側で吸収する・2026-08-13）。"
-    "【内部専用】この道具はデータ出自（Moxfield/mtgtop8）の許可が未決着のため"
-    "公開版カセットには含めない（2026-08-11 権利札）。")
+    "データは実デッキの集計（Moxfield / mtgtop8 / MTGO 公式）。プレイヤー名・"
+    "デッキ URL・デッキ ID は返さない（集計と匿名の内容のみ）。")
 def find_partner_cards(card_name: str, scope: str = "edh",
                        limit: int = 15, exclude_lands: bool = False,
                        order_by: str = "count") -> str:
@@ -71,10 +71,10 @@ def find_partner_cards(card_name: str, scope: str = "edh",
     同じ理由で表の名前を許す＝相方が両面カードのとき静かに落ちるのを防ぐ
     （実測: 相方名 215 種・7,958 ペアが落ちていた。うち 156 種は表の名前で救える）。
 
-    2026-08-25 分母導入（本人裁定「パーセンテージ表記に賛成」）:
+    2026-08-25 分母導入（設計判断「パーセンテージ表記に賛成」）:
     - pct = n_ab / (このカード入りデッキ数)。分母は毎回 deck_cards から実測
       （edh_card_strength の play_decks は母集団の一致が未検証なので借りない）。
-    - lift = pct / (相方カードの全体出現率)。1.0 ≈ 偶然同居（汎用札）・高いほど専属シナジー。
+    - lift = pct / (相方カードの全体出現率)。1.0 ≈ 偶然同居（汎用カード）・高いほど専属シナジー。
     - order_by='lift' は同居 10 本以上・生カウント上位 400 の中で並べ替え
       （少数サンプルの lift 暴発と全相方の分母計算の重さを両方避ける近似）。
     - 分母の deck_list 直数えは共起集計の重複除去・MTGO 転載除外を再現しない
@@ -122,18 +122,18 @@ def find_partner_cards(card_name: str, scope: str = "edh",
             "SELECT cc.id AS pid, sum(x.cnt) AS n_ab FROM (" + pair_sql + ") x"
             " JOIN mtg_cards_v2 cc"
             # 2026-09-05: split_part(card_name) → 列 name_en_front（全行で同値・実測 0 差）。関数を掛けた式は
-            # 索引に無く OR で前半の索引も死んで 32,730×1,821 の全比較（VM 5.9 秒・箱は 10 秒で timeout）だった。
-            # name_en_front に索引（mtg_cards_v2_name_en_front_idx・VM と箱の両方に張る）→ BitmapOr で 0.6 秒。
+            # 索引に無く OR で前半の索引も死んで 32,730×1,821 の全比較（VM 5.9 秒・公開サーバーは 10 秒で timeout）だった。
+            # name_en_front に索引（mtg_cards_v2_name_en_front_idx・VM と公開サーバーの両方に張る）→ BitmapOr で 0.6 秒。
             "  ON (cc.card_name = x.pname OR cc.name_en_front = x.pname)"
             " GROUP BY cc.id")
-    # 2026-09-14（#819）: 分母を夜間便の表から引く。以前は呼ばれるたびに
+    # 2026-09-14（#819）: 分母を夜間ジョブの表から引く。以前は呼ばれるたびに
     # pool（deck_list の source 絞り込み・constructed は 33 万行）を作り、そこへ
     # deck_cards（1,376 万行）を JOIN して da と nb を数え直していた。実測ではこれが
     # constructed で全体の 48%・edh で 31% を占めていた（残りは共起の集計）。
     # 表は card_scope_deck_counts（scope, card_id → n_decks）と scope_deck_counts。
     # 数え方は同じ（board を区別せず・土地も含み・二重計上も除かない）＝答えは変わらない。
     # 表が無い/その scope の行が無いときは 0 件でなく従来どおり数えるのでなく、
-    # pct と lift が NULL になる（下の COALESCE で分母 0 を避ける）＝夜間便が回れば埋まる。
+    # pct と lift が NULL になる（下の COALESCE で分母 0 を避ける）＝夜間ジョブが回れば埋まる。
     rows = _db(
         "WITH da AS (SELECT COALESCE(max(d.n_decks), 0) AS n FROM card_scope_deck_counts d"
         "            JOIN mtg_cards_v2 m ON m.id = d.card_id"
@@ -162,7 +162,7 @@ def find_partner_cards(card_name: str, scope: str = "edh",
            for en, disp, n_ab, pct, lift in rows]
     return (f"scope={scope}・order_by={order_by} の同居カード上位。"
             "pct=このカード入りデッキのうち相方も入れている割合・lift=偶然同居の期待値比"
-            "（1.0≈どのデッキにも入る汎用札・高いほどこのカード専属のシナジー・"
+            "（1.0≈どのデッキにも入る汎用カード・高いほどこのカード専属のシナジー・"
             "order_by='lift' で専属順に並べ替え可）。"
             "名前は完成形《日本語名/英語名》を一字も変えずに使う・略称禁止・"
             "「英語名（日本語版なし）」もそのまま:\n" + "\n".join(out))
