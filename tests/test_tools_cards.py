@@ -175,13 +175,17 @@ def test_search_limited_stats_elsewhere():
 def test_search_valid_formats_covers_arena_formats():
     """legalities の鍵の一覧を実測で採り、Arena の形式の集合と突き合わせる。
 
-    2026-09-05 実測: explorer だけ legalities に鍵が無い（ARENA_FORMATS には入っている）。
-    増える分には落とさず、explorer 以外が欠けたら落ちる置き方にする。
+    2026-09-05 実測: explorer だけ legalities に鍵が無く、ARENA_FORMATS に入ったままだった。
+    2026-09-14 に集合から外した（_check_format が先に弾くので cards.py の ARENA_FORMATS の
+    枝には到達しない＝死んだ語）。鍵が増える分には落とさず、ARENA_FORMATS に legalities へ
+    無い語が足されたら落ちる置き方にする。
     """
     valid = cards._valid_formats()
     assert {"standard", "modern", "commander", "pauper"} <= set(valid), f"主要な鍵（{valid}）"
-    assert set(cards.ARENA_FORMATS) - set(valid) <= {"explorer"}, (
-        f"Arena の形式は explorer 以外すべて legalities の鍵にある（欠け: {set(cards.ARENA_FORMATS) - set(valid)}）")
+    # 2026-09-14: 全行展開をやめて先頭 100 行から採るようにしたので、一覧が痩せたら気づく
+    assert len(valid) >= 20, f"鍵の一覧が痩せている（{len(valid)} 個・標本の行数が足りない?）"
+    assert not (set(cards.ARENA_FORMATS) - set(valid)), (
+        f"Arena の形式はすべて legalities の鍵にある（欠け: {set(cards.ARENA_FORMATS) - set(valid)}）")
 
 
 def test_search_unknown_format_unique_candidate_is_corrected():
@@ -225,12 +229,22 @@ def test_search_format_note_is_kept_when_zero_hits():
 
 
 def test_search_format_check_is_skipped_when_list_unavailable(monkeypatch):
-    """鍵の一覧が引けない環境では検査しない（従来どおり素通り＝新しい失敗を作らない）。"""
+    """鍵の一覧が引けない環境でも検索は落とさない（素通り）。ただし黙っては通さない。
+
+    元の意図（引けない環境で新しい失敗を作らない）はそのまま＝err は None・読み替えもしない。
+    2026-09-14 に変えたのは「黙って」の部分だけ: 検査できなかったことを返り値の note に書く。
+    黙って通していたせいで、綴り違いの format が legalities->>'…' に渡って全部 NULL になり、
+    「鍵が無い」のか「合法な札が無い」のか脳に区別がつかなかった（9/12 18:45 に箱で発生）。
+    """
     monkeypatch.setitem(cards._FORMATS_CACHE, "keys", [])
-    monkeypatch.setattr(cards, "_db", lambda sql, params: (_ for _ in ()).throw(RuntimeError("boom"))
+    monkeypatch.setattr(cards, "_db", lambda sql, params, lane=None: (_ for _ in ()).throw(RuntimeError("boom"))
                         if "jsonb_object_keys" in sql else [])
     assert cards._valid_formats() == [], "引けなければ空"
-    assert cards._check_format("modrn") == ("modrn", "", None), "空なら検査しない（素通り）"
+
+    fmt, note, err = cards._check_format("modrn")
+
+    assert (fmt, err) == ("modrn", None), "検索そのものは断らず、勝手な読み替えもしない"
+    assert "検査できなかった" in note, f"黙って通さない（{note!r}）"
 
 
 def test_search_survives_missing_limited_tables(monkeypatch):
@@ -250,3 +264,4 @@ def test_search_survives_missing_limited_tables(monkeypatch):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+

@@ -5,7 +5,7 @@
 import json
 
 from sisho import errors
-from sisho.db import _db
+from sisho.db import LANE_LIGHT, _db
 from sisho.toollog import _log_tool
 
 
@@ -50,22 +50,23 @@ def mtg_probability(kind: str, deck_size: int = 60, copies: int = 4, copies_b: i
         premise += f"・マリガン {mulligans} 回（初手 {7 - mulligans} 枚）"
     try:
         if kind == "at_least":
-            rows = _db("SELECT mtg_hypergeom_atleast(%s, %s, %s, %s)", (deck_size, copies, draws, at_least))
+            rows = _db("SELECT mtg_hypergeom_atleast(%s, %s, %s, %s)", (deck_size, copies, draws, at_least),
+                       lane=LANE_LIGHT)
             seen = draws; premise = f"{draws} 枚引く"
             formula = f"P(X ≥ {at_least}) = Σ C({copies}, i)·C({deck_size - copies}, {draws}−i) / C({deck_size}, {draws})  (i = {at_least}..min({copies},{draws}))"
         elif kind == "by_turn":
             rows = _db("SELECT mtg_prob_by_turn(%s, %s, %s, %s, %s, %s), mtg_cards_seen(%s, %s, %s)",
-                       (deck_size, copies, turn, on_play, at_least, mulligans, turn, on_play, mulligans))
+                       (deck_size, copies, turn, on_play, at_least, mulligans, turn, on_play, mulligans), lane=LANE_LIGHT)
             seen = rows[0][1]
             formula = f"見る枚数 {seen} = 7−{mulligans}＋{seen - 7 + mulligans}・P(X ≥ {at_least}) 超幾何(N={deck_size}, K={copies}, D={seen})"
         elif kind == "land_drops":
             rows = _db("SELECT mtg_land_drops(%s, %s, %s, %s, %s), mtg_cards_seen(%s, %s, %s)",
-                       (deck_size, copies, turn, on_play, mulligans, turn, on_play, mulligans))
+                       (deck_size, copies, turn, on_play, mulligans, turn, on_play, mulligans), lane=LANE_LIGHT)
             seen = rows[0][1]
             formula = f"見る枚数 {seen}・P(土地 ≥ {turn} 枚) 超幾何(N={deck_size}, K={copies}, D={seen})＝{turn} ターン目まで毎ターン土地を置ける"
         else:
             rows = _db("SELECT mtg_combo_by_turn(%s, %s, %s, %s, %s, %s), mtg_cards_seen(%s, %s, %s)",
-                       (deck_size, copies, copies_b, turn, on_play, mulligans, turn, on_play, mulligans))
+                       (deck_size, copies, copies_b, turn, on_play, mulligans, turn, on_play, mulligans), lane=LANE_LIGHT)
             seen = rows[0][1]
             formula = f"見る枚数 {seen}・1 − P(A なし) − P(B なし) ＋ P(両方なし)（包除・A={copies} 枚・B={copies_b} 枚・N={deck_size}）"
     except Exception as e:

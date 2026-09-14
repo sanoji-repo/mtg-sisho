@@ -118,9 +118,9 @@ def test_rules_tools_do_not_write(monkeypatch):
     seen = []
     real = rules._db
 
-    def spy(sql, params):
+    def spy(sql, params, lane=None):
         seen.append(sql.strip().split(None, 1)[0].upper())
-        return real(sql, params)
+        return real(sql, params) if lane is None else real(sql, params, lane=lane)
 
     monkeypatch.setattr(rules, "_db", spy)
     lr("trample", 3)
