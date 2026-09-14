@@ -211,10 +211,17 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     route = "simple_match"
     if not cards:
         route = "fuzzy_name"
-        p3 = [q, q, 0.3] + ([fmt] if fmt else []) + [q, q, top_k]
+        # 2026-09-14（#850）: 索引で候補を絞ってから同じ条件で再チェックする形に。
+        # similarity(a, b) > 0.3 の関数比較だけでは pg_trgm の GIN 索引に乗らず Seq Scan
+        # （実測 Buffers 15,582）。演算子 % は索引に乗る（同 93＝167 分の 1）。
+        # % の閾値は pg_trgm.similarity_threshold（既定 0.3）なので、後段の
+        # greatest(similarity(...)) > 0.3 を残して集合を保証する（閾値が変えられても同じ答え）。
+        # japanese_name は coalesce を外す＝式にすると索引が使えない。NULL は % が偽になるだけ。
+        p3 = [q, q, q, q, 0.3] + ([fmt] if fmt else []) + [q, q, top_k]
         fuzzy_rows = _db(
             f"SELECT {cols} FROM mtg_cards_v2"
-            " WHERE greatest(similarity(card_name, %s),"
+            " WHERE (card_name %% %s OR japanese_name %% %s)"
+            "   AND greatest(similarity(card_name, %s),"
             "                similarity(coalesce(japanese_name,''), %s)) > %s"
             + fmt_sql +
             " ORDER BY greatest(similarity(card_name, %s),"

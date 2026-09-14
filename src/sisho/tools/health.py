@@ -53,12 +53,18 @@ def mtg_rag_health(deep: bool = False) -> str:
     _log_tool("mtg_rag_health", {"deep": deep})
     t0 = time.time()
     try:
+        # deck_list を 2 回走査していた（COUNT と MAX が別の副問い合わせ・実測 6,515 頁）。
+        # 1 回の走査で両方採ると 3,420 頁（2026-09-14 実測・#885）。索引で逃げる手は無く、
+        # deck_list_format_date_idx は (format_name, tournament_date) の複合なので
+        # MAX 単独だと索引を丸ごと読んで 12,278 頁とかえって重い。
+        # 時間キャッシュも試したが、呼び出しは 10 分に 1 回でほとんど当たらない一方、
+        # プロセス内に状態が残って試験の順序依存を作ったのでやめた（継ぎ足しはフレームのサイン）。
         rows = _db(
             "SELECT (SELECT COUNT(*) FROM mtg_cards_v2),"
             "       (SELECT COUNT(*) FROM mtg_rules),"
             "       (SELECT COUNT(*) FROM card_rulings),"
-            "       (SELECT COUNT(*) FROM deck_list),"
-            "       (SELECT MAX(tournament_date)::text FROM deck_list)", ())
+            "       d.n, d.latest"
+            "  FROM (SELECT count(*) AS n, max(tournament_date)::text AS latest FROM deck_list) d", ())
         n_card, n_rule, n_rul, n_deck, latest = rows[0]
         # ドラフト統計（17Lands 集計・limited_card_stats）は表が無い環境もあるので別口で・失敗は 0
         try:
