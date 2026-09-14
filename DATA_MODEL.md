@@ -5,7 +5,7 @@ Sisho が読む PostgreSQL（18）のテーブル。列と型は実 DB の `info
 
 MCP の `query_mtg_database` はこれらを読み取り専用の役割（`readonly_ai`）で読む。
 名前が二つあるカード（両面・出来事・分割 850 枚）は **面ごとの列**（`name_en_front/back`・`name_ja_front/back`）を正本とし、結合名 `card_name`／`japanese_name`／`name_display` は DB が自動で作る生成列（2026-08-31）。
-プレイヤー名は工場側の `players` 表（`deck_list.player_id` で参照）に隔離し、公開側の DB には名前も ID も置かない（2026-08-31・`deck_list.player_name` 列は廃止）。
+プレイヤー名は開発側の `players` 表（`deck_list.player_id` で参照）に隔離し、公開側の DB には名前も ID も置かない（2026-08-31・`deck_list.player_name` 列は廃止）。
 
 ## 件数（2026-09-07 時点・README から移した）
 
@@ -139,7 +139,7 @@ MCP の `query_mtg_database` はこれらを読み取り専用の役割（`reado
 
 ### 17Lands 追加集計 5 表（2026-09-02）
 
-出典は `limited_card_stats` と同じ 17Lands Public Datasets（PremierDraft）。`wr` などの勝率・平均の列は生成列（分子と分母から自動計算・箱側で同じ式を持つ）。ランク帯 `rank` は `bronze`〜`mythic` の小文字（元データの `Platinum-4-0-0-0` 形式は先頭の帯だけに揃えた・欠けは `none`）。
+出典は `limited_card_stats` と同じ 17Lands Public Datasets（PremierDraft）。`wr` などの勝率・平均の列は生成列（分子と分母から自動計算・公開サーバー側で同じ式を持つ）。ランク帯 `rank` は `bronze`〜`mythic` の小文字（元データの `Platinum-4-0-0-0` 形式は先頭の帯だけに揃えた・欠けは `none`）。
 
 | 表 | 主キー | 主な列 |
 | --- | --- | --- |
@@ -151,7 +151,7 @@ MCP の `query_mtg_database` はこれらを読み取り専用の役割（`reado
 
 ### 確率計算の SQL 関数（2026-09-04）
 
-`sql/prob_functions.sql`。超幾何分布の厳密値を `numeric` で返す（IMMUTABLE・6 桁）。論理レプリケーションは関数を運ばないので、工場と公開サーバーの両方で流す（`CREATE OR REPLACE`・冪等）。MCP の `mtg_probability` はこれを呼ぶ薄い入口で、`query_mtg_database` からはデータと結合して直接呼べる。
+`sql/prob_functions.sql`。超幾何分布の厳密値を `numeric` で返す（IMMUTABLE・6 桁）。論理レプリケーションは関数を運ばないので、開発側と公開サーバーの両方で流す（`CREATE OR REPLACE`・冪等）。MCP の `mtg_probability` はこれを呼ぶ薄い入口で、`query_mtg_database` からはデータと結合して直接呼べる。
 
 | 関数 | 意味 |
 | --- | --- |
