@@ -4,7 +4,7 @@
 登録（server.tool）は mcp_server.py 側。道具が 2 本あるので説明は道具ごとに
 LOOKUP_MTG_RULE_DESCRIPTION・GET_CARD_RULINGS_DESCRIPTION と名前を分ける。
 """
-from sisho.db import _db
+from sisho.db import LANE_LIGHT, _db
 from sisho.names import resolve_face_name
 from sisho.toollog import _log_tool
 
@@ -36,7 +36,7 @@ def lookup_mtg_rule(query: str, limit: int = 12) -> str:
         rows = _db(
             "SELECT rule_number, is_glossary, text_en FROM mtg_rules"
             " WHERE rule_number ~ %s ORDER BY rule_number LIMIT %s",
-            (pat, limit))
+            (pat, limit), lane=LANE_LIGHT)
     else:
         # 語検索は FTS の AND（2026-08-11・脳からのバグ報告「dies trigger simultaneous で
         # 該当なし」＝旧実装は句全体の部分一致で複数語に無力だった）。plainto_tsquery は
@@ -47,7 +47,7 @@ def lookup_mtg_rule(query: str, limit: int = 12) -> str:
             " ORDER BY ts_rank(to_tsvector('english', text_en),"
             "                  plainto_tsquery('english', %s)) DESC,"
             "          is_glossary DESC, rule_number LIMIT %s",
-            (query, query, limit))
+            (query, query, limit), lane=LANE_LIGHT)
         if not rows:
             # 全語 AND が不発なら OR に降りて「多く当たる順」（ts_rank が自然にやる）。
             # 脳の実クエリは概念の羅列（dies trigger simultaneous…）なので全語一致は稀。
@@ -60,13 +60,13 @@ def lookup_mtg_rule(query: str, limit: int = 12) -> str:
                     " WHERE to_tsvector('english', text_en) @@ to_tsquery('english', %s)"
                     " ORDER BY ts_rank(to_tsvector('english', text_en),"
                     "                  to_tsquery('english', %s)) DESC, rule_number"
-                    " LIMIT %s", (orq, orq, limit))
+                    " LIMIT %s", (orq, orq, limit), lane=LANE_LIGHT)
         if not rows:   # FTS 不発（一語・固有表現等）は従来の部分一致で救う
             rows = _db(
                 "SELECT rule_number, is_glossary, text_en FROM mtg_rules"
                 " WHERE text_en ILIKE %s OR (is_glossary AND rule_number ILIKE %s)"
                 " ORDER BY is_glossary DESC, rule_number LIMIT %s",
-                (f"%{query}%", f"%{query}%", limit))
+                (f"%{query}%", f"%{query}%", limit), lane=LANE_LIGHT)   # mtg_rules は 4 千行
     if not rows:
         return f"該当なし: {query}（条番号または英語キーワードで検索してください）"
     out = []
@@ -89,14 +89,14 @@ def get_card_rulings(card_name: str, limit: int = 20) -> str:
     rows = _db(
         "SELECT card_name, published_at, comment FROM card_rulings"
         " WHERE card_name = %s ORDER BY published_at, id LIMIT %s",
-        (card_name.strip(), limit))
+        (card_name.strip(), limit), lane=LANE_LIGHT)
     if not rows:                                   # 面の名前（表・裏）→ 正式名に解決して引く（2026-08-31 R3-4）
         # 名前の解決は sisho/names.py に 1 つ（2026-09-05 Step 6 作業 1・以前はここに同じ SQL を直書きしていた）。
         # 候補は表面一致が先＝裏面名が別の本物のカード名と同じ 21 枚では本物のカードが勝つ（DESIGN 12）。
         full = resolve_face_name(card_name)
         if full:
             rows = _db("SELECT card_name, published_at, comment FROM card_rulings WHERE card_name = %s ORDER BY published_at, id LIMIT %s",
-                       (full[0], limit))
+                       (full[0], limit), lane=LANE_LIGHT)
     if not rows:
         rows = _db(
             "SELECT card_name, published_at, comment FROM card_rulings"

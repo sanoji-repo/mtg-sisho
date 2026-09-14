@@ -6,7 +6,7 @@ QUERY_MTG_DATABASE_DESCRIPTION・DESCRIBE_MTG_TABLES_DESCRIPTION と名前を分
 先頭コメントの札（#セット記号）の解決は search 側の道具（sisho/tools/cards.py の
 _resolve_draft_set・_archetype_lines）を借りる＝セットの解決は 1 箇所に置く。
 """
-from sisho.db import DBBusy, LANE_HEAVY, _db, _db_readonly
+from sisho.db import DBBusy, LANE_HEAVY, LANE_LIGHT, _db, _db_readonly
 from sisho.names import face_display
 from sisho.sets_blurb import _SETS_BLURB
 from sisho.toollog import TOOL_LOG_MAX, _log_tool
@@ -97,7 +97,7 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
         hits = _db(
             "SELECT card_name, name_display, name_en_front, name_en_back, name_ja_back, digital FROM mtg_cards_v2"
             " WHERE card_name = ANY(%s) OR name_en_front = ANY(%s) OR name_en_back = ANY(%s)",
-            (cands, cands, cands))
+            (cands, cands, cands), lane=LANE_LIGHT)
     except Exception:
         return cols, rows, ""
     # 2026-08-31（R3-4）: 正式名・表面名は表面の完成形（name_display）、裏面名はその面の完成形。裏面名が本物のカード名と同じ（prepare）なら本物が勝つ

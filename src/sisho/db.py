@@ -98,7 +98,7 @@ class _db_slot:
         return False
 
 
-def _run(cfg: dict, sql: str, params: tuple | None, fetch, lane: str = LANE_LIGHT):
+def _run(cfg: dict, sql: str, params: tuple | None, fetch, lane: str = LANE_HEAVY):
     import logging
     import psycopg2
     from sisho.toollog import JOURNAL
@@ -136,7 +136,7 @@ def _run(cfg: dict, sql: str, params: tuple | None, fetch, lane: str = LANE_LIGH
         raise
 
 
-def _db(sql: str, params: tuple, lane: str = LANE_LIGHT) -> list[tuple]:
+def _db(sql: str, params: tuple, lane: str = LANE_HEAVY) -> list[tuple]:
     from db_config import DB_CONFIG
     return _run(DB_CONFIG, sql, params, lambda cur: cur.fetchall(), lane=lane)
 
@@ -146,7 +146,7 @@ def _db(sql: str, params: tuple, lane: str = LANE_LIGHT) -> list[tuple]:
 # 実証済み） (2) statement_timeout 10 秒 (3) 入口で SELECT/WITH 以外と複文を拒否＋
 # 行数・セル長の上限で応答を制限（コンテキスト爆発防止）。
 
-def _db_readonly(sql: str, max_rows: int, lane: str = LANE_LIGHT) -> tuple[list[str], list[tuple]]:
+def _db_readonly(sql: str, max_rows: int, lane: str = LANE_HEAVY) -> tuple[list[str], list[tuple]]:
     from db_config import DB_CONFIG
     cfg = dict(DB_CONFIG)
     cfg["user"] = "readonly_ai"

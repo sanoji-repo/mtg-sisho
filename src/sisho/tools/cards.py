@@ -8,7 +8,7 @@ import json
 import os
 
 from sisho import errors
-from sisho.db import _db
+from sisho.db import LANE_LIGHT, _db
 from sisho.names import face_display
 from sisho.sets_blurb import _SETS_BLURB, _SETS_HEAD
 from sisho.toollog import _log_tool
@@ -16,7 +16,7 @@ from sisho.toollog import _log_tool
 
 # Arena の形式。これを名指しされたときだけ digital（Arena 専用札・2026-08-31 合流）を検索に含める。
 # 既定の検索は紙＝WHERE NOT digital（列 → 並べ方の掟: 紙と Arena 専用を混ぜて並べない）。
-ARENA_FORMATS = {"historic", "alchemy", "timeless", "brawl", "standardbrawl", "gladiator", "explorer"}
+ARENA_FORMATS = {"historic", "alchemy", "timeless", "brawl", "standardbrawl", "gladiator"}
 
 _CARD_COLS: tuple[str, ...] = (
     "card_name", "japanese_name", "type_line", "mana_cost", "power", "toughness",
@@ -39,13 +39,23 @@ _FORMAT_CUTOFF = 0.8
 
 
 def _valid_formats() -> list[str]:
-    """legalities の鍵の一覧（プロセスに 1 回だけ引く）。引けなければ空＝format の検査をしない。"""
+    """legalities の鍵の一覧（プロセスに 1 回だけ引く）。引けなければ空。
+
+    2026-09-14: 全 32,730 行の jsonb を展開していた（VM 380ms）。箱では 9/12 18:45 に
+    軽い線の 1 秒も重い線の 10 秒も超えて落ち、下の _check_format が「検査できなかった」と
+    言わずに素通ししていた。鍵はカードごとに変わらないので**先頭 100 行で足りる**
+    （実測: 100 行でも 23 鍵すべて揃う・1.3ms。欠けるのは competitivebrawl を持たない 1 枚だけ
+    なので、1 行では不足しうるが 100 行なら他が埋める）。
+    線は重いまま（既定）にしてある——プロセスに 1 回しか引かないので、速くなったからといって
+    予約席を使う理由がない。
+    """
     if _FORMATS_CACHE["keys"]:
         return _FORMATS_CACHE["keys"]
     try:
-        rows = _db("SELECT DISTINCT jsonb_object_keys(legalities) FROM mtg_cards_v2 ORDER BY 1", ())
+        rows = _db("SELECT DISTINCT k FROM (SELECT legalities FROM mtg_cards_v2 LIMIT 100) t,"
+                   " jsonb_object_keys(t.legalities) k ORDER BY 1", ())
     except Exception:
-        return []
+        return []          # 呼び出し側（_check_format）が「検査できなかった」と言う
     _FORMATS_CACHE["keys"] = [r[0] for r in rows]
     return _FORMATS_CACHE["keys"]
 
@@ -60,8 +70,14 @@ def _check_format(fmt: str) -> tuple[str, str, str | None]:
     """
     import difflib
     valid = _valid_formats()
-    if not fmt or not valid or fmt in valid:
+    if not fmt or fmt in valid:
         return fmt, "", None
+    if not valid:
+        # 鍵の一覧を引けなかった＝検査できない。通すが黙っては通さない（2026-09-14）。
+        # 以前はここで素通ししていたので、綴りが違う format が legalities->>'…' に渡り、
+        # 全部 NULL ≠ 'legal' で「該当なし」に見えていた（脳には区別がつかない）。
+        return fmt, (f"format「{fmt}」は検査できなかった（legalities の鍵の一覧を DB から引けなかった）。"
+                     "0 件なら鍵の綴りを疑う"), None
     listing = "・".join(valid)
     cands = difflib.get_close_matches(fmt, valid, n=5, cutoff=_FORMAT_CUTOFF)
     if len(cands) == 1:
@@ -273,7 +289,7 @@ def _attach_limited_stats(cards: list[dict], sets: list[str] | None = None) -> d
         rows = _db(
             "SELECT db_card_name, expansion, event_type, gih_games, gih_wr, oh_wr, gd_wr, alsa, ata"
             " FROM limited_card_stats WHERE db_card_name = ANY(%s)"
-            " ORDER BY db_card_name, expansion", (names,))
+            " ORDER BY db_card_name, expansion", (names,), lane=LANE_LIGHT)
     except Exception:
         return {}
     by: dict[str, list] = {}
@@ -312,7 +328,8 @@ def _limited_sets() -> list[dict]:
         rows = _db(
             "SELECT s.expansion, m.set_name, m.released_at FROM (SELECT DISTINCT expansion FROM limited_card_stats) s"
             " LEFT JOIN mtg_sets m ON lower(m.set_code) = lower(s.expansion)"
-            " WHERE s.expansion NOT ILIKE 'cube%%' ORDER BY m.released_at DESC NULLS LAST, s.expansion", ())
+            " WHERE s.expansion NOT ILIKE 'cube%%' ORDER BY m.released_at DESC NULLS LAST, s.expansion", (),
+            lane=LANE_LIGHT)
     except Exception:
         return []
     out = [{"code": r[0], "name": r[1], "released_at": str(r[2]) if r[2] else None} for r in rows]
@@ -372,10 +389,10 @@ def _limited_archetypes(sets: list[str]) -> dict:
         rows = _db(
             "SELECT expansion, main_colors, games, wins FROM limited_color_stats"
             " WHERE expansion = ANY(%s) AND NOT splash AND length(main_colors) = 2"
-            " ORDER BY expansion, games DESC", (sets,))
+            " ORDER BY expansion, games DESC", (sets,), lane=LANE_LIGHT)
         base = _db(
             "SELECT expansion, sum(games), sum(wins) FROM limited_format_stats"
-            " WHERE expansion = ANY(%s) GROUP BY 1", (sets,))
+            " WHERE expansion = ANY(%s) GROUP BY 1", (sets,), lane=LANE_LIGHT)
     except Exception:
         return {}
     out: dict[str, dict] = {}

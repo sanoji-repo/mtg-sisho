@@ -3,18 +3,54 @@
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
 """
 import json
+import os
+import time
 
-from sisho.db import DBBusy, _db
+from sisho.db import DBBusy, LANE_LIGHT, _db
 from sisho.toollog import _log_tool
 
 
 DESCRIPTION = "データ層の健全性を確認する（DB 実疎通・主要テーブルの行数と鮮度）。"
 
+_STARTED = time.time()
+_SRC = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # …/src
+_ROOT = os.path.dirname(_SRC)                                                         # 配備先の直下
+
+
+def _code_stamp() -> str:
+    """今動いているコードの版。VERSION があればその中身、無ければ src の .py の最終更新。
+
+    箱へは rsync で配ぶので .git が無く、版を示す物がファイルの日付しかない（2026-09-14 実測）。
+    起動時に 1 回だけ数えて使い回す（health を呼ぶたびに walk しない）。
+    """
+    try:
+        with open(os.path.join(_ROOT, "VERSION"), encoding="utf-8") as f:
+            v = f.read().strip()
+        if v:
+            return v
+    except OSError:
+        pass
+    newest = 0.0
+    for dirpath, _dirs, files in os.walk(_SRC):
+        if "__pycache__" in dirpath:
+            continue
+        for fn in files:
+            if fn.endswith(".py"):
+                try:
+                    newest = max(newest, os.stat(os.path.join(dirpath, fn)).st_mtime)
+                except OSError:
+                    pass
+    if not newest:
+        return "不明（VERSION も src の .py も読めない）"
+    return time.strftime("src の最終更新 %Y-%m-%d %H:%M:%S", time.localtime(newest))
+
+
+_CODE = _code_stamp()
+
 
 def mtg_rag_health(deep: bool = False) -> str:
     """deep は旧 API 時代の名残で互換のため受けるが、常に DB 実疎通を見る。"""
     _log_tool("mtg_rag_health", {"deep": deep})
-    import time
     t0 = time.time()
     try:
         rows = _db(
@@ -26,7 +62,7 @@ def mtg_rag_health(deep: bool = False) -> str:
         n_card, n_rule, n_rul, n_deck, latest = rows[0]
         # ドラフト統計（17Lands 集計・limited_card_stats）は表が無い環境もあるので別口で・失敗は 0
         try:
-            n_l17 = _db("SELECT COUNT(DISTINCT expansion) FROM limited_card_stats", ())[0][0]
+            n_l17 = _db("SELECT COUNT(DISTINCT expansion) FROM limited_card_stats", (), lane=LANE_LIGHT)[0][0]
         except Exception:
             n_l17 = 0
         return json.dumps({
@@ -35,7 +71,11 @@ def mtg_rag_health(deep: bool = False) -> str:
             "cards": n_card, "rules": n_rule, "rulings": n_rul,
             "decks": n_deck, "latest_deck": latest,
             "draft_stat_sets": n_l17,
-            "draft_stat_note": "17Lands 集計・表 limited_card_stats・セット一覧は describe_mtg_tables"},
+            "draft_stat_note": "17Lands 集計・表 limited_card_stats・セット一覧は describe_mtg_tables",
+            # 再起動や配備のたびに「今動いているのはいつのコードか」を返り値だけで言えるように（#814）
+            "started_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(_STARTED)),
+            "uptime_hours": round((time.time() - _STARTED) / 3600, 1),
+            "code_version": _CODE},
             ensure_ascii=False)
     except DBBusy as e:
         return str(e)          # 混雑は DB の故障でない＝「health 失敗」に丸めない（errors.BUSY）

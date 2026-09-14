@@ -8,6 +8,7 @@
 """
 import json
 import os
+import re
 import sys
 
 import pytest
@@ -20,7 +21,8 @@ from conftest import requires_db  # noqa: E402
 h = m.mtg_rag_health.fn if hasattr(m.mtg_rag_health, "fn") else m.mtg_rag_health
 
 KEYS = {"status", "db_latency_ms", "cards", "rules", "rulings", "decks",
-        "latest_deck", "draft_stat_sets", "draft_stat_note"}
+        "latest_deck", "draft_stat_sets", "draft_stat_note",
+        "started_at", "uptime_hours", "code_version"}
 
 
 @requires_db
@@ -45,8 +47,26 @@ def test_health_keys_and_lower_bounds(deep):
 @requires_db
 def test_health_deep_matches_shallow():
     a, b = json.loads(h(False)), json.loads(h(True))
-    for k in KEYS - {"db_latency_ms"}:
+    for k in KEYS - {"db_latency_ms", "uptime_hours"}:   # この 2 つは呼ぶたびに進む
         assert a[k] == b[k], f"deep で答えが変わらない（{k}）"
+
+
+@requires_db
+def test_health_reports_start_time_and_code_version():
+    """再起動や配備のたびに「今動いているのはいつのコードか」を返り値だけで言えること（#814）。
+
+    2026-09-14 に追加。箱へは rsync で配ぶので .git が無く、VERSION が無ければ src の
+    .py の最終更新を返す（値は日々変わるので形だけを縫う）。
+    """
+    d = json.loads(h(False))
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", d["started_at"]), (
+        f"起動時刻は YYYY-MM-DD HH:MM:SS（{d['started_at']}）")
+    assert isinstance(d["uptime_hours"], float) and d["uptime_hours"] >= 0, (
+        f"稼働時間は 0 以上の時間（{d['uptime_hours']}）")
+    assert d["code_version"] and "不明" not in d["code_version"], (
+        f"コードの版が読めている（{d['code_version']}）")
+    assert d["started_at"] >= d["code_version"][-19:], (
+        f"起動はコードの更新より後（起動 {d['started_at']}・版 {d['code_version']}）")
 
 
 def test_health_survives_missing_limited_table(monkeypatch):

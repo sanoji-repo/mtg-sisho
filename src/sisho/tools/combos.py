@@ -9,7 +9,7 @@ import os
 
 from sisho import errors
 from sisho.context import CURRENT_CLIENT_IP, CURRENT_FUDA
-from sisho.db import _db
+from sisho.db import LANE_LIGHT, _db
 from sisho.ratelimit import RateLimiter
 from sisho.toollog import _log_tool
 
@@ -42,7 +42,8 @@ def _display_map(names: list[str]) -> dict[str, str]:
     if not names:
         return out
     try:
-        for cn, nd in _db("SELECT card_name, name_display FROM mtg_cards_v2 WHERE card_name = ANY(%s)", (names,)):
+        for cn, nd in _db("SELECT card_name, name_display FROM mtg_cards_v2 WHERE card_name = ANY(%s)", (names,),
+                          lane=LANE_LIGHT):
             out[cn] = nd
     except Exception:
         pass
@@ -90,7 +91,8 @@ def find_combos(card_names: list[str], commanders: list[str] | None = None, limi
     resolved: dict[str, str] = {}
     try:
         rows = _db("SELECT card_name, japanese_name, name_ja_front FROM mtg_cards_v2"
-                   " WHERE card_name = ANY(%s) OR japanese_name = ANY(%s) OR name_ja_front = ANY(%s)", (names + cmds, names + cmds, names + cmds))
+                   " WHERE card_name = ANY(%s) OR japanese_name = ANY(%s) OR name_ja_front = ANY(%s)",
+                   (names + cmds, names + cmds, names + cmds), lane=LANE_LIGHT)
         for cn, ja, jaf in rows:
             resolved[cn] = cn
             if ja: resolved[ja] = cn

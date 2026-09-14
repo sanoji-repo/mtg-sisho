@@ -19,7 +19,8 @@ def test_live_bypass_timeout_retries_in_heavy_lane(caplog):
     """9. 軽い線で 1 秒超のクエリが 57014 で切られ、重い線で完走する。"""
     caplog.set_level(logging.WARNING)
     t0 = time.perf_counter()
-    rows = db._db("SELECT count(*) FROM generate_series(1, 5000) a CROSS JOIN generate_series(1, 5000) b", ())
+    rows = db._db("SELECT count(*) FROM generate_series(1, 5000) a CROSS JOIN generate_series(1, 5000) b", (),
+                  lane=db.LANE_LIGHT)
     elapsed = time.perf_counter() - t0
 
     assert rows == [(25000000,)]

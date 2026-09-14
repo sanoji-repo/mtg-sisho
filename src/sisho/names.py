@@ -26,7 +26,7 @@ DESIGN 12（名前が複数あるものは面ごとの列で持つ）の帰結�
 差は「解決した後の使い方」だけ: 裁定検索は先頭 1 つを採り、相方検索は候補を全部持って ANY() に渡す。
 だから解決は候補の一覧（表面一致が先）を返し、絞り込みは呼ぶ側に置く。
 """
-from sisho.db import _db
+from sisho.db import LANE_LIGHT, _db
 
 
 def resolve_face_name(name: str) -> list[str]:
@@ -44,7 +44,7 @@ def resolve_face_name(name: str) -> list[str]:
     return [r[0] for r in _db(
         "SELECT card_name FROM mtg_cards_v2"
         " WHERE name_en_front = %s OR name_en_back = %s"
-        " ORDER BY (name_en_front = %s) DESC", (n, n, n))]
+        " ORDER BY (name_en_front = %s) DESC", (n, n, n), lane=LANE_LIGHT)]
 
 
 def face_display(en: str, ja: str | None, digital: bool = False) -> str:
