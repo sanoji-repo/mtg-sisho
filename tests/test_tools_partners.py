@@ -159,3 +159,38 @@ def test_partners_pct_is_a_percentage():
 
     assert pcts, f"pct が読めない（{out[:120]}）"
     assert all(0.0 <= v <= 100.0 for v in pcts), f"pct が百分率の範囲外（{pcts}）"
+
+
+# ─── 候補を絞っても答えが変わらない（2026-09-14）────────────────────────
+# 由来: 相方検索が 3 枚返すのに 12,651 枚の type_line を引いていた（371MB）ので、
+# mtg_cards_v2 と突き合わせる前に候補を絞る形にした。そのとき「絞った版」と
+# 「絞らない版」を 60 通り突き合わせたら、**並びに同値の決着手段が無く、どれが
+# 上位に残るかが実行計画次第だった**ことが分かった（同じ問いに別のカードが返りうる）。
+# 決着手段（id）を足して直したので、その状態を機械で縫う。
+# ここも「数字では縫わない」＝二つの呼び出しの返り値が一致することだけを見る。
+_SAME_ANSWER_CASES = [
+    ("Sol Ring", "edh", "count", True),          # EDH の最悪ケース（相方 12,651 枚）
+    ("Sol Ring", "edh", "lift", True),           # lift 順は母集団 400・min_ab 10 の別経路
+    ("Sol Ring", "edh", "count", False),         # 土地を除かない＝候補を絞らない側
+    ("Lightning Bolt", "constructed", "count", True),
+    ("Lightning Bolt", "constructed", "lift", True),
+    ("Counterspell", "vintage", "count", True),
+    ("Lightning Bolt", "pauper", "count", True),
+    ("Sol Ring", "precon", "count", True),
+]
+
+
+@pytest.mark.parametrize("card,scope,order_by,exclude_lands", _SAME_ANSWER_CASES)
+def test_candidate_limit_does_not_change_answer(monkeypatch, card, scope, order_by, exclude_lands):
+    """候補を絞った答えと、絞らない答えが一字一句同じであること。
+
+    落ちるときの意味: (a) 並びに同値の決着手段が無い（実行計画で順が変わる）か、
+    (b) 候補の倍率が足りず非土地を取りこぼしている。どちらも利用者から見れば
+    「同じ問いに別の答えが返る」なので、速さの工事より優先して直す。
+    """
+    staged = fp(card, scope=scope, limit=15, exclude_lands=exclude_lands, order_by=order_by)
+    monkeypatch.setattr(partners, "CAND_MULTIPLIER", 0)      # 0 = 絞らない（LIMIT NULL）
+    full = fp(card, scope=scope, limit=15, exclude_lands=exclude_lands, order_by=order_by)
+    assert staged == full, (
+        f"候補の絞り方で答えが変わった（{card}／{scope}／{order_by}／"
+        f"exclude_lands={exclude_lands}）\n--- 絞った版 ---\n{staged}\n--- 絞らない版 ---\n{full}")
