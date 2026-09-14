@@ -70,7 +70,11 @@ def test_health_reports_start_time_and_code_version():
 
 
 def test_health_survives_missing_limited_table(monkeypatch):
-    """17Lands の表が無い環境では draft_stat_sets=0 で、他の数字は返る。"""
+    """17Lands の表が無い環境では draft_stat_sets=0 で、他の数字は返る。
+
+    2026-09-14: 行数の SQL を「deck_list を 1 回だけ走査する形」に変えたので、
+    偽の _db が返す組も 5 つ組のまま（列の意味と順番は変えていない）。
+    """
     def fake(sql, params):
         if "limited_card_stats" in sql:
             raise RuntimeError("relation does not exist")
