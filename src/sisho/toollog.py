@@ -2,7 +2,7 @@
 2026-09-06 Step 7 で出口の行と DB の計時を追加）。
 
 出力先は環境変数 MCP_TOOL_LOG（既定はリポジトリ直下の logs/mcp_tools.log・2026-09-05 Step 3 で
-作者の工場の絶対パス /mnt/mtg_rag/logs/mcp_tools.log から置き換え。箱は .env で明示している）。
+作者の開発環境の絶対パス /mnt/mtg_rag/logs/mcp_tools.log から置き換え。公開サーバーは .env で明示している）。
 
 行は 2 種類（どちらもタブ区切り・1 列目は必ず時刻）:
 
@@ -36,8 +36,8 @@ TOOL_LOG = os.environ.get(
     "MCP_TOOL_LOG", repo_path("logs", "mcp_tools.log"))
 TOOL_LOG_MAX = int(os.environ.get("MCP_TOOL_LOG_MAX", "200"))   # 引数の記録の上限（ベンチは 2000 にして SQL の表名まで採る・2026-09-03）
 
-#: 「遅い」の物差し（秒）。超えたら journal に warning（2026-09-06 Step 7・本人「1 秒以上かかった
-#: クエリに警告」）。箱の PostgreSQL 側も readonly_ai の log_min_duration_statement=1s で同じ線。
+#: 「遅い」の物差し（秒）。超えたら journal に warning（2026-09-06 Step 7・方針「1 秒以上かかった
+#: クエリに警告」）。公開サーバーの PostgreSQL 側も readonly_ai の log_min_duration_statement=1s で同じ線。
 SLOW_SEC = float(os.environ.get("MCP_SLOW_SEC", "1.0"))
 
 #: warning の宛先。uvicorn の系統に乗せると systemd の journal でそのまま読める（HTTP 版）。

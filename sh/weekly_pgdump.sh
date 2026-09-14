@@ -5,7 +5,7 @@
 #       と判明。「足りなかったのは回数でなく形」＝軽い論理 dump を定期の仕組みに乗せる。
 # 方式: ホストの pg_dump は 17（サーバ 18 に不可）→ コンテナ内 pg_dump 18 を docker exec し
 #       stdout をホストの棚へ。ACCESS SHARE ロックのみ＝通常の読み書きと競合しない（DDL は待つ）。
-#       0:00 は夜間便（03:00〜10:00）の窓の外。REPEATABLE READ スナップショット＝開始時点の一貫像。
+#       0:00 は夜間ジョブ（03:00〜10:00）の窓の外。REPEATABLE READ スナップショット＝開始時点の一貫像。
 # 出力: /mnt/new_hdd/db_archives/rag_dev_full_YYYYMMDD.dump（-Fc -Z6・約 200MB）
 # 世代: 最新 KEEP 本を残して古い rag_dev_full_*.dump を削除（既定 4）
 # 検収: pg_restore --list の TABLE DATA 件数が MIN_TABLES 未満なら警告して非ゼロ終了（dump は残す）

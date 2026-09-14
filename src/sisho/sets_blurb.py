@@ -9,7 +9,7 @@ query_mtg_database の description の両方が参照するので、道具のモ
 def _startup_sets_blurb() -> str:
     """道具の説明に載せる収録セットの一覧（起動時に DB から 1 回・失敗したら空）。
     発端（2026-09-03 追試 A）: Sonnet が MSH／SOS（知識の切れ目の後のセット）を「MTG でない（Marvel Snap の話）」と
-    決めつけ、道具を一度も呼ばず記憶で答えた（30 問中 3・B でも 2）。説明文は claude.ai が脳に見せるので、ここに
+    決めつけ、道具を一度も呼ばず記憶で答えた（30 問中 3・B でも 2）。説明文は claude.ai がクライアントに見せるので、ここに
     一覧と「知らないセットでも必ず引く」を置く（instructions は届かない・8/22 裁定）。"""
     try:
         import psycopg2
@@ -39,7 +39,7 @@ def _startup_sets_blurb() -> str:
 
 _SETS_BLURB = _startup_sets_blurb()
 # 冒頭用の短い版（2026-09-03 追試: 末尾の一覧では Sonnet の「Marvel は MTG でない」の先入観に勝てず、MSH の問いで道具を呼ばなかった。
-# 説明文は全文届いていた（1,961 字を脳が引用できた）ので、位置の問題＝最初の一文に置く）
+# 説明文は全文届いていた（1,961 字をクライアントが引用できた）ので、位置の問題＝最初の一文に置く）
 _SETS_HEAD = ((lambda m: f"【まず読む】このデータベースは MTG の最新セット {m} まで収録（Marvel Super Heroes＝MSH・Secrets of Strixhaven＝SOS も MTG の正式セット）。"
               "知らないセット名・記号・カード名は『MTG ではない』と決めつけず、必ずこの道具で引いてから答える。")(
     _SETS_BLURB.split("】", 1)[1].split("。", 1)[0].split("・")[0] if _SETS_BLURB else "") if _SETS_BLURB else "")

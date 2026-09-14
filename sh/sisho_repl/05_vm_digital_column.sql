@@ -1,17 +1,17 @@
--- 05_vm_digital_column.sql — 工場（VM）側: mtg_cards_v2 に digital 列・name_display の式差し替え・publication の列指定に digital
--- （2026-08-31・本人「(B) やろっか」。設計は 06_box_digital_column.sql の頭書きと docs/ai/PHASE2.md の Alchemy/Historic 節）
+-- 05_vm_digital_column.sql — 開発側（VM）側: mtg_cards_v2 に digital 列・name_display の式差し替え・publication の列指定に digital
+-- （2026-08-31・方針「(B) やろっか」。設計は 06_box_digital_column.sql の頭書きと docs/ai/PHASE2.md の Alchemy/Historic 節）
 --
--- 順番: 箱で 06（列を先に）→ この 05 → 箱で REFRESH PUBLICATION (copy_data=false) → VM で sh/migrate_digital_20260831.sql（860 枚の合流）。
+-- 順番: 公開サーバーで 06（列を先に）→ この 05 → 公開サーバーで REFRESH PUBLICATION (copy_data=false) → VM で sh/migrate_digital_20260831.sql（860 枚の合流）。
 -- 走らせ方: docker exec -i pg18-primary psql -U devuser -d rag_dev -v ON_ERROR_STOP=1 -f - < sh/sisho_repl/05_vm_digital_column.sql
 --
--- 注意: publication の列指定は「表を外して足し直す」しか変えられない（PG18）。外している間の mtg_cards_v2 への書き込みは箱へ流れない
---       ので、この SQL と箱の REFRESH の間で mtg_cards_v2 を書かない（夜間便は 03:00〜・Scryfall 同期は手動）。
---       箱側は copy_data=false で表を再登録する（既に中身がある表を COPY し直すと主キー衝突で止まる）。
+-- 注意: publication の列指定は「表を外して足し直す」しか変えられない（PG18）。外している間の mtg_cards_v2 への書き込みは公開サーバーへ流れない
+--       ので、この SQL と公開サーバーの REFRESH の間で mtg_cards_v2 を書かない（夜間ジョブは 03:00〜・Scryfall 同期は手動）。
+--       公開サーバー側は copy_data=false で表を再登録する（既に中身がある表を COPY し直すと主キー衝突で止まる）。
 
 -- 1) 列
 ALTER TABLE public.mtg_cards_v2 ADD COLUMN IF NOT EXISTS digital boolean NOT NULL DEFAULT false;
 
--- 2) name_display の差し替え（箱と同じ式）
+-- 2) name_display の差し替え（公開サーバーと同じ式）
 ALTER TABLE public.mtg_cards_v2 DROP COLUMN IF EXISTS name_display;
 ALTER TABLE public.mtg_cards_v2 ADD COLUMN name_display text GENERATED ALWAYS AS (
   CASE

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """query_mtg_database・describe_mtg_tables の振る舞い（Step 4・2026-09-05）。
 
-SELECT 以外の拒否・複文・先頭コメントの札は tests/test_draft_set.py が縫っているので
+SELECT 以外の拒否・複文・先頭コメントのカードは tests/test_draft_set.py が縫っているので
 ここでは重ねない。ここで縫うのは **応答の抑制（行数・セル長）と日本語名の同伴、
 スキーマの窓の形**。行数概算や列の並びは環境で動くので、値でなく形で縫う。
 
@@ -70,8 +70,8 @@ def test_query_display_survives_unrelated_display_column():
     """無関係な列名（*_display）があっても同伴は止まらない（Step 5 修正 3）。
 
     Step 4 まで: 入口が「列名が *_display で終わる列が一つでもあれば全停止」だったため、
-    脳が `AS foo_display` と名付けた瞬間に完成形の同伴が丸ごと消えていた
-    （構造で塞いだ穴が、脳の名前の付け方で開く）。
+    クライアントが `AS foo_display` と名付けた瞬間に完成形の同伴が丸ごと消えていた
+    （構造で塞いだ穴が、クライアントの名前の付け方で開く）。
     """
     r = q("SELECT card_name, 1 AS foo_display FROM mtg_cards_v2"
           " WHERE card_name = 'Lightning Bolt'", 5)
@@ -85,7 +85,7 @@ def test_query_display_survives_unrelated_display_column():
 
 
 def test_query_display_does_not_collide_with_existing_column():
-    """脳が自分で `AS card_name_display` を作っていたら、その名前の列を二つにしない。"""
+    """クライアントが自分で `AS card_name_display` を作っていたら、その名前の列を二つにしない。"""
     r = q("SELECT card_name, name_display AS card_name_display FROM mtg_cards_v2"
           " WHERE card_name = 'Sol Ring'", 5)
     assert r.split("\n")[0] == "card_name | card_name_display", "同名の列を増やさない"

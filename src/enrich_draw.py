@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Draw 枚数列（draw_count / draw_x）の導出 — R14「ドロー族＝行為ベース」の検索側の写し。
 
-規約の正本: docs/me/grading_conventions.md R14（2026-07-23 制定・本人裁定）。
+規約の正本: docs/me/grading_conventions.md R14（2026-07-23 制定・設計判断）。
 審査材料: docs/me/draw_anchor_candidates_20260718.md。
 
 列の意味（機械的事実の列であって grade ではない）:
@@ -10,7 +10,7 @@
 - draw_x     bool : 可変枚数ドロー（Draw X / that many / equal to / for each）を
                     持つなら TRUE。無ければ NULL。
 
-前提の明示（design-premise・崩れたら本人に経路ごと問い直してもらう）:
+前提の明示（design-premise・崩れたら設計者に経路ごと問い直してもらう）:
 1. 行為ベース＝命令形のみ（R14）。置換文（... would draw ...）の中の draw は数えない
    （Dredge・倍化・概念泥棒は列 NULL。GT の 0/1 は人間採点側の仕事）。誘発の条件節
    （Whenever you draw ...,）は先頭コンマまで落としてから残りを数える（Sheoldred が

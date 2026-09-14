@@ -1,6 +1,6 @@
 """test_db_routes.py — sisho/db.py の _db と _db_readonly のルーティング試験（DB 不要）。
 
-psycopg2.connect を monkeypatch で差し替え、引数・execute・fetch・close・record_db_call・席の返却を検証する。
+psycopg2.connect を monkeypatch で差し替え、引数・execute・fetch・close・record_db_call・スロットの返却を検証する。
 """
 import pytest
 from db_config import DB_CONFIG
@@ -81,7 +81,7 @@ def test_db_route_success(fake_db):
     res = db._db("SELECT name, count FROM cards WHERE set = %s", ("MH3",))
     slot_after = db._DB_SLOTS._value
 
-    # 項目 1: options 以外の鍵が DB_CONFIG と一致し、options に statement_timeout=1000 を含む（既定は軽い線）
+    # 項目 1: options 以外の鍵が DB_CONFIG と一致し、options に statement_timeout=1000 を含む（既定は軽いレーン）
     assert len(calls) == 1
     cfg0 = calls[0]
     assert "statement_timeout=1000" in cfg0.get("options", "")
@@ -97,7 +97,7 @@ def test_db_route_success(fake_db):
     assert len(recorded) == 1, "record_db_call が 1 回"
     assert recorded[0][1] == "SELECT name, count FROM cards WHERE set = %s"
     assert recorded[0][0] >= 0
-    assert slot_after == slot_before, "席が返っている（_DB_SLOTS._value 不変）"
+    assert slot_after == slot_before, "スロットが返っている（_DB_SLOTS._value 不変）"
 
 
 def test_db_readonly_route_success(fake_db, monkeypatch):
@@ -116,8 +116,8 @@ def test_db_readonly_route_success(fake_db, monkeypatch):
     cfg = calls[0]
     assert cfg["user"] == "readonly_ai"
     assert cfg["password"] == "mock_roai_secret"
-    # 既定は重い線なので 10000ms（2026-09-14 本人裁定で反転・宣言し忘れを安全側へ倒す。
-    # 席の分割そのものは 2026-09-07 の裁定どおり 重い線 4 + バイパス 1）
+    # 既定は重いレーンなので 10000ms（2026-09-14 設計判断で反転・宣言し忘れを安全側へ倒す。
+    # スロットの分割そのものは 2026-09-07 の裁定どおり 重いレーン 4 + バイパス 1）
     assert cfg["options"] == "-c statement_timeout=10000"
     for k, v in DB_CONFIG.items():
         if k not in ("user", "password", "options"):
@@ -131,7 +131,7 @@ def test_db_readonly_route_success(fake_db, monkeypatch):
     assert conn.closed is True, "conn.close() が呼ばれる"
     assert len(recorded) == 1, "record_db_call が 1 回"
     assert recorded[0][1] == "SELECT card_name FROM cards"
-    assert slot_after == slot_before, "席が返っている"
+    assert slot_after == slot_before, "スロットが返っている"
 
 
 def test_db_readonly_description_none(fake_db):
@@ -145,7 +145,7 @@ def test_db_readonly_description_none(fake_db):
 
 
 def test_db_exception_cleans_up(fake_db):
-    """3. execute が例外を投げても close() と record_db_call が呼ばれ、例外はそのまま伝わり、席も返る。"""
+    """3. execute が例外を投げても close() と record_db_call が呼ばれ、例外はそのまま伝わり、スロットも返る。"""
     setup, calls, recorded = fake_db
     exc = ValueError("sql syntax error")
     cur, conn = setup(exc=exc)
@@ -158,11 +158,11 @@ def test_db_exception_cleans_up(fake_db):
     assert conn.closed is True, "例外時でも conn.close() が呼ばれる"
     assert len(recorded) == 1, "例外時でも record_db_call が呼ばれる"
     assert recorded[0][1] == "SELECT syntax error"
-    assert slot_after == slot_before, "例外時でも席が返る"
+    assert slot_after == slot_before, "例外時でもスロットが返る"
 
 
 def test_db_readonly_exception_cleans_up(fake_db):
-    """3b. _db_readonly で例外発生時も close() と record_db_call が呼ばれ、例外伝播、席返却。"""
+    """3b. _db_readonly で例外発生時も close() と record_db_call が呼ばれ、例外伝播、スロット返却。"""
     setup, calls, recorded = fake_db
     exc = RuntimeError("readonly error")
     cur, conn = setup(exc=exc)
@@ -175,4 +175,4 @@ def test_db_readonly_exception_cleans_up(fake_db):
     assert conn.closed is True, "例外時でも conn.close() が呼ばれる"
     assert len(recorded) == 1, "例外時でも record_db_call が呼ばれる"
     assert recorded[0][1] == "SELECT error"
-    assert slot_after == slot_before, "例外時でも席が返る"
+    assert slot_after == slot_before, "例外時でもスロットが返る"

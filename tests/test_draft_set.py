@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""draft_set の解決と SQL 先頭コメントの札（2026-09-03）。
+"""draft_set の解決と SQL 先頭コメントのカード（2026-09-03）。
 
 DB は _limited_sets の一覧取得にだけ触る（読み取り）。
 走らせ方: pytest tests/test_draft_set.py -v

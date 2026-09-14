@@ -32,7 +32,7 @@ def _j(*a, **k):
 
 
 def test_search_by_english_name():
-    """英語名で引くと、その札が先頭に来て、返り値の外枠の鍵が揃う。"""
+    """英語名で引くと、そのカードが先頭に来て、返り値の外枠の鍵が揃う。"""
     d = _j("Lightning Bolt", None, 3)
     assert set(d) >= {"route", "naming_rule", "cards"}, f"外枠の鍵（{list(d)}）"
     assert d["route"] == "simple_match", "名前が当たる語は素の一致（曖昧名に落ちない）"
@@ -42,17 +42,17 @@ def test_search_by_english_name():
 
 
 def test_search_by_japanese_name():
-    """日本語名でも同じ札に当たる（脳が日本語で引く経路）。"""
+    """日本語名でも同じカードに当たる（クライアントが日本語で引く経路）。"""
     d = _j("稲妻", None, 3)
     assert d["cards"][0]["card_name"] == "Lightning Bolt", "『稲妻』→ Lightning Bolt が先頭"
-    assert all("card_name" in c for c in d["cards"]), "各札に card_name"
+    assert all("card_name" in c for c in d["cards"]), "各カードに card_name"
 
 
 def test_search_partial_and_multiword_and():
-    """部分一致で拾い、空白区切りは AND（全語がどこかに載る札だけ）。"""
+    """部分一致で拾い、空白区切りは AND（全語がどこかに載るカードだけ）。"""
     d = _j("Lotus", None, 5)
     assert len(d["cards"]) >= 1, "部分一致で 1 件以上"
-    assert any("Lotus" in c["card_name"] for c in d["cards"]), "名前に部分一致した札が混じる"
+    assert any("Lotus" in c["card_name"] for c in d["cards"]), "名前に部分一致したカードが混じる"
 
     d = _j("飛行 吸血鬼", None, 5)
     assert len(d["cards"]) >= 1, "『飛行 吸血鬼』は 1 件以上"
@@ -62,7 +62,7 @@ def test_search_partial_and_multiword_and():
 
 
 def test_search_format_filter():
-    """format 指定はそのフォーマットで合法な札だけに絞る（不合法な札は消える）。"""
+    """format 指定はそのフォーマットで合法なカードだけに絞る（不合法なカードは消える）。"""
     assert "該当なし" in f("Ragavan, Nimble Pilferer", "standard", 5), (
         "Ragavan はスタンダード不合法＝絞ると残らない（曖昧名の救済も同じ絞りを通る）")
     d = _j("Ragavan, Nimble Pilferer", "modern", 5)
@@ -81,17 +81,17 @@ def test_search_top_k_bounds():
 
 
 def test_search_name_display_without_japanese():
-    """日本語版が無い札は「英語名（日本語版なし）」＋ japanese_name を null で明示。"""
+    """日本語版が無いカードは「英語名（日本語版なし）」＋ japanese_name を null で明示。"""
     c = _j("Helm of Obedience", None, 3)["cards"][0]
     assert c["card_name"] == "Helm of Obedience"
     assert c["name_display"] == "Helm of Obedience（日本語版なし）", "完成形は日本語版なしの表記"
     assert "japanese_name" in c and c["japanese_name"] is None, (
-        "不在を無言にしない＝鍵を残して None（脳が『無い』と読める）")
+        "不在を無言にしない＝鍵を残して None（クライアントが『無い』と読める）")
     assert "日本語版なし" in c["name_note"], "訳名を作らせない注記が付く"
 
 
 def test_search_two_faced_card_faces():
-    """両面・出来事の札は faces を同伴し、裏面で当たったらその面の完成形も返す。"""
+    """両面・出来事のカードは faces を同伴し、裏面で当たったらその面の完成形も返す。"""
     c = _j("Petty Theft", None, 3)["cards"][0]
     assert c["card_name"] == "Brazen Borrower // Petty Theft"
     assert c["name_display"] == "《厚かましい借り手/Brazen Borrower》", "name_display は表面固定"
@@ -133,18 +133,18 @@ def test_search_fuzzy_route_on_typo():
     """一致ゼロのときだけ曖昧名（pg_trgm）で救い、route でそれを申告する。"""
     d = _j("孤光のフェニックス", None, 3)      # 正しくは弧光
     assert d["route"] == "fuzzy_name", "救済経路は route に出る"
-    assert d["cards"][0]["card_name"] == "Arclight Phoenix", "打ち間違いから正しい札"
+    assert d["cards"][0]["card_name"] == "Arclight Phoenix", "打ち間違いから正しいカード"
 
 
 def test_search_digital_only_with_arena_format():
-    """既定は紙（digital は出ない）・Arena の形式を名指ししたときだけ Arena 専用札。"""
+    """既定は紙（digital は出ない）・Arena の形式を名指ししたときだけ Arena 専用カード。"""
     names = [c["card_name"] for c in _j("A-Acererak the Archlich", None, 5)["cards"]]
     assert "A-Acererak the Archlich" not in names, "既定は WHERE NOT digital"
 
     d = _j("A-Acererak the Archlich", "historic", 5)
     c = d["cards"][0]
-    assert c["card_name"] == "A-Acererak the Archlich", "historic なら Arena 専用札も出る"
-    assert c["digital"] is True and "紙には存在しない" in c["digital_note"], "Arena 専用の札だと返り値で言う"
+    assert c["card_name"] == "A-Acererak the Archlich", "historic なら Arena 専用カードも出る"
+    assert c["digital"] is True and "紙には存在しない" in c["digital_note"], "Arena 専用のカードだと返り値で言う"
 
 
 def test_search_limited_stats_shape():
@@ -164,7 +164,7 @@ def test_search_limited_stats_shape():
 
 
 def test_search_limited_stats_elsewhere():
-    """指定外のセットにしか統計が無い札は、数字でなく道しるべ（記号だけ）で返す。"""
+    """指定外のセットにしか統計が無いカードは、数字でなく道しるべ（記号だけ）で返す。"""
     d = _j("Lightning Bolt", None, 3)
     assert "limited_stats_elsewhere" in d, "別セットの統計は道しるべに留める"
     assert isinstance(d["limited_stats_elsewhere"], dict)
@@ -210,7 +210,7 @@ def test_search_unknown_format_ambiguous_is_not_guessed():
 
 
 def test_search_unknown_format_without_candidate_lists_valid():
-    """何にも似ていない format は検索せず一覧を返す（『鍵が無い』と『合法な札が無い』を区別する）。"""
+    """何にも似ていない format は検索せず一覧を返す（『鍵が無い』と『合法なカードが無い』を区別する）。"""
     d = _j("Lightning Bolt", "xyz", 3)
     assert "cards" not in d and "xyz" in d["error"]
     assert "standard" in d["valid_formats"]
@@ -221,7 +221,7 @@ def test_search_unknown_format_without_candidate_lists_valid():
 
 
 def test_search_format_note_is_kept_when_zero_hits():
-    """解釈し直した format は、結果が 0 件でも返り値に載せる（脳が『鍵が無い』と読めるように）。"""
+    """解釈し直した format は、結果が 0 件でも返り値に載せる（クライアントが『鍵が無い』と読めるように）。"""
     d = json.loads(f("Ragavan, Nimble Pilferer", "standrad", 3))
     assert d["error"].startswith("該当なし: ") and d["error_kind"] == "no_match", "standard 不合法なので 0 件"
     assert "standrad" in d["format_note"] and "standard" in d["format_note"], (
@@ -234,7 +234,7 @@ def test_search_format_check_is_skipped_when_list_unavailable(monkeypatch):
     元の意図（引けない環境で新しい失敗を作らない）はそのまま＝err は None・読み替えもしない。
     2026-09-14 に変えたのは「黙って」の部分だけ: 検査できなかったことを返り値の note に書く。
     黙って通していたせいで、綴り違いの format が legalities->>'…' に渡って全部 NULL になり、
-    「鍵が無い」のか「合法な札が無い」のか脳に区別がつかなかった（9/12 18:45 に箱で発生）。
+    「鍵が無い」のか「合法なカードが無い」のかクライアントに区別がつかなかった（9/12 18:45 に公開サーバーで発生）。
     """
     monkeypatch.setitem(cards._FORMATS_CACHE, "keys", [])
     monkeypatch.setattr(cards, "_db", lambda sql, params, lane=None: (_ for _ in ()).throw(RuntimeError("boom"))

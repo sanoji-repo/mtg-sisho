@@ -1,7 +1,7 @@
--- prob_functions.sql — 確率計算の SQL 関数（2026-09-04 本人「ひとまず最低限だけ作ろう」）
+-- prob_functions.sql — 確率計算の SQL 関数（2026-09-04 方針「ひとまず最低限だけ作ろう」）
 -- 掟: LLM に算術をさせない。計算は決定的な関数（IMMUTABLE・numeric）で、返り値の入口（MCP の mtg_probability）が式と入力を書き戻す。
 -- 走らせ方: VM   docker exec -i pg18-primary psql -U devuser -d rag_dev -v ON_ERROR_STOP=1 -f - < sql/prob_functions.sql
---           箱   sudo -u postgres psql -d rag_sisho -v ON_ERROR_STOP=1 -f /tmp/prob_functions.sql
+--           公開サーバー   sudo -u postgres psql -d rag_sisho -v ON_ERROR_STOP=1 -f /tmp/prob_functions.sql
 -- 論理レプリケーションは関数を運ばないので両方で流す（冪等・CREATE OR REPLACE）。readonly_ai は既定の PUBLIC EXECUTE で呼べる。
 
 -- 組み合わせ C(n, k)（numeric・n ≤ 1000 程度まで正確）
@@ -40,13 +40,13 @@ LANGUAGE sql IMMUTABLE STRICT AS $$
   SELECT 7 - mull + greatest(turn - CASE WHEN on_play THEN 1 ELSE 0 END, 0)
 $$;
 
--- t ターン目までに、K 枚入れた札を m 枚以上引く確率
+-- t ターン目までに、K 枚入れたカードを m 枚以上引く確率
 CREATE OR REPLACE FUNCTION mtg_prob_by_turn(deck integer, copies integer, turn integer, on_play boolean, m integer DEFAULT 1, mull integer DEFAULT 0) RETURNS numeric
 LANGUAGE sql IMMUTABLE STRICT AS $$
   SELECT mtg_hypergeom_atleast(deck, copies, least(mtg_cards_seen(turn, on_play, mull), deck), m)
 $$;
 
--- t ターン目まで土地を毎ターン置ける確率（＝t ターン目までに見た札の中に土地が t 枚以上）
+-- t ターン目まで土地を毎ターン置ける確率（＝t ターン目までに見たカードの中に土地が t 枚以上）
 CREATE OR REPLACE FUNCTION mtg_land_drops(deck integer, lands integer, turn integer, on_play boolean, mull integer DEFAULT 0) RETURNS numeric
 LANGUAGE sql IMMUTABLE STRICT AS $$
   SELECT mtg_hypergeom_atleast(deck, lands, least(mtg_cards_seen(turn, on_play, mull), deck), turn)

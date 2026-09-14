@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# convoy_20260821.sh — 新セット搬入便＋name_ja 修理 704 枚（2026-08-21・本人 GO「やろう。」朝）
+# convoy_20260821.sh — 新セット搬入便＋name_ja 修理 704 枚（2026-08-21・承認「やろう。」朝）
 #
-# 8/11 の護送船団の型を継ぐが、8/21 の「ルーター・門・腕 全撤廃」裁定により
+# 8/11 の護送船団の型を継ぐが、8/21 の「ルーター・絞り込みゲート・スコア補正部品 全撤廃」裁定により
 # **埋め込み工程（rebuild_embed_text / reembed）と API 載せ替え・eval は無い**。
 #   1. 退避     : 触る列を bak_convoy_20260821 へ（可逆）
 #   2. 取得     : Scryfall bulk（oracle_cards / all_cards・JSONL→配列包み直し）
@@ -110,4 +110,4 @@ sleep 3
 XDG_RUNTIME_DIR=/run/user/1003 systemctl --user is-active mtg-rag-mcp
 
 step "完了"
-echo "退避 bak_convoy_20260821 は検収 OK まで残す（DROP は本人 GO で）"
+echo "退避 bak_convoy_20260821 は検収 OK まで残す（DROP は承認を得てから）"

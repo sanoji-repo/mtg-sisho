@@ -185,7 +185,7 @@ def parse_dec(dec_text: str, sb_board: str = "side") -> tuple[str, str, list[tup
             board = "main"
 
         # "4 [MR] Counterspell" または "4 Counterspell"
-        # 注意: セット記号は空括弧 "[]" のこともある（2026-08-11・脳の MCP 検分が発見）。
+        # 注意: セット記号は空括弧 "[]" のこともある（2026-08-11・クライアントの MCP 検分が発見）。
         # 旧正規表現は [^\]]+ （1 文字以上）だったため "4 [] Counterspell" の空括弧を
         # 読み飛ばせず「[] Counterspell」として 20 万行/1 万デッキが汚染された。* に修正。
         m = re.match(r'^(\d+)\s+(?:\[[^\]]*\]\s+)?(.+)$', line)

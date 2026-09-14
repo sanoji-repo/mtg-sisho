@@ -1,13 +1,13 @@
--- 14_vm_rebalance_of.sql — 工場（VM）側: rebalance_of 列（A- 札 → 元カードの id・FK）を足し、publication に載せ、A- 216 枚を充填（2026-08-31 本人裁定）
--- 設計: 「A- は X のリバランス」を名前の接頭辞でなく列で持つ（8/31 の議論: 両面札の A- は裏面にも A- が付き、接頭辞の文字列手術で 13 枚を取りこぼした）。
+-- 14_vm_rebalance_of.sql — 開発側（VM）側: rebalance_of 列（A- カード → 元カードの id・FK）を足し、publication に載せ、A- 216 枚を充填（2026-08-31 設計判断）
+-- 設計: 「A- は X のリバランス」を名前の接頭辞でなく列で持つ（8/31 の議論: 両面カードの A- は裏面にも A- が付き、接頭辞の文字列手術で 13 枚を取りこぼした）。
 --       元カードは面ごとに A- を外した名前で探す（表・裏とも）。元が本線に無い A- は NULL（今は 0 枚のはず）。
 -- 走らせ方: docker exec -i pg18-primary psql -U devuser -d rag_dev -v ON_ERROR_STOP=1 -f - < sh/sisho_repl/14_vm_rebalance_of.sql
--- この後: 箱で REFRESH PUBLICATION (copy_data=false) → VM で UPDATE mtg_cards_v2 SET rebalance_of = rebalance_of WHERE rebalance_of IS NOT NULL（216 行を流す）。
+-- この後: 公開サーバーで REFRESH PUBLICATION (copy_data=false) → VM で UPDATE mtg_cards_v2 SET rebalance_of = rebalance_of WHERE rebalance_of IS NOT NULL（216 行を流す）。
 
 ALTER TABLE public.mtg_cards_v2 ADD COLUMN IF NOT EXISTS rebalance_of integer REFERENCES public.mtg_cards_v2(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS mtg_cards_v2_rebalance_of_idx ON public.mtg_cards_v2 (rebalance_of);
 
--- 充填（A- 札で、面ごとに A- を外した名前の元カードが本線に居るもの）
+-- 充填（A- カードで、面ごとに A- を外した名前の元カードが本線に居るもの）
 UPDATE public.mtg_cards_v2 a SET rebalance_of = b.id
   FROM public.mtg_cards_v2 b
  WHERE a.digital AND a.card_name LIKE 'A-%'

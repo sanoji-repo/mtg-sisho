@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # restore_public_dump.sh — 公開サーバー用 dump を別名 DB に復元し、検収してから差し替える（2026-08-23）
 # =========================================================================
-# 公開サーバー（公開箱）側で走らせる。工場の VM 内でも「予行」として同じものが走る（別 DB 名に復元するだけ）。
+# 公開サーバー側で走らせる。開発側の VM 内でも「予行」として同じものが走る（別 DB 名に復元するだけ）。
 # 流れ: 1) sha256 検証 → 2) <DB>_new を作成（既存なら落とす）→ 3) CREATE EXTENSION pg_trgm →
 #       4) pg_restore -j2 --no-owner --no-privileges --exit-on-error → 5) deck_list.player_name を DROP・Moxfield 行の source_url/deck_name を NULL →
 #       6) readonly_ai を用意（無ければ作る・SELECT を GRANT・資源上限・pg_sleep 剥奪）→ 7) ANALYZE →
@@ -45,8 +45,8 @@ fi
 NEW="${DB}_new"; OLD="${DB}_old"
 log "1) $NEW を用意"
 PSQL -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='$NEW'" >/dev/null
-# 2026-08-30: 箱は論理レプリカ（subscription sisho_sub）で追従する運用になった。restore は「初期化・作り直し」専用。
-#   subscription が生きたまま DB を差し替えると apply worker が旧 DB を掴んで DROP できず、VM 側のスロットも孤児になる → 先に箱で DROP SUBSCRIPTION sisho_sub。
+# 2026-08-30: 公開サーバーは論理レプリカ（subscription sisho_sub）で追従する運用になった。restore は「初期化・作り直し」専用。
+#   subscription が生きたまま DB を差し替えると apply worker が旧 DB を掴んで DROP できず、VM 側のスロットも孤児になる → 先に公開サーバーで DROP SUBSCRIPTION sisho_sub。
 NSUB=$(PSQL -d "$DB" -c "SELECT count(*) FROM pg_subscription" 2>/dev/null || echo 0)
 [ "${NSUB:-0}" = "0" ] || die "$DB に subscription が $NSUB 本ある。先に 'DROP SUBSCRIPTION sisho_sub' してから（docs/ai/SISHO_BOX.md §4）"
 PSQL -d postgres -c "DROP DATABASE IF EXISTS \"$NEW\"" || die "旧 $NEW を落とせない"
@@ -61,8 +61,8 @@ log "   復元 $(( $(date +%s)-t0 ))s"
 log "3) player_name を落とす・readonly_ai を用意・ANALYZE"
 PSQL -d "$NEW" <<SQL || die "後処理 SQL 失敗"
 ALTER TABLE deck_list DROP COLUMN IF EXISTS player_name;
--- 2026-08-30: Moxfield の条件「ユーザー名が出ない」（提供元の返信）＝URL からデッキページ（作者名つき）へ飛べるので URL とデッキ ID も箱には置かない
-ALTER TABLE deck_list ALTER COLUMN deck_name DROP NOT NULL;  -- deck_name は NOT NULL（dump 由来）・箱だけ外す（8/30 実測の罠）
+-- 2026-08-30: Moxfield の条件「ユーザー名が出ない」（提供元の返信）＝URL からデッキページ（作者名つき）へ飛べるので URL とデッキ ID も公開サーバーには置かない
+ALTER TABLE deck_list ALTER COLUMN deck_name DROP NOT NULL;  -- deck_name は NOT NULL（dump 由来）・公開サーバーだけ外す（8/30 実測の罠）
 UPDATE deck_list SET source_url = NULL, deck_name = NULL WHERE source = 'moxfield_edh' AND (source_url IS NOT NULL OR deck_name IS NOT NULL);
 DO \$\$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='readonly_ai') THEN

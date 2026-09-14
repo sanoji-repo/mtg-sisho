@@ -1,5 +1,5 @@
--- 11b_vm_card_name_generated.sql — 工場（VM）側・第二段: card_name を面の列から作る生成列に差し替える（R3-3・2026-08-31 本人 GO）
--- 前提: 11a → 箱 REFRESH → 箱 12 が済んでいる。
+-- 11b_vm_card_name_generated.sql — 開発側（VM）側・第二段: card_name を面の列から作る生成列に差し替える（R3-3・2026-08-31 承認）
+-- 前提: 11a → 公開サーバー REFRESH → 公開サーバー 12 が済んでいる。
 -- 面の契約 faces_back_matches_card_name（裏の有無 = 正式名の // の有無）は card_name が派生になった今は自明なので、列と一緒に落ちる。
 -- 走らせ方: docker exec -i pg18-primary psql -U devuser -d rag_dev -v ON_ERROR_STOP=1 -f - < sh/sisho_repl/11b_vm_card_name_generated.sql
 

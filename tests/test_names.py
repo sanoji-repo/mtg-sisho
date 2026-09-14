@@ -34,10 +34,10 @@ def test_resolve_face_name_prefers_front():
     assert names.resolve_face_name("Brazen Borrower")[0] == "Brazen Borrower // Petty Theft", (
         "表面の名前 → 正式名")
 
-    # 裏面名が別の本物のカード名と同じ札（実測 21 枚）。本物のカード（表面一致）が先頭に来る。
+    # 裏面名が別の本物のカード名と同じカード（実測 21 枚）。本物のカード（表面一致）が先頭に来る。
     got = names.resolve_face_name("Ancestral Recall")
     assert got[0] == "Ancestral Recall", f"本物のカードが先頭（{got}）"
-    assert "Emeritus of Ideation // Ancestral Recall" in got, f"裏面で当たる札も候補に残す（{got}）"
+    assert "Emeritus of Ideation // Ancestral Recall" in got, f"裏面で当たるカードも候補に残す（{got}）"
 
     assert names.resolve_face_name("Zzzqqq Xxxyyy") == [], "一致しなければ空（推測しない）"
     assert names.resolve_face_name("") == [] and names.resolve_face_name(None) == [], "空は DB へ行かない"

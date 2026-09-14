@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""is_mana_boost 列の再導出 — 「本業か付随か」線の実装（2026-07-26 本人裁定）。
+"""is_mana_boost 列の再導出 — 「本業か付随か」線の実装（2026-07-26 設計判断）。
 
 経緯: 列は 2026-06-24 に新設されたが導出スクリプトがリポジトリに残っておらず、
-2,419 行の値だけが「生きた化石」になっていた。7/26 のマナ直行路の実測棄却
+2,419 行の値だけが「生きた化石」になっていた。7/26 のマナ直行ルートの実測棄却
 （id=113・偽陽性を play-rate 順が増幅）を受けて、列の再定義とコード化を行う。
 このファイルが以後の正本（採点規約の対応節: docs/me/grading_conventions.md）。
 
-## 定義（二段の門）
+## 定義（二段の判定）
 
-**第一の門＝文脈（2026-07-26 本人裁定・R14「行為ベース」のマナ版の写し）**:
+**第一の判定＝文脈（2026-07-26 設計判断・R14「行為ベース」のマナ版の写し）**:
 マナ産出文のうち「本業」だけを数える。
 - 数える: 起動型能力（コスト: Add）・呪文の効果文（儀式）・常在/付与型・
   **自身の ETB 誘発**（Dockside/Prosperous Innkeeper＝R14 が draw で
@@ -20,7 +20,7 @@
   - 唱えるたび/攻撃時/ターン起点等の繰り返し誘発（裁定②=1: Birgi・Neheb）
   - 他者の死亡等・盤面依存の報酬（裁定③=1: Pitiless Plunderer・Revel in Riches）
 
-**第二の門＝量（2026-06-24 本人定義・不変）**:
+**第二の判定＝量（2026-06-24 の定義・不変）**:
 本業のマナ文について net-mana = 出すマナ − 払うマナ −（土地なら 1）> 0 のみ TRUE。
 - 払うマナ: 起動型はコロン左のマナシンボルのみ（タップ/生け贄/ライフ=0）。
   呪文（インスタント/ソーサリー）は唱えるコスト自体（使い切りだから）。
@@ -31,7 +31,7 @@
 値: TRUE=マナ加速の本業 / FALSE=マナ産出はあるが加速でない（フィルター・おまけのみ）/
 NULL=マナ産出文なし（不在は NULL・番兵禁止）。
 
-前提の明示（design-premise・崩れたら本人に経路ごと問い直してもらう）:
+前提の明示（design-premise・崩れたら設計者に経路ごと問い直してもらう）:
 1. 面選定は castable_oracle（手札から唱えられる面のみ・2026-07-15 共通規約）。
    これにより Tamiyo（裏面 PW の条件マナ）は自動で落ちる。
 2. 注釈括弧は原則除去するが、括弧除去後にマナ文が無く、括弧内に「{T}: Add」型の
@@ -82,9 +82,9 @@ DOUBLER_RE = re.compile(
     r"|causes? you to add[^.]*?\badd"
     r"|\badds?\s+(?:one|two|three|\{[^}]+\})?\s*additional\b"
     r"|\badds?\s+an\s+additional\b", re.I)
-# 打ち消し呪文の検出（2026-07-26 本人裁定「マナ吸収は1にしてしまおう」）:
+# 打ち消し呪文の検出（2026-07-26 設計判断「マナ吸収は1にしてしまおう」）:
 # 打ち消しを含む呪文の Add 文は付随（本業はカウンター・マナはおまけ）＝
-# 本人 7/23 の診断「打ち消せたら一回きりのおまけマナ」（PHASE2 §11 実例3枚目）の
+# 7/23 の診断「打ち消せたら一回きりのおまけマナ」（PHASE2 §11 実例3枚目）の
 # 列への写し。Mana Drain・Mana Sculpt・Plasm Capture・Spell Swindle 型が対象
 COUNTER_SPELL_RE = re.compile(r"\bcounter (target|that|all|it\b)", re.I)
 # 起動型（コロンの左＝コスト）
@@ -139,7 +139,7 @@ def _spell_cost(mana_cost: str) -> int:
 
 
 def parse_mana_boost(oracle: str, mana_cost: str, type_line: str):
-    """castable な oracle → True/False/None（docstring の二段の門）"""
+    """castable な oracle → True/False/None（docstring の二段の判定）"""
     raw = oracle or ''
     text = strip_reminder(raw)
     # 引用符内＝他のオブジェクトに与える能力（トークンへの付与等）は自分の産出
@@ -150,7 +150,7 @@ def parse_mana_boost(oracle: str, mana_cost: str, type_line: str):
     is_land = 'Land' in (type_line or '')
     is_spell = bool(re.search(r'\b(Instant|Sorcery)\b', type_line or ''))
     # 打ち消し呪文のマナは付随（本業はカウンター）＝マナ文があっても False 側
-    # （R15 追記・本人裁定 2026-07-26。カウンター系クエリでの採点には影響しない＝
+    # （R15 追記・設計判断 2026-07-26。カウンター系クエリでの採点には影響しない＝
     # これは is_mana_boost の話であって counter 判定は target_types の管轄）
     if is_spell and COUNTER_SPELL_RE.search(text):
         if ADD_RE.search(text) or TREASURE_RE.search(text):
@@ -198,20 +198,20 @@ def parse_mana_boost(oracle: str, mana_cost: str, type_line: str):
             continue
         found_any = True
 
-        # ── 第一の門: 文脈 ──
+        # ── 第一の判定: 文脈 ──
         # 倍化（裁定①）は文脈より先に判定する: High Tide は「Until end of
         # turn, whenever …」で始まり誘発頭に見えないが、倍化文なら文脈不問で
-        # 本業＆量の門も免除（増分がそのまま正）
+        # 本業＆量の判定も免除（増分がそのまま正）
         if DOUBLER_RE.search(sent):
             return True
         # 呪文（インスタント/ソーサリー）の本文に書かれた誘発は遅延誘発＝
-        # 効果の一部（Mana Drain）なので門を免除する。おまけ問題（Greedy/
+        # 効果の一部（Mana Drain）なので判定を免除する。おまけ問題（Greedy/
         # Birgi 型）はパーマネントの常設誘発の話
         if in_trigger and not is_spell:
             if not ETB_SELF_RE.search(sent):
                 continue        # おまけ（死亡時/攻撃時/唱えるたび/他者依存）＝数えない
 
-        # ── 第二の門: net-mana ──
+        # ── 第二の判定: net-mana ──
         # 可変判定（draw 版の写し＋拡張）: 文内に for each / equal to があれば
         # 出すマナ≈∞。窓を「Add 直後」に絞ると or 継ぎ（Culling Ritual
         # 「Add {B} or {G} for each …」）と文頭型（Brass's Bounty「For each

@@ -9,10 +9,10 @@ import_rulings.py — Scryfall 経由の公式裁定（Gatherer rulings）の搬
 出典: Scryfall の rulings バルク（毎日更新・jsonl.gz・圧縮 5MB 級）。
 Gatherer を直接スクレイプする必要はない（source='wotc' が公式裁定）。
 
-★運用メモ（2026-08-06 本人指示・忘れないこと）:
+★運用メモ（2026-08-06 方針・忘れないこと）:
   裁定は日々増える＝逐一アップデートが必要。**ローカルで使ううちは手動再走で
   足りるが、オンライン（クラウドの語り係が裁定を引く形）になったら定期更新の
-  仕組みが必須になる**（夜間便への相乗り or 新セット時の手動便・その日に裁定）。
+  仕組みが必須になる**（夜間ジョブへの相乗り or 新セット時の手動実行・その日に裁定）。
 
 設計の前提:
   - 裁定は oracle_id（カードの論理 ID）に紐づくが、mtg_cards_v2 に oracle_id 列は
@@ -37,7 +37,7 @@ import sys
 import ijson
 import psycopg2
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/（2026-09-05 Step 3・旧: 作者の工場の絶対パス）
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/（2026-09-05 Step 3・旧: 作者の開発環境の絶対パス）
 from db_config import DB_CONFIG
 
 CARDS_BULK = '/mnt/new_hdd/all_cards_scryfall.json'

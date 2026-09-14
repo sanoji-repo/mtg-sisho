@@ -612,7 +612,7 @@ def test_bin_fuda_cli(tmp_path):
 
 
 def test_gate_asgi_probes_are_rate_limited(tmp_path):
-    """14. 探り（無い札・知らないパス・閉じた旧パス・発行ページ）は IP の枠で数える（2026-09-07 本人指摘＝旧 RateLimitASGI の振る舞いの復元）。
+    """14. 探り（無い札・知らないパス・閉じた旧パス・発行ページ）は IP の枠で数える（2026-09-07 指摘＝旧 RateLimitASGI の振る舞いの復元）。
     札付きの正しい呼び出しは IP の枠を消費しない（claude.ai の出口 IP は共有）。除外 IP の探りは数えない。"""
     fuda_file = str(tmp_path / "fuda.tsv")
     store = FudaStore(fuda_file)
@@ -712,7 +712,7 @@ def test_gate_asgi_from_env_warns_empty_public_base(tmp_path, monkeypatch, caplo
     """17. B-2: MCP_PUBLIC_BASE が空のとき起動時に警告を出す。"""
     import logging
     monkeypatch.delenv("MCP_PUBLIC_BASE", raising=False)
-    monkeypatch.setenv("MCP_FUDA_FILE", str(tmp_path / "f.tsv"))     # 環境の実ファイルを読まない（Opus C-15）
+    monkeypatch.setenv("MCP_FUDA_FILE", str(tmp_path / "f.tsv"))     # 環境の実ファイルを読まない（内部レビュー C-15）
     async def dummy(scope, receive, send): pass
     with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
         GateASGI.from_env(dummy)

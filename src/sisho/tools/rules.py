@@ -9,7 +9,7 @@ from sisho.names import resolve_face_name
 from sisho.toollog import _log_tool
 
 
-# ─── ローカル DB 直結の道具（2026-08-10 深夜・本人「搬入が要るのでは」への答え）───
+# ─── ローカル DB 直結の道具（2026-08-10 深夜・方針「搬入が要るのでは」への答え）───
 # 試作サーバーは VM に住んでいるので、mtg_rules / card_rulings（ローカルのみ・
 # Aurora 未搬入）に直接手が届く。恒久版ではこの 2 本のデータを搬入 or 焼き込みする
 # （工程表 v0 の 1 番・Aurora/イメージ/VPS の裁定とセット）。読み取り専用クエリのみ。
@@ -38,7 +38,7 @@ def lookup_mtg_rule(query: str, limit: int = 12) -> str:
             " WHERE rule_number ~ %s ORDER BY rule_number LIMIT %s",
             (pat, limit), lane=LANE_LIGHT)
     else:
-        # 語検索は FTS の AND（2026-08-11・脳からのバグ報告「dies trigger simultaneous で
+        # 語検索は FTS の AND（2026-08-11・クライアントからのバグ報告「dies trigger simultaneous で
         # 該当なし」＝旧実装は句全体の部分一致で複数語に無力だった）。plainto_tsquery は
         # 全語 AND・語形正規化つき。ts_rank 順で条文らしさの高い順に返す。
         rows = _db(
@@ -50,7 +50,7 @@ def lookup_mtg_rule(query: str, limit: int = 12) -> str:
             (query, query, limit), lane=LANE_LIGHT)
         if not rows:
             # 全語 AND が不発なら OR に降りて「多く当たる順」（ts_rank が自然にやる）。
-            # 脳の実クエリは概念の羅列（dies trigger simultaneous…）なので全語一致は稀。
+            # クライアントの実クエリは概念の羅列（dies trigger simultaneous…）なので全語一致は稀。
             import re as _re2
             words = _re2.findall(r"[A-Za-z][A-Za-z'-]+", query)
             if len(words) >= 2:

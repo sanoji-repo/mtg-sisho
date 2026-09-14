@@ -1,7 +1,7 @@
--- 08_vm_face_columns_publish.sql — 工場（VM）側: 出所の列 2 本を足し、publication の mtg_cards_v2 の列指定に面の列 6 本を足す（R3-1a・2026-08-31 本人 GO）
--- 前提: 箱で 07 が済んでいる（箱に列が無いと apply が止まる）。
+-- 08_vm_face_columns_publish.sql — 開発側（VM）側: 出所の列 2 本を足し、publication の mtg_cards_v2 の列指定に面の列 6 本を足す（R3-1a・2026-08-31 承認）
+-- 前提: 公開サーバーで 07 が済んでいる（公開サーバーに列が無いと apply が止まる）。
 -- 走らせ方: docker exec -i pg18-primary psql -U devuser -d rag_dev -v ON_ERROR_STOP=1 -f - < sh/sisho_repl/08_vm_face_columns_publish.sql
--- この後: 箱で REFRESH PUBLICATION (copy_data=false) → VM で `UPDATE mtg_cards_v2 SET name_en_front = name_en_front`（全行に触って新列を流す）。
+-- この後: 公開サーバーで REFRESH PUBLICATION (copy_data=false) → VM で `UPDATE mtg_cards_v2 SET name_en_front = name_en_front`（全行に触って新列を流す）。
 -- japanese_name はまだ列指定に残す（09 で生成列に差し替えるときに外す）。
 
 ALTER TABLE public.mtg_cards_v2

@@ -21,7 +21,7 @@ pytestmark = requires_db
 
 fp = m.find_partner_cards.fn if hasattr(m.find_partner_cards, "fn") else m.find_partner_cards
 
-# 「《日本語名/英語名》: 12.3%（45 本同居・lift 6.7）」／日本語版なしの札は完成形が英語名（…）
+# 「《日本語名/英語名》: 12.3%（45 本同居・lift 6.7）」／日本語版なしのカードは完成形が英語名（…）
 ROW = re.compile(r"^(《[^》]+》|.+（(?:日本語版なし|日本語名未収録)）): [\d.]+%（\d+ 本同居・lift [\d.?]+）$")
 
 
@@ -35,7 +35,7 @@ def test_name_variants_absorbs_two_faced_names():
         "Brazen Borrower", "Brazen Borrower // Petty Theft"], "表の名前 → 正式名を足す（DB 引き）"
     assert partners._name_variants("Brazen Borrower // Petty Theft") == [
         "Brazen Borrower // Petty Theft", "Brazen Borrower"], "正式名 → 表の名前を足す"
-    assert partners._name_variants("Sol Ring") == ["Sol Ring"], "単面札は自分だけ"
+    assert partners._name_variants("Sol Ring") == ["Sol Ring"], "単面カードは自分だけ"
 
 
 def test_partners_edh_row_format():
@@ -68,7 +68,7 @@ def test_partners_rejects_bad_arguments():
 
 def test_partners_unknown_card():
     r = fp("Zzzqqq Xxxyyy", "edh", 3)
-    assert r.startswith("共起なし: Zzzqqq Xxxyyy"), "無い札は共起なし"
+    assert r.startswith("共起なし: Zzzqqq Xxxyyy"), "無いカードは共起なし"
     assert "英語の正式カード名" in r, "引き方を返り値に載せる"
 
 
@@ -117,9 +117,9 @@ if __name__ == "__main__":
 
 
 # ─── 分母の表（2026-09-14・#819）───────────────────────────────
-# 分母は毎回 deck_cards（1,376 万行）から数え直していたのをやめ、夜間便が作る
+# 分母は毎回 deck_cards（1,376 万行）から数え直していたのをやめ、夜間ジョブが作る
 # card_scope_deck_counts / scope_deck_counts から引くようにした。
-# 表を作るのは工場側（mtg_rag の src/recompute_card_format_strength.py）で、
+# 表を作るのは開発側（mtg_rag の src/recompute_card_format_strength.py）で、
 # scope → source の対応は **partners.py の _SCOPE_SOURCES が正本・あちらは写し**。
 # 写しがずれると分母だけ別の母集団になり、pct と lift が静かに狂うので試験で縫う。
 
@@ -132,13 +132,13 @@ def test_scope_tables_cover_every_scope():
 
     assert want <= have, (
         f"分母の表に無い scope がある（道具 {sorted(want)} / 表 {sorted(have)}）＝"
-        "工場の SCOPE_SOURCES が partners.py の写しとしてずれているか、夜間便が回っていない")
+        "開発側の SCOPE_SOURCES が partners.py の写しとしてずれているか、夜間ジョブが回っていない")
     for scope, n in rows:
         assert n > 0, f"scope {scope} の総デッキ数が 0（集計が壊れている）"
 
 
 def test_scope_table_matches_live_count():
-    """表の分母が、その場で数えた値と一致する（夜間便の集計が現物とずれていない）。
+    """表の分母が、その場で数えた値と一致する（夜間ジョブの集計が現物とずれていない）。
 
     値そのものは毎晩動くので、突き合わせは「同じ問いを 2 通りで解いて差が無いこと」で縫う。
     重い集計を避けるため、デッキ数の少ない precon で見る。

@@ -47,7 +47,7 @@ def add_japanese_columns(conn):
 def extract_printed_text(card: dict) -> tuple[str | None, str | None]:
     """日本語名・日本語テキストを抽出（両面カード対応）。
 
-    printed_name の面フォールバック（2026-08-21 修理・本人発見 8/20）:
+    printed_name の面フォールバック（2026-08-21 修理・8/20 に発見）:
     両面・分割カードの日本語印刷はトップレベル printed_name が無く、各面の
     printed_name にだけ日本語名が入る（実測 704 枚が「日本語テキストあり・
     日本語名なし」だった）。printed_text が既にやっている面フォールバックを
@@ -56,7 +56,7 @@ def extract_printed_text(card: dict) -> tuple[str | None, str | None]:
     ja_name = (card.get("printed_name") or "").strip() or None
     faces = card.get("card_faces") or []
     if not ja_name and faces:
-        # 本人裁定 2026-08-21: 「先頭面に日本語名があれば、日本語名を持つ面だけを
+        # 設計判断 2026-08-21: 「先頭面に日本語名があれば、日本語名を持つ面だけを
         # // で結合」。adventure/prepare の ja 印刷は Scryfall 側で当事者面の
         # printed_name が None（71 枚・厚かましい借り手等）＝全面必須だと永久に NULL。
         # カード上部の名前（先頭面）が本体なので、それを採り、無い面は足さない。
@@ -81,7 +81,7 @@ def extract_printed_text(card: dict) -> tuple[str | None, str | None]:
 
 
 def apply_manual_names(conn) -> int:
-    """手動補正表 name_ja_manual を最後に当てる（2026-08-24・本人裁定 (a)）。
+    """手動補正表 name_ja_manual を最後に当てる（2026-08-24・設計判断 (a)）。
 
     背景: Scryfall の一部 ja 印刷は面の printed_name に英語名が入っている
     （MH3 の両面 4 枚を実測・上流も未修正）＝抽出では永久に NULL。さらに全量監査
@@ -117,7 +117,7 @@ def run():
     ja_data: dict[str, tuple[str, str | None, str | None]] = {}
     skipped_empty = 0
 
-    # 別名義印刷（Universes Beyond の reskin）の除外（2026-08-11・本人発見の虫3）:
+    # 別名義印刷（Universes Beyond の reskin）の除外（2026-08-11・発見された虫 3）:
     #   実害: Ragavan の japanese_oracle_text が「ジタン・トライバルが〜」になっていた。
     #   機序: fca（Final Fantasy: Through the Ages）の**日本語版**は printed_name が
     #   正規名（敏捷なこそ泥、ラガバン）なのに printed_text だけキャラ名で書かれており、

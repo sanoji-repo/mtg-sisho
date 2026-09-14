@@ -55,7 +55,7 @@ def test_health_deep_matches_shallow():
 def test_health_reports_start_time_and_code_version():
     """再起動や配備のたびに「今動いているのはいつのコードか」を返り値だけで言えること（#814）。
 
-    2026-09-14 に追加。箱へは rsync で配ぶので .git が無く、VERSION が無ければ src の
+    2026-09-14 に追加。公開サーバーへは rsync で配ぶので .git が無く、VERSION が無ければ src の
     .py の最終更新を返す（値は日々変わるので形だけを縫う）。
     """
     d = json.loads(h(False))

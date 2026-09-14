@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """test_gate_live.py — GateASGI と mcp SDK 実通信・contextvar 伝播の live 試験（2026-09-07 小片 8）。
 
-DB が要る試験（Fable が VM で走らせる・@requires_db で印）。
-箱の設定（MCP_STATELESS=1）でしか保証していない（Opus のレビュー C-5）。
+DB が要る試験（VM で走らせる・@requires_db で印）。
+公開サーバーの設定（MCP_STATELESS=1）でしか保証していない（内部レビュー C-5）。
 """
 import asyncio
 import os

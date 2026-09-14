@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-"""mcp_server.py — MTG RAG のシンプル MCP（2026-08-21・本人裁定「全部撤廃」版）。
+"""mcp_server.py — MTG RAG のシンプル MCP（2026-08-21・設計判断「全部撤廃」版）。
 
-2026-08-21 本人裁定: ルーター・門・腕（mtg_hybrid_search_v2 のパイプライン一式）を
+2026-08-21 設計判断: ルーター・絞り込みゲート・スコア補正部品（mtg_hybrid_search_v2 のパイプライン一式）を
 撤廃し、MCP を DB 直結だけの最小構成にする。根拠は 8/11〜8/20 の実運用ログ
 （93 呼び出し中 SQL 53 / search 7・search の中身もルーター ollama 待ち 6〜86 秒 vs
-直行 65ms・脳は自前の ILIKE＋人気順で腕の仕事を代替済み）。利用者側に LLM（Claude）
+直行 65ms・クライアントは自前の ILIKE＋人気順でスコア補正部品の仕事を代替済み）。利用者側に LLM（Claude）
 が既にいる世界では、クエリ意図の解釈も曖昧文の束ねもクライアントの仕事＝サーバは
 検証済みの事実層を速く正確に返すことに徹する。
 
@@ -39,9 +39,9 @@ from sisho.tools import rules as _tool_rules
 from sisho.tools import sql as _tool_sql
 from sisho.tools import verify as _tool_verify
 
-# 収録概況は「絶対に嘘にならない下限」で書く（2026-08-25 本人裁定・単調増加する量は下限表記）。
+# 収録概況は「絶対に嘘にならない下限」で書く（2026-08-25 設計判断・単調増加する量は下限表記）。
 # 旧 _data_stamp（2026-08-11・起動時実測の焼き込み）は claude.ai がコネクタ登録時のキャッシュを
-# 持ち続けて 12 時間で 4 万件ずれた（Sisho 59,866 vs mtg-rag 99,827 事件・Opus 検証 2026-08-25）
+# 持ち続けて 12 時間で 4 万件ずれた（Sisho 59,866 vs mtg-rag 99,827 事件・検証 2026-08-25）
 # ＝instructions には変わる事実を書かない。版・日付は下限にできないので道具に投げる。
 # 正確な件数・ルール版・鮮度は mtg_rag_health が読んだ瞬間の実測を返す（分担）。
 
@@ -51,12 +51,12 @@ server = MCPServer(
     instructions=(
         "Magic: The Gathering の検証済み事実層。カード・総合ルール・公式裁定・"
         "実デッキ統計を、一次データから直接引ける。\n"
-        "収録: カード 3 万枚超（日本語テキスト付き・禁止改定は当日反映・Arena 専用札は digital 列で区別＝紙の照会は WHERE NOT digital）／総合ルール条文（条番号つき全文）／"
+        "収録: カード 3 万枚超（日本語テキスト付き・禁止改定は当日反映・Arena 専用カードは digital 列で区別＝紙の照会は WHERE NOT digital）／総合ルール条文（条番号つき全文）／"
         "公式裁定 7 万件超／実デッキ 10 万本超の採用率・共起／リミテッド（ドラフト）のカード別勝率・ピック順"
         "＝17Lands 公開データの集計（表 limited_card_stats・収録セットは describe_mtg_tables が実測で返す・"
         "答えに出典「17Lands」を添える）。集計元は Premier Draft（人間対面・Bo1）だが **Bo1 ドラフト一般の物差し**として扱う＝Quick Draft の問いにも「Quick Draft のデータは無い」と言わずこの数字を使う（カードの強さ・色の勝率は同じ物差し。ALSA/ATA の流れ方だけは人間対面の値＝ボット相手の Quick Draft ではレアが早く消えるなどずれるので流れの読みには使わない）。数字は下限——"
         "正確な件数・ルール版・データ鮮度は mtg_rag_health が読んだ瞬間の実測を返す。\n"
-        "【カード名の掟・最優先（2026-08-22 本人制定）】カード名は道具が返す完成形 name_display＝《日本語名/英語名》を"
+        "【カード名の掟・最優先】カード名は道具が返す完成形 name_display＝《日本語名/英語名》を"
         "**一字も変えずにそのまま書く**。略称・通称・省略（例: 《アトラクサ/Atraxa, Grand Unifier》と書くのは誤り・正しくは"
         "《偉大なる統一者、アトラクサ/Atraxa, Grand Unifier》）は**冗長でも絶対に使わない**。2 回目以降の言及も毎回完成形。"
         "道具を通していないカードは書かない（記憶で名前を書かない）。書き上げたら送信前に verify_answer に全文を渡す。\n"
@@ -82,7 +82,7 @@ server = MCPServer(
         "「コーリ鋼の短刀」であり「精鋼の魔女」のような訳名は誤り）。\n"
         "【書き方の掟】英語の問いには英語名（card_name）。"
         "日本語で書くときカード名は、毎回（2 回目以降も）道具が返す完成形 **name_display＝《日本語名/英語名》**（例: 《レンと七番/Wrenn and Seven》・"
-        "《睡蓮の原野/Lotus Field》）を**そのままコピーして**使う（自分で《》や訳名を組み立てない・2026-08-22 本人裁定）。"
+        "《睡蓮の原野/Lotus Field》）を**そのままコピーして**使う（自分で《》や訳名を組み立てない）。"
         "japanese_name が null のカードは name_display が「英語名（日本語版なし）」で返るので、それをそのまま書く。"
         "両面・出来事・分割カードの**裏面**（出来事の呪文側・変身後・分割の片方）を指すときは、返り値の faces[].display か face_display（その面の完成形《裏の日本語名/裏の英語名》）を使う。"
         "name_display は表面の完成形なので、表の日本語名と裏の英語名を組み合わせない（2026-08-31）。"
@@ -111,12 +111,12 @@ search_mtg_cards = server.tool(
     name="search_mtg_cards",
     description=_tool_cards.DESCRIPTION)(observed(_tool_cards.search_mtg_cards))
 
-# 確率計算の入口（2026-09-04 本人「あらゆる確率計算をどこかに格納して…」）= sisho/tools/probability.py
+# 確率計算の入口（2026-09-04 方針「あらゆる確率計算をどこかに格納して…」）= sisho/tools/probability.py
 mtg_probability = server.tool(
     name="mtg_probability",
     description=_tool_probability.DESCRIPTION)(observed(_tool_probability.mtg_probability))
 
-# Commander Spellbook（2026-09-04 本人 GO・外部 API を都度照会）= sisho/tools/combos.py
+# Commander Spellbook（2026-09-04 承認・外部 API を都度照会）= sisho/tools/combos.py
 find_combos = server.tool(
     name="find_combos",
     description=_tool_combos.DESCRIPTION)(observed(_tool_combos.find_combos))
@@ -134,12 +134,12 @@ find_partner_cards = server.tool(
     name="find_partner_cards",
     description=_tool_partners.DESCRIPTION)(observed(_tool_partners.find_partner_cards))
 
-# 自由 SQL の口（2026-08-11 本人発案）= sisho/tools/sql.py
+# 自由 SQL の口（2026-08-11 発案）= sisho/tools/sql.py
 query_mtg_database = server.tool(
     name="query_mtg_database",
     description=_tool_sql.QUERY_MTG_DATABASE_DESCRIPTION)(observed(_tool_sql.query_mtg_database))
 
-# 答案検査（2026-08-22 夕・本人裁定「選択肢 1」）= sisho/tools/verify.py
+# 答案検査（2026-08-22 夕・設計判断「選択肢 1」）= sisho/tools/verify.py
 verify_answer = server.tool(
     name="verify_answer",
     description=_tool_verify.DESCRIPTION)(observed(_tool_verify.verify_answer))
@@ -192,7 +192,7 @@ def _uvicorn_kwargs(port: int, log_level: str) -> dict:
 
     uvicorn の既定のアクセスログは要求行＝パス＝札の全文を書く。
     門の [gate] と道具ログで観測は足りる。
-    Opus のレビュー A-1・2026-09-07。
+    内部レビュー A-1・2026-09-07。
     """
     return {
         "host": "127.0.0.1",
@@ -212,13 +212,13 @@ if __name__ == "__main__":
         # 恒久のリモート版（工程表 3 番）では allowed_hosts を固定ドメインで縫うこと。
         from mcp.server.transport_security import TransportSecuritySettings
         port = int(sys.argv[2]) if len(sys.argv) > 2 else 8765
-        # 待ち受けパス（2026-08-22・本人裁定「2 で」）: Funnel のホスト名は CT ログで公開される
+        # 待ち受けパス（2026-08-22・設計判断「2 で」）: Funnel のホスト名は CT ログで公開される
         # ので、秘密は URL のパスに持たせる。既定 /mcp・本番は unit の EnvironmentFile
         # （~/.config/mtg-rag/mcp.env・claude 専用ホーム）から MCP_HTTP_PATH を注入。
         http_path = os.environ.get("MCP_HTTP_PATH", "/mcp")
         # stateless（2026-08-29・公開サーバーで採用）: claude.ai のコネクタは道具呼び出しをセッション ID
         # 無しで送ってくることがあり、既定（stateful）だと「Bad Request: Missing session ID」で
-        # 全滅する（箱の実測・health 1 回成功→以降 400）。道具はすべて独立（サーバ発の通知なし）
+        # 全滅する（公開サーバーの実測・health 1 回成功→以降 400）。道具はすべて独立（サーバ発の通知なし）
         # なので、リクエストごとに独立処理しても失うものは無い。MCP_STATELESS=1 で有効。
         stateless = os.environ.get("MCP_STATELESS", "") in ("1", "true", "yes")
         import uvicorn
@@ -227,7 +227,7 @@ if __name__ == "__main__":
             stateless_http=stateless,
             transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
             host="127.0.0.1")
-        # 停止は 3 秒で切り上げる（2026-08-31 17:45 の実測: 箱の再起動で uvicorn が「接続が閉じるのを待つ」まま
+        # 停止は 3 秒で切り上げる（2026-08-31 17:45 の実測: 公開サーバーの再起動で uvicorn が「接続が閉じるのを待つ」まま
         # systemd の TimeoutStopSec=15 に掛かり SIGKILL → 'timeout' 失敗 → OnFailure（Discord＋ビープ）が鳴った。
         # claude.ai のコネクタが SSE を掴んだままにするので、待っても閉じない。SDK の run() は uvicorn.Config に
         # graceful の上限を渡さないため、ここで uvicorn を直接組む。道具は 1 秒未満で返るので 3 秒あれば取りこぼさない）

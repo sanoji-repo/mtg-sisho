@@ -1,8 +1,8 @@
--- 15_vm_add_limited_extra.sql — 工場（VM）側: 17Lands の追加集計 5 表を publication に足す（2026-09-02・本人 GO「A はいる」）
+-- 15_vm_add_limited_extra.sql — 開発側（VM）側: 17Lands の追加集計 5 表を publication に足す（2026-09-02・承認「A はいる」）
 -- 走らせ方（VM で）:
 --   docker exec -i pg18-primary psql -U devuser -d rag_dev -v ON_ERROR_STOP=1 -f - < sh/sisho_repl/15_vm_add_limited_extra.sql
--- 順番: この 15 → 箱で 16_box_add_limited_extra.sql（表を作ってから REFRESH PUBLICATION）。
--- 設計: 生成列（wr・on_play_wr・avg_turns・gih_wr・gp_wr・avg_event_wins）は publication に載せない＝箱が同じ式で自分で計算（07〜12 と同じ掟）。
+-- 順番: この 15 → 公開サーバーで 16_box_add_limited_extra.sql（表を作ってから REFRESH PUBLICATION）。
+-- 設計: 生成列（wr・on_play_wr・avg_turns・gih_wr・gp_wr・avg_event_wins）は publication に載せない＝公開サーバーが同じ式で自分で計算（07〜12 と同じ掟）。
 --       表の中身は色・ランク帯・カード名と集計値だけ（人の名前・ID は無い）。出典 17Lands（CC BY 4.0）。01_vm_publication.sql にも同じ行を足してある。
 
 GRANT SELECT ON public.limited_color_stats, public.limited_matchup_stats, public.limited_format_stats,

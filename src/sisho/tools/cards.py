@@ -14,7 +14,7 @@ from sisho.sets_blurb import _SETS_BLURB, _SETS_HEAD
 from sisho.toollog import _log_tool
 
 
-# Arena の形式。これを名指しされたときだけ digital（Arena 専用札・2026-08-31 合流）を検索に含める。
+# Arena の形式。これを名指しされたときだけ digital（Arena 専用カード・2026-08-31 合流）を検索に含める。
 # 既定の検索は紙＝WHERE NOT digital（列 → 並べ方の掟: 紙と Arena 専用を混ぜて並べない）。
 ARENA_FORMATS = {"historic", "alchemy", "timeless", "brawl", "standardbrawl", "gladiator"}
 
@@ -24,9 +24,9 @@ _CARD_COLS: tuple[str, ...] = (
     "name_en_front", "name_en_back", "name_ja_front", "name_ja_back",
 )
 
-# 不明な format の扱い（2026-09-05 Step 5 修正 4・本人裁定「一意で近いなら直して再検索・返り値に必ず書く／
+# 不明な format の扱い（2026-09-05 Step 5 修正 4・設計判断「一意で近いなら直して再検索・返り値に必ず書く／
 # 複数候補なら直さず選ばせる／遠ければ一覧」）。Step 4 まで legalities->>'modrn' を引くだけだったので、
-# 「そんな鍵は無い」と「その鍵で合法な札が無い」が同じ「該当なし」に潰れていた。
+# 「そんな鍵は無い」と「その鍵で合法なカードが無い」が同じ「該当なし」に潰れていた。
 _FORMATS_CACHE: dict = {"keys": []}
 # 一意判定のしきい値。difflib.SequenceMatcher の比（0〜1）で 0.8。実物（DB の鍵 23 個）で決めた:
 #   打ち間違い（modrn 0.909・standrad 0.875・brwl 0.889・comander 0.941・bralw 0.800・modren 0.833）は
@@ -41,13 +41,13 @@ _FORMAT_CUTOFF = 0.8
 def _valid_formats() -> list[str]:
     """legalities の鍵の一覧（プロセスに 1 回だけ引く）。引けなければ空。
 
-    2026-09-14: 全 32,730 行の jsonb を展開していた（VM 380ms）。箱では 9/12 18:45 に
-    軽い線の 1 秒も重い線の 10 秒も超えて落ち、下の _check_format が「検査できなかった」と
+    2026-09-14: 全 32,730 行の jsonb を展開していた（VM 380ms）。公開サーバーでは 9/12 18:45 に
+    軽いレーンの 1 秒も重いレーンの 10 秒も超えて落ち、下の _check_format が「検査できなかった」と
     言わずに素通ししていた。鍵はカードごとに変わらないので**先頭 100 行で足りる**
     （実測: 100 行でも 23 鍵すべて揃う・1.3ms。欠けるのは competitivebrawl を持たない 1 枚だけ
     なので、1 行では不足しうるが 100 行なら他が埋める）。
     線は重いまま（既定）にしてある——プロセスに 1 回しか引かないので、速くなったからといって
-    予約席を使う理由がない。
+    予約スロットを使う理由がない。
     """
     if _FORMATS_CACHE["keys"]:
         return _FORMATS_CACHE["keys"]
@@ -75,7 +75,7 @@ def _check_format(fmt: str) -> tuple[str, str, str | None]:
     if not valid:
         # 鍵の一覧を引けなかった＝検査できない。通すが黙っては通さない（2026-09-14）。
         # 以前はここで素通ししていたので、綴りが違う format が legalities->>'…' に渡り、
-        # 全部 NULL ≠ 'legal' で「該当なし」に見えていた（脳には区別がつかない）。
+        # 全部 NULL ≠ 'legal' で「該当なし」に見えていた（クライアントには区別がつかない）。
         return fmt, (f"format「{fmt}」は検査できなかった（legalities の鍵の一覧を DB から引けなかった）。"
                      "0 件なら鍵の綴りを疑う"), None
     listing = "・".join(valid)
@@ -89,7 +89,7 @@ def _check_format(fmt: str) -> tuple[str, str, str | None]:
                "どれかを指定して呼び直す")
     else:
         kind = errors.UNKNOWN_FORMAT
-        err = (f"format が不明: 「{fmt}」（legalities にその鍵は無い＝『合法な札が無い』のではなく『鍵が無い』）。"
+        err = (f"format が不明: 「{fmt}」（legalities にその鍵は無い＝『合法なカードが無い』のではなく『鍵が無い』）。"
                "有効な鍵から選んで呼び直すか、format を外して検索する")
     return fmt, "", errors.err_json(kind, err, valid_formats=valid)
 
@@ -115,7 +115,7 @@ DESCRIPTION = (
 def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, draft_set: str | None = None) -> str:
     """query: 検索語（空白区切りは AND）。format: legalities の鍵名。top_k: 1〜20。
 
-    2026-08-21 裁定「ルーター・門・腕の全撤廃」後の姿。旧実装は API(:8000) の
+    2026-08-21 裁定「ルーター・絞り込みゲート・スコア補正部品の全撤廃」後の姿。旧実装は API(:8000) の
     ハイブリッド検索を叩いていたが、実運用でこの道具に来るのはほぼ名前引き
     （8/11〜8/20 の 7 件中 6 件）で、ルーター経由 6〜86 秒の待ちだけが残っていた。
     素の一致検索＝決定的・LLM ゼロ・1 秒未満に置き換える。"""
@@ -123,7 +123,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     q = query.strip()
     if not q:
         # 2026-09-05（Step 6 作業 3）: この道具の答えは JSON なので error も JSON に揃える
-        # （素の文字列と JSON が混ざると脳が読み方を切り替えられない）。文言には
+        # （素の文字列と JSON が混ざるとクライアントが読み方を切り替えられない）。文言には
         # 「何が分からなかったか」と「次に何を試すか」の両方を入れる。
         return errors.err_json(
             errors.EMPTY_QUERY,
@@ -136,7 +136,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
         return fmt_err
     fmt_sql = " AND legalities->>%s = 'legal'" if fmt else ""
     if fmt not in ARENA_FORMATS:
-        fmt_sql += " AND NOT digital"          # 既定は紙。Arena の形式を名指しされたときだけ Arena 専用札も
+        fmt_sql += " AND NOT digital"          # 既定は紙。Arena の形式を名指しされたときだけ Arena 専用カードも
     cols = ", ".join(_CARD_COLS)
 
     # 1) 名前ヒット: クエリ全体を名前に部分一致（完全一致を先頭へ）
@@ -157,7 +157,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     p2 += ([fmt] if fmt else []) + [top_k]
     # 2026-09-06（Antigravity 監査の提言 1 を実測で置き換え）: 名前ヒットが top_k 件あれば本文ヒットは
     # 下の詰め合わせで 1 件も使われない（名前を先に詰めて top_k で止まる）＝引かない。出力は不変。
-    # 箱の実引数 187 通りを VM で再生: 本文検索は 1 検索 339ms のうち平均 260ms（77%）で、実運用の
+    # 公開サーバーの実引数 187 通りを VM で再生: 本文検索は 1 検索 339ms のうち平均 260ms（77%）で、実運用の
     # 大半は名前引き（top_k 1〜3）。p1 と p2 を 1 文に束ねても仕事量は減らないので、そちらは採らない。
     if len(name_rows) >= top_k:
         text_rows: list = []
@@ -169,15 +169,15 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
 
     keep = _CARD_COLS
     def _row(r: tuple) -> dict:
-        """japanese_name だけは None でも落とさず明示する（2026-08-21 本人指摘:
-        脳が Helm of Obedience のような日本語版の無いカードに勝手な訳名を作った。
-        「無い」を返り値で言わないと、脳は無言を「自分で訳してよい」と読む）。"""
+        """japanese_name だけは None でも落とさず明示する（2026-08-21 指摘:
+        クライアントが Helm of Obedience のような日本語版の無いカードに勝手な訳名を作った。
+        「無い」を返り値で言わないと、クライアントは無言を「自分で訳してよい」と読む）。"""
         d = {k: v for k, v in zip(keep, r) if v is not None}
         if d.get("japanese_name") is None:
             d["japanese_name"] = None
             d["name_note"] = ("日本語名未収録（Arena には日本語版あり）＝name_display をそのまま使う（訳名を作らない）" if d.get("digital")
                               else "日本語版なし＝name_display をそのまま使う（訳名を作らない）")
-        # 面（2026-08-31 R3-4）: 多面札は faces を同伴し、裏面で当たったときはその面の完成形も返す（name_display は表面固定）
+        # 面（2026-08-31 R3-4）: 多面カードは faces を同伴し、裏面で当たったときはその面の完成形も返す（name_display は表面固定）
         enb = d.pop("name_en_back", None); jab = d.pop("name_ja_back", None)
         enf = d.pop("name_en_front", None); jaf = d.pop("name_ja_front", None)
         def _face_disp(en, ja):
@@ -192,7 +192,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
                 d["face_display"] = _face_disp(enb, jab)
                 d["face_note"] = "検索語は裏面（出来事・変身後・分割の片方）に当たった。その面を指すときは face_display を使う"
         if d.get("digital"):
-            d["digital_note"] = "Arena 専用の札（アルケミー・A- リバランス等）＝紙には存在しない。紙の話では挙げない"
+            d["digital_note"] = "Arena 専用のカード（アルケミー・A- リバランス等）＝紙には存在しない。紙の話では挙げない"
         else:
             d.pop("digital", None)
         return d
@@ -207,7 +207,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
             break
     # 3) 一致ゼロのときだけ、曖昧名（pg_trgm 類似度・しきい値 0.3）で救う。
     #    実例: 「孤光のフェニックス」（正しくは弓へんの「弧光」・類似度 0.54）。
-    #    旧・名前直行門が持っていた打ち間違い耐性の、SQL 一本での置き換え（2026-08-21）。
+    #    旧・名前の直行ルートが持っていた打ち間違い耐性の、SQL 一本での置き換え（2026-08-21）。
     route = "simple_match"
     if not cards:
         route = "fuzzy_name"
@@ -237,9 +237,9 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
             "（語を減らす・言い換える・または query_mtg_database で SQL を書く。"
             "日本語名が分からないカードは英語名で引き直すこと＝訳名を推測しない）",
             **({"format_note": format_note} if format_note else {}))
-    # 17Lands の同伴（2026-09-03 本人「同伴は速さの道具＝高確率で当たる分だけ付ける」）:
+    # 17Lands の同伴（2026-09-03 方針「同伴は速さの道具＝高確率で当たる分だけ付ける」）:
     #   draft_set あり → そのセットだけ／不明な記号 → 数字は付けず一覧を返す／なし → 最新 N セット（既定 2）だけ。
-    #   それ以外のセットにしか無い札は、一行の道しるべ（limited_stats_elsewhere）に留める。
+    #   それ以外のセットにしか無いカードは、一行の道しるべ（limited_stats_elsewhere）に留める。
     requested = _resolve_draft_set(draft_set) if draft_set else None
     constructed = bool(fmt) and not requested and fmt.lower() not in ("limited", "draft", "sealed")
     if constructed:
@@ -262,7 +262,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
                                  f"手持ち（新しい順・記号（名前））: {_sets_line()}。正しい記号で呼び直す")
     if elsewhere:
         out["limited_stats_elsewhere"] = elsewhere
-        out["limited_stats_elsewhere_note"] = ("これらの札には別のセットの 17Lands 統計がある（記号のみ列挙）。"
+        out["limited_stats_elsewhere_note"] = ("これらのカードには別のセットの 17Lands 統計がある（記号のみ列挙）。"
                                                "そのセットのドラフトの問いなら draft_set=<記号> で呼び直す。構築の問いなら無視してよい")
     if any("limited_stats" in c for c in cards):
         scope = (f"対象セット: {'・'.join(allowed)}（" + ("draft_set で指定" if requested else f"既定＝手持ちの最新 {_DRAFT_RECENT_N} セット。別のセットの問いなら draft_set を指定") + "）。")
@@ -282,11 +282,11 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
 
 
 def _attach_limited_stats(cards: list[dict], sets: list[str] | None = None) -> dict[str, list[str]]:
-    """検索結果の各札に、17Lands 集計（limited_card_stats）があればセット別に同伴する（2026-09-02）。
+    """検索結果の各カードに、17Lands 集計（limited_card_stats）があればセット別に同伴する（2026-09-02）。
 
-    発端: 脳が SOS の札の GIH WR を聞かれ、mtg_cards_v2 と information_schema を手探りしたまま
+    発端: クライアントが SOS のカードの GIH WR を聞かれ、mtg_cards_v2 と information_schema を手探りしたまま
     表に辿り着かなかった（instructions は claude.ai に届かない＝返り値に載っていないものは無いのと同じ）。
-    行が無い札にはキーを出さない（不在は無言でなく、脳が「無い」と読めるように limited_stats_note で線引き）。
+    行が無いカードにはキーを出さない（不在は無言でなく、クライアントが「無い」と読めるように limited_stats_note で線引き）。
     表が無い環境（旧 VM 等）では何もしない。
     2026-09-03: sets（記号の一覧）に入るセットの行だけ同伴し、それ以外のセットは card_name→[記号] で返す（道しるべ用）。"""
     names = [c["card_name"] for c in cards if c.get("card_name")]
@@ -383,11 +383,11 @@ def _archetype_lines(code: str) -> str:
 def _limited_archetypes(sets: list[str]) -> dict:
     """セットごとの色の組み合わせ別勝率（2 色・タッチ無し・limited_color_stats）を search の返り値に同伴する。
 
-    発端（2026-09-02 本人）: 「アーキタイプ別勝率を参考にしながら、と言わないと SOS に無いアーキタイプ
-    （有効色）でデッキを作り出す」。返り値に載っていない表は脳が引かない前提（8/22 裁定）なので、
-    札の統計を付けたセットについて 2 色の組み合わせをプレイ数順で丸ごと（10 行）載せる（勝率順だと
+    発端（2026-09-02）: 「アーキタイプ別勝率を参考にしながら、と言わないと SOS に無いアーキタイプ
+    （有効色）でデッキを作り出す」。返り値に載っていない表はクライアントが引かない前提（8/22 裁定）なので、
+    カードの統計を付けたセットについて 2 色の組み合わせをプレイ数順で丸ごと（10 行）載せる（勝率順だと
     母数 100 戦の組み合わせが上位に混ざって読み違える＝SOS で実測）。share_pct はセット内の割合＝成立しない
-    組み合わせ（SOS の WU 0.04% 等）を脳が構造で見分けるための列。
+    組み合わせ（SOS の WU 0.04% 等）をクライアントが構造で見分けるための列。
     baseline_wr はセット全体の勝率（limited_format_stats のランク帯合算）＝組み合わせの良し悪しの基準線。
     色の列が無いセット（STX）や表が無い環境では空。"""
     if not sets:
