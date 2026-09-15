@@ -21,6 +21,10 @@ ARENA_FORMATS = {"historic", "alchemy", "timeless", "brawl", "standardbrawl", "g
 _CARD_COLS: tuple[str, ...] = (
     "card_name", "japanese_name", "type_line", "mana_cost", "power", "toughness",
     "rarity", "oracle_text", "japanese_oracle_text", "edhrec_rank", "name_display", "digital",
+    # 2026-09-16: 収録セット。draft_set を渡されたとき「どれがそのセットのカードか」を
+    # 返り値自身に書くために引く（下の _mark_draft_set）。掟「返り値は自己完結」。
+    # 面の列 4 本は末尾に置いたまま（_row がそこを前提に扱う・test_card_cols が縫っている）。
+    "set_codes",
     "name_en_front", "name_en_back", "name_ja_front", "name_ja_back",
 )
 
@@ -109,9 +113,29 @@ DESCRIPTION = (
     "【draft_set（リミテッドの掟）】ドラフト・シールド・リミテッドの問いで、ユーザーがセットを示したら"
     "（#SOS のようなタグ・「SOS のクイックドラフト」・セット名 Secrets of Strixhaven 等）、"
     "そのセット記号（例 SOS）を draft_set に必ず入れる。以後その会話でセットが変わるまで毎回入れる。"
+    "draft_set は**検索を絞る指定ではない**（その会話のセットを伝えるもの）＝別のセットのカードも候補に並ぶので、"
+    "各カードの in_draft_set（true ならそのセットに収録）と set_codes（収録セット一覧）で必ず確かめてから選ぶこと。"
+    "画像やうろ覚えから引いて候補が複数出たときは、名前の近さや並び順で決めず、in_draft_set と"
+    "色・マナ・タイプを突き合わせて確定する（並びはリミテッドの強さ順ではない）。"
     "入れると 17Lands の統計と色の組み合わせ表がそのセットの分だけ同伴する（他セットは付かない）。"
     "構築（スタンダード・モダン等）の問いでは入れない。セットが分からないリミテの問いは空のまま＝最新セットの分が付く。"
     + _SETS_BLURB)
+def _mark_draft_set(cards: list[dict], expansion: str) -> None:
+    """各カードに in_draft_set（そのセットに入っているか）を立てる（2026-09-16）。
+
+    由来: ChatGPT での実地テストで、画像から読んだ曖昧な名前を「聖遺」のような部分文字列で
+    引く使い方が出た。draft_set は **検索を絞らない**（17Lands 統計を添えるセットの指定）ので
+    別セットのカードが EDHREC 人気順に並び、唯一のそのセット収録カードが 5 番目に沈んでいた。
+    返り値に収録セットが無いため、どれがそのセットかを**クライアントが判断できない**状態で、
+    「誤読 → 部分一致 → 複数候補 → もっともらしい 1 枚を選ぶ」の入口になっていた。
+    絞る・並べ替えるのでなく、**事実を足して判断材料を渡す**（列 → 並べ方の順番）。
+    """
+    low = expansion.lower()
+    for c in cards:
+        codes = [str(x).lower() for x in (c.get("set_codes") or [])]
+        c["in_draft_set"] = low in codes
+
+
 def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, draft_set: str | None = None) -> str:
     """query: 検索語（空白区切りは AND）。format: legalities の鍵名。top_k: 1〜20。
 
@@ -241,6 +265,8 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     #   draft_set あり → そのセットだけ／不明な記号 → 数字は付けず一覧を返す／なし → 最新 N セット（既定 2）だけ。
     #   それ以外のセットにしか無いカードは、一行の道しるべ（limited_stats_elsewhere）に留める。
     requested = _resolve_draft_set(draft_set) if draft_set else None
+    if requested:
+        _mark_draft_set(cards, requested)     # どれがそのセットのカードかを候補ごとに書く
     constructed = bool(fmt) and not requested and fmt.lower() not in ("limited", "draft", "sealed")
     if constructed:
         allowed: list[str] = []      # 構築の format 指定（modern 等）はドラフトの問いでない＝同伴なし（道しるべだけ）

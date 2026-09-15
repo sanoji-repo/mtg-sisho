@@ -9,7 +9,7 @@ from sisho.tools import cards
 
 EXPECTED_COLS_STR = (
     "card_name, japanese_name, type_line, mana_cost, power, toughness, rarity, "
-    "oracle_text, japanese_oracle_text, edhrec_rank, name_display, digital, "
+    "oracle_text, japanese_oracle_text, edhrec_rank, name_display, digital, set_codes, "
     "name_en_front, name_en_back, name_ja_front, name_ja_back"
 )
 
@@ -20,9 +20,9 @@ def test_card_cols_joined_string():
 
 
 def test_card_cols_count_and_uniqueness():
-    """2. len(cards._CARD_COLS) == 16 で重複が無いこと。"""
-    assert len(cards._CARD_COLS) == 16
-    assert len(set(cards._CARD_COLS)) == 16
+    """2. len(cards._CARD_COLS) == 17 で重複が無いこと（2026-09-16 に set_codes を追加）。"""
+    assert len(cards._CARD_COLS) == 17
+    assert len(set(cards._CARD_COLS)) == 17
 
 
 def test_card_cols_head_and_tail():
