@@ -52,8 +52,16 @@ def test_verify_bare_english_name():
 
 
 def test_verify_bare_japanese_name():
-    """裸の日本語名（4 文字以上）→ 完成形。"""
-    assert _fixed("太陽の指輪を入れる。") == "《太陽の指輪/Sol Ring》を入れる。"
+    """裸の日本語名は **報告だけ**（2026-09-15 に振る舞いを変えた）。
+
+    以前は 4 文字以上の日本語カード名 31,011 語を無条件に完成形へ書き換えていたが、
+    カード名と同形の一般語（漢字 4〜5 字だけで 1,169 語）まで書き換えて
+    「存在しないカードに言及した答案」を作る事故が実戦で出た。機械では決められないので
+    判断を答案側に返す。同じ答案が《》でカードとして言及済みなら直す（下の試験）。
+    """
+    r = v("太陽の指輪を入れる。")
+    assert "裸のカード名 1 件" in r and "《太陽の指輪/Sol Ring》" in r
+    assert _fixed("太陽の指輪を入れる。") == "太陽の指輪を入れる。", "本文は書き換えない"
 
 
 def test_verify_full_form_is_left_alone():
@@ -101,12 +109,15 @@ def test_verify_card_without_japanese_stays_english():
 
 
 def test_verify_protects_italics_and_parentheses():
-    """*斜体*（アーキタイプ名）の中と（）の中は触らない。"""
-    assert _fixed("*太陽の指輪デッキ* は速い。太陽の指輪を入れる。") == (
-        "*太陽の指輪デッキ* は速い。《太陽の指輪/Sol Ring》を入れる。")
+    """*斜体*（アーキタイプ名）の中と（）の中は触らない——書き換えでも報告でも。"""
     assert _fixed("（太陽の指輪）と Lightning Bolt。") == "（太陽の指輪）と 《稲妻/Lightning Bolt》。"
     assert _fixed("*Lightning Bolt deck* は速い。Lightning Bolt を入れる。") == (
         "*Lightning Bolt deck* は速い。《稲妻/Lightning Bolt》 を入れる。")
+    # 既出の日本語名を直すときも保護域は避ける（2 度目の言及だけが完成形になる）
+    assert _fixed("《Sol Ring》。*太陽の指輪デッキ* は速い。太陽の指輪を入れる。") == (
+        "《太陽の指輪/Sol Ring》。*太陽の指輪デッキ* は速い。《太陽の指輪/Sol Ring》を入れる。")
+    # 保護域の中にしか無い語は報告もしない（斜体のアーキタイプ名を毎回指摘しない）
+    assert "裸のカード名" not in v("*太陽の指輪デッキ* が速い。")
 
 
 def test_verify_english_with_japanese_gloss():
@@ -245,3 +256,83 @@ def test_mana_claim_attributes_to_nearest_name():
     t = "《Lightning Bolt》は 1 マナ、《Kutzil, Malamet Exemplar》は 3 マナ。"
     head = _head(t)
     assert "食い違い" not in head and "2 件一致" in head
+
+
+# ─── 誤検知の修理（2026-09-15・別セッションのクイックドラフト実戦で 7 パターンが挙がった）────
+# どれも「本文の数字は正しいのに照合の紐付けだけが誤る」型＝答案側が直しようのない誤報なので、
+# 掟「誤発動＝有害・取り逃し＝無害」に従って誤発動をゼロにする側へ倒す。
+
+def test_mana_claim_does_not_cross_a_newline():
+    """(a) 箇条書きの直後の行にある数字を、リスト最終行のカードに紐付けない。
+
+    実戦の形: 17Lands の一覧を出した直後に「4 マナのインスタントで…」と書くと、
+    最終行のカードと照合されて食い違いが出ていた（右窓が改行を越えていた）。
+    """
+    t = "候補:\n- 《Lightning Bolt》: GIH WR 58.2%\n4 マナのインスタントなら色を足す価値がある。"
+    assert "マナ・コスト" not in _head(t)
+
+
+def test_mana_curve_table_does_not_borrow_the_next_label():
+    """(b) カーブ表でラベルとカード名が交互に並ぶとき、次の行のラベルを拾わない。
+
+    実戦では 1 つの答案で 4 件まとめて出た型。ラベル→カード名→ラベル…の構造上必ず踏む。
+    """
+    t = "1 マナ: 《Lightning Bolt》\n3 マナ: 《Kutzil, Malamet Exemplar》"
+    head = _head(t)
+    assert "食い違い" not in head and "2 件一致" in head
+
+
+def test_mana_range_matches_either_end():
+    """(d) 「N から M マナ」の範囲表記は、どちらかに一致すれば食い違いにしない。"""
+    assert "食い違い" not in _head("《Lightning Bolt》は 1 から 2 マナの帯。")
+    assert "食い違い" not in _head("《Lightning Bolt》は 0 〜 1 マナで撃てる。")
+    # 範囲のどちらにも当たらなければ従来どおり食い違い
+    assert "食い違い 1 件" in _head("《Lightning Bolt》は 4 から 5 マナ。")
+
+
+def test_mana_symbol_respects_reduction_clause():
+    """(2) 記号 {N} 側にも軽減の判定を効かせる（マナ側にはあったが記号側に無かった）。
+
+    実戦の形: 軽減量を波括弧で書くと、それをカードのマナ・コストとして照合していた。
+    同じ答案に「軽減条項があるので判定しない」という注意も出て、判定側と注意側が
+    同じ数値を別々に解釈している状態だった。
+    """
+    head = _head("《Quicksand Whirlpool》は条件を満たすとコストが {3} 少なくなる。")
+    assert "食い違い" not in head
+    assert "マナ・コストの注意 1 件" in head
+
+
+def test_bare_japanese_word_is_not_turned_into_a_card():
+    """(4) 答案に一度も出ていないカード名と同じ一般語を、勝手に完成形へ書き換えない。
+
+    実戦の形: 報告書の見出しに使った普通の名詞が《…/…》に化けた。誤検知の中で最も危険で、
+    気づかずに修正版を採用すると「存在しないカードに言及した答案」が出来上がる。
+    対象の裸の日本語名は 31,011 語あり、漢字 4〜5 字の一般語だけで 1,169 語が入っていた。
+    """
+    for word in ("決定的瞬間", "環境科学者", "応用幾何学"):
+        t = f"## {word}\n\nこの節では{word}について述べる。"
+        assert _fixed(t) == t, f"「{word}」がカード名に化けた"
+
+
+def test_bare_japanese_name_is_fixed_when_already_quoted():
+    """裸の日本語名の修正そのものは残す＝同じ答案に完成形で出ているカードの 2 度目の言及は直す。
+
+    掟「2 回目以降の言及も毎回完成形」に対応する。答案側が《》で書いた＝カードとして
+    言及した宣言があるので、ここで直すのは誤発動にならない。
+    """
+    t = "《Lightning Bolt》は軽い。稲妻をもう一枚積みたい。"
+    assert _fixed(t) == "《稲妻/Lightning Bolt》は軽い。《稲妻/Lightning Bolt》をもう一枚積みたい。"
+
+
+def test_unknown_name_candidates_are_not_noise():
+    """(5) 候補の類似度が低すぎると、ひな形の語に実在カードを勧めてしまう。
+
+    実戦では説明用に書いた《カード名》に「カー砦」が候補として出た（類似度 0.286）。
+    正当な誤字は「氷巻きの偵察」→「水巻きの偵察」0.400・「太陽の指輪」→「太陽の指環」0.500
+    なので、その間（0.35）に線を引く。候補が消えても未確認の報告は残る。
+    """
+    r = v("書き方の例: 《カード名》のように書く。")
+    assert "未確認の名前 1 件" in r, "DB に無い名前の報告自体は残す"
+    assert "カー砦" not in r, "類似度の低い候補は勧めない"
+    # 1 文字違いの本物の誤字には候補が出る
+    assert "水巻きの偵察" in v("《氷巻きの偵察》を取った。")

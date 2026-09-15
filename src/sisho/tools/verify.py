@@ -93,9 +93,18 @@ def _mana_check(fixed: str, cost: dict) -> list[str]:
             if sep in left:
                 left = left[left.rfind(sep) + 1:]
         right = fixed[m.end():m.end() + 70]
-        right = right[:right.find("。")] if "。" in right else right
-        right = right[:right.find("《")] if "《" in right else right
+        # 2026-09-15: 右窓も改行で切る（左窓は最初から切っていた）。実戦で出た誤検知 10 件のうち
+        # 9 件がこれ——箇条書きの直後の行の数字を最終行のカードが拾う／カーブ表（「1 マナ: 《A》」の
+        # 次の行が「2 マナ: 《B》」）で前の行のカードが次の行のラベルと照合される、の 2 型。
+        # 行が変われば別の主張、が日本語の書き方の実態に合う。
+        for sep in ("。", "\n", "《"):
+            if sep in right:
+                right = right[:right.find(sep)]
         window = left + "《》" + right
+        # 範囲表記「N から M マナ」（〜・~・- も）は、両端のどちらに当たっても一致とみなす。
+        # 単純に findall すると後ろの M だけ拾って「5 から 6 マナ」を 6 マナの主張と読んでいた。
+        rng = {int(b): (int(a), int(b)) for a, b in
+               re.findall(r"(\d+)\s*(?:から|〜|~|–|-|ー)\s*(\d+)\s*マナ", window)}
         claims = [(int(n), "マナ") for n in re.findall(r"(\d+)\s*マナ", window)]
         claims += [(sym.replace(" ", ""), "記号") for sym in re.findall(r"(?:\{[0-9XWUBRGCSP/]+\})+", window)]
         if not claims:
@@ -107,7 +116,8 @@ def _mana_check(fixed: str, cost: dict) -> list[str]:
                 continue
             seen.add(key)
             if kind == "マナ":
-                if val == int(cmc) if float(cmc).is_integer() else False:
+                lo, hi = rng.get(val, (val, val))
+                if float(cmc).is_integer() and lo <= int(cmc) <= hi:
                     ok += 1
                 elif soft:
                     notes.append(f"  - 《{m.group(1)}/{en}》: DB は {mc or '（コスト無し）'}（{_fmt(cmc)} マナ）・答案は {val} マナ"
@@ -119,6 +129,13 @@ def _mana_check(fixed: str, cost: dict) -> list[str]:
                     continue
                 if val == mc.replace(" ", ""):
                     ok += 1
+                elif soft:
+                    # 2026-09-15: 記号側にも軽減の判定を効かせる（マナ側にはあったのに抜けていた）。
+                    # 実戦では軽減量を波括弧で書いた「コストが {2} 少なくなる」をコスト主張と読み、
+                    # 同じ答案に「軽減条項があるので判定しない」という注意も並んで出ていた。
+                    notes.append(f"  - 《{m.group(1)}/{en}》: DB は {mc}・答案は {val}"
+                                 + (f"＝軽減条項あり「{red}」（軽減後の数字は答案側で確かめる）" if red
+                                    else "（軽減・実質の文なので判定しない）"))
                 else:
                     mism.append(f"  - 《{m.group(1)}/{en}》: DB では {mc}・答案は {val}")
     lines = []
@@ -138,8 +155,10 @@ def _mana_check(fixed: str, cost: dict) -> list[str]:
 DESCRIPTION = (
     "【答えを出す前の最後の一手・必須】日本語でカード名を含む答えを書き上げたら、送信する前に必ず全文をこれに渡し、返った修正版を答えにする。"
     "答案中のカード名を DB に照合し、(1) 《》の中身が DB に無い名前（自分で訳した名前・誤字・略記）を列挙し、"
-    "近い正式名の候補を添える (2) 《英語名》・《日本語名》・裸の英語名・裸の日本語名を完成形《日本語名/英語名》に直した"
-    "修正版（カード名は完成形《日本語名/英語名》）の全文を返す。未確認の名前が残っていれば、そのカードを search_mtg_cards で引いてから答えること。"
+    "近い正式名の候補を添える (2) 《英語名》・《日本語名》・裸の英語名・（同じ答案で既に《》に入れたカードの）裸の日本語名を"
+    "完成形《日本語名/英語名》に直した修正版の全文を返す。まだ《》に入れていない裸の日本語名は、DB のカード名と同じ語でも"
+    "**書き換えず一覧で知らせる**（一般語と同じ形のカード名があるため機械では決めない）＝カードを指すなら答案側で完成形に直すこと。"
+    "未確認の名前が残っていれば、そのカードを search_mtg_cards で引いてから答えること。"
     "(3) 完成形のカード名の近くにある「N マナ」「{…}」を DB の mana_cost/cmc と照合し、食い違いを列挙する（X 呪文・分割は判定しない・"
     "軽減条項のあるカードは条項を添えて判定しない）。未確認ゼロ・食い違いゼロなら修正版をそのまま答えに使う。Web 不要・DB 直結・1 秒未満。")
 
@@ -163,6 +182,9 @@ def verify_answer(text: str) -> str:
     # 《X》（English）の English（初出添え）を控える＝X が DB に無いとき正式名を引く最強の手がかり
     en_after = {b.strip(): e.strip() for b, e in re.findall(r"《([^《》]+)》\s*[（(]([A-Za-z][^）)]*)[）)]", text)}
     unknown, fixed, n_fix = [], text, 0
+    # この答案が《》でカードとして言及した日本語名（2026-09-15）。裸の日本語名を完成形へ直すのは
+    # この集合に限る＝答案側の「これはカードだ」という宣言が先にある場合だけ触る。
+    quoted_ja: set = set()
     def _disp(ja, en):
         return face_display(en, ja)
     def _pair(ja, en):
@@ -186,6 +208,7 @@ def verify_answer(text: str) -> str:
             jkey, ekey = jpart.strip().replace(" ", ""), epart.strip()
             true_ja = en_ja.get(ekey)
             if true_ja is not None and jkey in (true_ja.replace(" ", ""), true_ja.split(" // ")[0].replace(" ", "")):
+                quoted_ja.add(jpart.strip())        # 既に完成形＝カードとして言及済み
                 continue
             if ekey in en_ja:                           # 英語半分は正しい・日本語半分が違う（記憶の訳）→ 正しい完成形を第一候補に
                 cand = _pair(true_ja, ekey) if true_ja else _noja(ekey)
@@ -195,6 +218,7 @@ def verify_answer(text: str) -> str:
             unknown.append((b, [])); continue            # 両方 DB に無い（カード自体が未収録 or 創作）
         if key in ja_full:                             # 《日本語名》だけ → 完成形へ（同じ粒度の英語と組む）
             ja_name = ja_full[key]
+            quoted_ja.add(ja_name)
             en_name = ja_en.get(ja_name)
             if en_name:
                 fixed = fixed.replace(f"《{b}》", _pair(ja_name, en_name)); n_fix += 1
@@ -202,6 +226,7 @@ def verify_answer(text: str) -> str:
         if b in en_ja:
             ja = en_ja[b]
             if ja:                                     # 《英語名》→《日本語名/英語名》（面の名前ならその面の対）
+                quoted_ja.add(ja)
                 fixed = fixed.replace(f"《{b}》", _pair(ja, b)); n_fix += 1
             continue                                   # 日本語版なしの英語名はそのまま
         # DB に無い: 近い正式名を候補として添える（添えられた英語名があればそれが第一候補）
@@ -209,9 +234,13 @@ def verify_answer(text: str) -> str:
         e = en_after.get(b)
         if e and e in en_ja:
             cands.append(en_ja[e] or _noja(e))
+        # 閾値 0.35（2026-09-15 に 0.25 から上げた）。実測: 「カード名」→「カー砦」0.286 という
+        # ひな形への誤候補が出ていた一方、正当な誤字は「氷巻きの偵察」→「水巻きの偵察」0.400・
+        # 「太陽の指輪」→「太陽の指環」0.500 で、その間に線が引ける。候補が消えても
+        # 「未確認」の報告自体は残る＝答案側は search_mtg_cards で引ける（取り逃しは無害）。
         cands += [c[0] for c in _db(
             "SELECT japanese_name FROM mtg_cards_v2 WHERE japanese_name IS NOT NULL"
-            " AND similarity(japanese_name, %s) > 0.25"
+            " AND similarity(japanese_name, %s) > 0.35"
             " ORDER BY similarity(japanese_name, %s) DESC LIMIT 3", (b, b)) if c[0] not in cands]
         unknown.append((b, cands))
     # (2) 裸の英語名（日本語名あり）→《日本語名》（英語名）。《》の中・括弧の中は触らない
@@ -230,12 +259,30 @@ def verify_answer(text: str) -> str:
     for e in (x for x in N["en_bare"] if x in fixed):
         pat = re.compile(r"(?<![A-Za-z])" + re.escape(e) + r"(?![A-Za-z])")
         new = _outside(pat, _pair(en_ja[e], e), fixed)
-        n_fix += (new != fixed); fixed = new
-    # (3) 裸の日本語名→《日本語名》
-    for j in (x for x in N["ja_bare"] if x in fixed):
+        if new != fixed:
+            quoted_ja.add(en_ja[e])                    # 裸の英語名から起こした分もカードとして言及済み
+            n_fix += 1
+        fixed = new
+    # (3) 裸の日本語名 → 完成形。**答案が《》でカードとして言及した名前だけ**を直す（2026-09-15）。
+    # 以前は「4 文字以上でストップリストに無い」日本語名 31,011 語を無条件に置換していたため、
+    # カード名と同じ形の一般語（漢字 4〜5 字だけで 1,169 語・「決定的瞬間」「環境科学者」等）を
+    # 文脈と無関係に完成形へ書き換えていた＝**存在しないカードへの言及を答案に注入する**事故。
+    # ストップリストを事故のたびに足す形は掟「誤発動ゼロを試験で縫えないものは入れない」に反する。
+    # 既出に限れば答案側の「これはカードだ」という宣言が先にあるので誤発動しない。
+    # 副産物: 長さの条件が要らなくなり、《稲妻》のような 4 文字未満の名前の 2 度目の言及も直る。
+    for j in sorted((x for x in quoted_ja if x), key=len, reverse=True):
         en_name = ja_en.get(j)
         new = _outside(re.compile(re.escape(j)), _pair(j, en_name) if en_name else f"《{j}》", fixed)
         n_fix += (new != fixed); fixed = new
+    # (3b) 既出でない裸の日本語名は **報告だけ**（書き換えない）。カード名と同形の一般語が
+    # 1,169 語以上あるので機械では決められない——が、黙って見逃すと掟「カード名は毎回完成形」が
+    # 静かに破れる。だから判断を答案側に返す: 誤りなら無視でき、本物なら直せる（害の非対称）。
+    bare_ja = []
+    for j in N["ja_bare"]:
+        if j in quoted_ja or j not in fixed:
+            continue
+        if _outside(re.compile(re.escape(j)), "\x00", fixed) != fixed:   # 保護域（《》・括弧・斜体）の外にある
+            bare_ja.append(j)
     # 完成形《ja/en》の直後に重複の（en）が残っていれば削る
     fixed = re.sub(r"(《[^》/]+/([^》]+)》)\s*[（(]\2[）)]", r"\1", fixed)
     # 機械修正の途中で二重に囲んだ箇所（《《X》》）が生じていれば戻す（入口の畳みで残った分の保険）
@@ -248,6 +295,13 @@ def verify_answer(text: str) -> str:
             lines.append(f"  - 《{b}》 → 候補: " + ("／".join(c) if c else "（近い名前なし・日本語版なしなら英語名のまま）"))
     else:
         lines.append("未確認の名前: なし（《》の中身はすべて DB の正式名）。")
+    if bare_ja:
+        lines.append(f"裸のカード名 {len(bare_ja)} 件（この語は DB のカード名と同じ。カードを指すなら完成形"
+                     "《日本語名/英語名》で書き直すこと。カードでなく普通の語として書いたなら無視してよい"
+                     "＝一般語と同形のカード名があるので機械では直さない）:")
+        for j in sorted(bare_ja, key=len, reverse=True)[:10]:
+            en_name = ja_en.get(j)
+            lines.append(f"  - 「{j}」 → {_pair(j, en_name) if en_name else '《' + j + '》'}")
     if n_collapse:
         lines.append(f"二重の囲み《《…》》を {n_collapse} 箇所 1 重に畳んでから照合した（畳んだ上で完成形に直す）。")
     lines.append(f"機械修正 {n_fix} 箇所（裸の英語名・《英語名》・《日本語名》・裸の日本語名 → 完成形《日本語名/英語名》）。")
