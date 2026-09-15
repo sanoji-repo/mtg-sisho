@@ -265,3 +265,35 @@ def test_search_survives_missing_limited_tables(monkeypatch):
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
+
+
+def test_draft_set_marks_which_cards_are_in_that_set():
+    """draft_set を渡したら、どのカードがそのセットに入っているかを返り値に書く。
+
+    由来（2026-09-16・ChatGPT での実地テスト）: 画像から読んだ名前が曖昧なとき、
+    ChatGPT は「聖遺」のような部分文字列で引いていた。draft_set='LCI' は
+    **検索を絞らない**（17Lands 統計を添えるセットの指定）ので、別セットのカードが
+    EDHREC 人気順で並び、唯一の LCI 収録カードは 5 番目に沈んでいた。しかも返り値に
+    収録セットが無いため、どれがそのセットかを**クライアントが判断できなかった**。
+    誤同定の連鎖（誤読 → 部分一致 → 複数候補 → もっともらしい 1 枚を選ぶ）の入口。
+    掟「MCP の返り値は自己完結させる」に従い、事実を足して判断材料を渡す。
+    """
+    import json
+    d = json.loads(f("聖遺", top_k=10, draft_set="LCI"))
+    cards = d["cards"]
+    assert len(cards) >= 3, "複数候補が返る前提の試験"
+    for c in cards:
+        assert "in_draft_set" in c, f"{c['name_display']} に in_draft_set が無い"
+    hit = [c for c in cards if c["in_draft_set"]]
+    assert [c["name_display"] for c in hit] == ["《薄暮薔薇の聖遺/Dusk Rose Reliquary》"], (
+        f"LCI 収録はこの 1 枚だけのはず（実際: {[c['name_display'] for c in hit]}）")
+    # そのセットに入っていない候補も、どこ収録かが分かる
+    other = [c for c in cards if not c["in_draft_set"]][0]
+    assert other.get("set_codes"), f"{other['name_display']} に収録セットが無い"
+
+
+def test_no_draft_set_means_no_in_draft_set_key():
+    """draft_set を渡していないときは in_draft_set を足さない（毎回の税にしない）。"""
+    import json
+    d = json.loads(f("Lightning Bolt", top_k=1))
+    assert "in_draft_set" not in d["cards"][0]
