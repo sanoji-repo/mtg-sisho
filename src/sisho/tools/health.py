@@ -67,17 +67,24 @@ def mtg_rag_health(deep: bool = False) -> str:
             "  FROM (SELECT count(*) AS n, max(tournament_date)::text AS latest FROM deck_list) d", ())
         n_card, n_rule, n_rul, n_deck, latest = rows[0]
         # ドラフト統計（17Lands 集計・limited_card_stats）は表が無い環境もあるので別口で・失敗は 0
+        # 2026-09-15: 表が無い（未搬入）と、照会できない（障害・権限・timeout）を分ける。
+        # 以前はどちらも 0 にして status: ok を返していたので、「本当に 0 件」と
+        # 「引けなかった」が区別できなかった（掟「不在は NULL・番兵禁止」）。
+        n_l17, l17_note = None, None
         try:
             n_l17 = _db("SELECT COUNT(DISTINCT expansion) FROM limited_card_stats", (), lane=LANE_LIGHT)[0][0]
-        except Exception:
-            n_l17 = 0
+        except Exception as exc:
+            if "does not exist" in str(exc) or "UndefinedTable" in type(exc).__name__:
+                n_l17, l17_note = 0, "limited_card_stats が無い環境（17Lands 未搬入）"
+            else:
+                l17_note = f"17Lands の収録セット数を照会できなかった（{type(exc).__name__}）＝0 件という意味ではない"
         return json.dumps({
             "status": "ok",
             "db_latency_ms": int((time.time() - t0) * 1000),
             "cards": n_card, "rules": n_rule, "rulings": n_rul,
             "decks": n_deck, "latest_deck": latest,
-            "draft_stat_sets": n_l17,
-            "draft_stat_note": "17Lands 集計・表 limited_card_stats・セット一覧は describe_mtg_tables",
+            "draft_stat_sets": n_l17,          # 照会できなかったときは null（0 と区別する）
+            "draft_stat_note": l17_note or "17Lands 集計・表 limited_card_stats・セット一覧は describe_mtg_tables",
             # 再起動や配備のたびに「今動いているのはいつのコードか」を返り値だけで言えるように（#814）
             "started_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(_STARTED)),
             "uptime_hours": round((time.time() - _STARTED) / 3600, 1),

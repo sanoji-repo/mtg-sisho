@@ -74,16 +74,37 @@ def test_health_survives_missing_limited_table(monkeypatch):
 
     2026-09-14: 行数の SQL を「deck_list を 1 回だけ走査する形」に変えたので、
     偽の _db が返す組も 5 つ組のまま（列の意味と順番は変えていない）。
+    2026-09-15: 本物の _db は lane を取るので偽物も **kwargs で受ける（受けないと
+    TypeError になり、下の「照会できなかった」側に落ちて意図と違う経路を縫ってしまう）。
     """
-    def fake(sql, params):
+    def fake(sql, params, **kw):
         if "limited_card_stats" in sql:
-            raise RuntimeError("relation does not exist")
+            raise RuntimeError('relation "limited_card_stats" does not exist')
         return [(1, 2, 3, 4, "2026-09-05")]
 
     monkeypatch.setattr(health, "_db", fake)
     d = json.loads(h(False))
     assert d["status"] == "ok" and d["draft_stat_sets"] == 0, "表が無くても health は ok"
     assert d["cards"] == 1 and d["latest_deck"] == "2026-09-05"
+    assert "未搬入" in d["draft_stat_note"], "0 件の理由を書く"
+
+
+def test_health_distinguishes_unreachable_from_zero(monkeypatch):
+    """照会できなかったときは 0 でなく null（別モデルのレビューで指摘）。
+
+    以前はタイムアウトも権限不備も draft_stat_sets=0 にして status: ok を返していたので、
+    「本当に 17Lands が 0 件」と「引けなかった」が利用者から区別できなかった。
+    """
+    def fake(sql, params, **kw):
+        if "limited_card_stats" in sql:
+            raise RuntimeError("canceling statement due to statement timeout")
+        return [(1, 2, 3, 4, "2026-09-05")]
+
+    monkeypatch.setattr(health, "_db", fake)
+    d = json.loads(h(False))
+    assert d["draft_stat_sets"] is None, "引けなかったことを 0 と言わない"
+    assert "0 件という意味ではない" in d["draft_stat_note"]
+    assert d["status"] == "ok" and d["cards"] == 1, "他の数字は返る"
 
 
 def test_health_reports_db_failure_as_text(monkeypatch):

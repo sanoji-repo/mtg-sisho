@@ -7,7 +7,9 @@
 線（2026-09-07 設計判断）:
 DB のスロットは「重いレーン 4＋バイパス 1」に分ける。軽いレーン（バイパス）は statement_timeout 1 秒で、
 切られたら（57014）スロットを返して重いレーン（10 秒）に並び直す。重いレーンは 4 スロットまでなので軽いレーンには
-常に 1 スロット予約が残る。既定は軽いレーンで、重いレーンは呼び出し側（query_mtg_database と
+常に 1 スロット予約が残る。**既定は重いレーン**（2026-09-14 に反転）で、軽いレーンは「索引で点を
+引ける」と実証できた呼び出しだけが lane=LANE_LIGHT を明示する。宣言し忘れは安全側（順番待ちに
+加わるだけ）に倒れる。旧: 既定は軽いレーンで、重いレーンは呼び出し側（query_mtg_database と
 find_partner_cards 本体）が明示する。
 """
 import os
@@ -38,6 +40,9 @@ _HEAVY_SLOTS = _threading.BoundedSemaphore(_HEAVY_SLOTS_N)
 
 BYPASS_TIMEOUT_MS = int(os.environ.get("MCP_DB_BYPASS_TIMEOUT_MS", "1000"))
 HEAVY_TIMEOUT_MS = int(os.environ.get("MCP_DB_HEAVY_TIMEOUT_MS", "10000"))
+
+#: 接続そのものの待ち上限（秒）。statement_timeout は接続後の SQL にしか効かない。
+_CONNECT_TIMEOUT_S = int(os.environ.get("MCP_DB_CONNECT_TIMEOUT_S", "5"))
 
 LANE_LIGHT = "light"
 LANE_HEAVY = "heavy"
@@ -116,7 +121,10 @@ def _run(cfg: dict, sql: str, params: tuple | None, fetch, lane: str = LANE_HEAV
             # 計時はスロットを取った後から（順番待ちは DB の仕事でない＝道具の所要秒と DB 累計秒の
             # 差として見える・2026-09-06 Step 7）。接続・実行・取得の全部を 1 回として数える。
             t0 = time.perf_counter()
-            conn = psycopg2.connect(**cfg_run)
+            # 2026-09-15: 接続待ちにも上限を置く。statement_timeout は接続**後**の SQL にしか
+            # 効かないので、宛先がパケットを捨てる状態だと OS の既定まで待ち続け、その間
+            # スロットを握ったままになる（5 呼び出しで全スロットが埋まる）。
+            conn = psycopg2.connect(connect_timeout=_CONNECT_TIMEOUT_S, **cfg_run)
             try:
                 with conn.cursor() as cur:
                     if params is None:

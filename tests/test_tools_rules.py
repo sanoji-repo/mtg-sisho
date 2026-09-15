@@ -130,3 +130,19 @@ def test_rules_tools_do_not_write(monkeypatch):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_empty_query_is_refused_not_answered_with_anything():
+    """空の検索語に「それらしい行」を返さない（別モデルのレビューで指摘）。
+
+    最終フォールバックが ILIKE '%%' になるため、空文字でも任意の条文・裁定が
+    正常な結果として返っていた。利用者から見ると「何を引いたか分からない答え」で、
+    掟「不在は NULL・番兵禁止」と同じ筋（無いものを無いと言う）。
+    """
+    for bad in ("", "   "):
+        r = lr(bad)
+        assert "[用語集" not in r and "[規則" not in r, f"空の検索語に条文を返した: {r[:90]}"
+        assert "検索語" in r, f"何が足りないかを言うべき: {r[:90]}"
+        r2 = gr(bad)
+        assert "（20" not in r2, f"空の検索語に裁定を返した: {r2[:90]}"
+        assert "カード名" in r2, f"何が足りないかを言うべき: {r2[:90]}"
