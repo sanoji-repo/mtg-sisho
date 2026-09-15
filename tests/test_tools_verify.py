@@ -47,8 +47,14 @@ def test_verify_bracketed_japanese_becomes_full_form():
 
 
 def test_verify_bare_english_name():
-    """裸の英語名（日本語名あり）→ 完成形。前後の語は壊さない。"""
-    assert _fixed("I like Lightning Bolt a lot.") == "I like 《稲妻/Lightning Bolt》 a lot."
+    """裸の英語名は **書き換えず報告だけ**（2026-09-15 に方針を変えた）。
+
+    一般語と同じ綴りのカード名（Consider など）があり、裸で出た語がカード名かどうかは
+    機械では決められない。掟の非対称に従って触らない側へ倒す。
+    """
+    t = "I like Lightning Bolt a lot."
+    assert _fixed(t) == t, "本文は書き換えない"
+    assert "「Lightning Bolt」" in v(t), "裸の英語名は一覧で知らせる"
 
 
 def test_verify_bare_japanese_name():
@@ -104,20 +110,21 @@ def test_verify_card_without_japanese_stays_english():
     assert _fixed("Helm of Obedience is good.") == "Helm of Obedience is good."
     assert _fixed("Volcanic Island を置く。") == "Volcanic Island を置く。", (
         "日本語版なしの名前は保護域＝中の Island を拾わない")
-    assert _fixed("Volcanic Island と Island。") == "Volcanic Island と 《島/Island》。", (
-        "保護は名前の内側だけ＝外の Island は直す")
+    # 2026-09-15: 裸の名前は書き換えず報告だけ（保護域の外にある分は一覧に出る）
+    assert _fixed("Volcanic Island と Island。") == "Volcanic Island と Island。"
+    assert "「Island」" in v("Volcanic Island と Island。"), "保護域の外の裸名は報告する"
+    assert "「Island」" not in v("Volcanic Island を置く。"), (
+        "日本語版なしの名前は保護域＝中の Island は報告もしない")
 
 
 def test_verify_protects_italics_and_parentheses():
     """*斜体*（アーキタイプ名）の中と（）の中は触らない——書き換えでも報告でも。"""
-    assert _fixed("（太陽の指輪）と Lightning Bolt。") == "（太陽の指輪）と 《稲妻/Lightning Bolt》。"
-    assert _fixed("*Lightning Bolt deck* は速い。Lightning Bolt を入れる。") == (
-        "*Lightning Bolt deck* は速い。《稲妻/Lightning Bolt》 を入れる。")
-    # 既出の日本語名を直すときも保護域は避ける（2 度目の言及だけが完成形になる）
-    assert _fixed("《Sol Ring》。*太陽の指輪デッキ* は速い。太陽の指輪を入れる。") == (
-        "《太陽の指輪/Sol Ring》。*太陽の指輪デッキ* は速い。《太陽の指輪/Sol Ring》を入れる。")
+    # 《》の中は従来どおり完成形へ直す。保護域の中の同じ語は巻き添えにしない。
+    assert _fixed("（太陽の指輪）と《Lightning Bolt》。") == "（太陽の指輪）と《稲妻/Lightning Bolt》。"
+    assert "「太陽の指輪」" not in v("（太陽の指輪）と《Lightning Bolt》。"), "括弧の中は報告もしない"
     # 保護域の中にしか無い語は報告もしない（斜体のアーキタイプ名を毎回指摘しない）
     assert "裸のカード名" not in v("*太陽の指輪デッキ* が速い。")
+    assert "裸のカード名" not in v("*Lightning Bolt deck* は速い。")
 
 
 def test_verify_english_with_japanese_gloss():
@@ -314,14 +321,16 @@ def test_bare_japanese_word_is_not_turned_into_a_card():
         assert _fixed(t) == t, f"「{word}」がカード名に化けた"
 
 
-def test_bare_japanese_name_is_fixed_when_already_quoted():
-    """裸の日本語名の修正そのものは残す＝同じ答案に完成形で出ているカードの 2 度目の言及は直す。
+def test_second_mention_is_reported_not_rewritten():
+    """2 度目の裸の言及も **書き換えず報告する**（2026-09-15 に方針を変えた）。
 
-    掟「2 回目以降の言及も毎回完成形」に対応する。答案側が《》で書いた＝カードとして
-    言及した宣言があるので、ここで直すのは誤発動にならない。
+    一度は「既出なら直す」を入れたが、日本語に単語の区切りが無いため《島/Island》を
+    書いた答案で「島国」まで置換された。既出という事実は「以後の同形文字列がすべて
+    カード名」を保証しない。掟「2 回目以降も完成形」は報告で促し、直すのは答案側。
     """
     t = "《Lightning Bolt》は軽い。稲妻をもう一枚積みたい。"
-    assert _fixed(t) == "《稲妻/Lightning Bolt》は軽い。《稲妻/Lightning Bolt》をもう一枚積みたい。"
+    assert _fixed(t) == "《稲妻/Lightning Bolt》は軽い。稲妻をもう一枚積みたい。"
+    assert "「稲妻」" in v(t), "2 度目の裸の言及は一覧で知らせる"
 
 
 def test_unknown_name_candidates_are_not_noise():
@@ -357,3 +366,56 @@ def test_mana_before_name_binds_to_the_following_card():
         assert "1 件一致" in head, f"後続のカードとの一致は数えるべき: {t}"
     # 逆に、後ろにカード名が続かない「N マナ」は従来どおりそのカードの主張
     assert "食い違い 1 件" in _head(f"{A}は 6 マナで重い。")
+
+
+# ─── CODEX のレビューで挙がった誤発動（2026-09-15・別モデルの目が拾った）────────────
+# どれも「答案の文字列を壊す」側の誤発動＝掟の非対称でいちばん重い側。
+
+def test_bare_name_is_never_substituted_into_a_longer_word():
+    """既出のカード名でも、より長い語の一部を置換しない。
+
+    日本語には単語の区切りが無いので、《島/Island》を一度書いた答案では「島国」の
+    「島」まで置換され、文が壊れていた（2026-09-15 に「既出なら直す」を入れた副作用。
+    長さの条件を外したのが穴になった）。英語側も一般語と同じ綴りのカード名で同型。
+    """
+    t = "《Island》は基本土地。島国を表す語ではない。"
+    assert _fixed(t) == "《島/Island》は基本土地。島国を表す語ではない。", "「島国」が壊れた"
+    assert _fixed("Consider this option.") == "Consider this option.", "英語の普通の文が壊れた"
+
+
+def test_mana_production_is_not_read_as_own_cost():
+    """「N マナを加える」は生み出す量であって、そのカードのコストではない。"""
+    head = _head("《金粉の水蓮/Gilded Lotus》は 3 マナを加える。")
+    assert "食い違い" not in head, "生成量をコスト主張として誤報した"
+    # 同じカードの本当のコスト主張は従来どおり見る
+    assert "食い違い 1 件" in _head("《金粉の水蓮/Gilded Lotus》は 3 マナで唱えられる。")
+
+
+def test_bracketed_name_with_spaces_is_actually_fixed():
+    """《 英語名 》のように中に空白があっても、数えた分は本当に書き換える。
+
+    以前は strip() した値で元文字列を置換していたため一致せず、本文は空白入りのまま
+    なのに「機械修正 1 箇所」とだけ報告していた（数えたのに直っていない）。
+    """
+    t = "《 Lightning Bolt 》は軽い。"
+    out = _fixed(t)
+    assert out == "《稲妻/Lightning Bolt》は軽い。", f"空白入りの囲みが直っていない: {out!r}"
+
+
+def test_candidate_lookup_is_capped_for_many_unknowns(monkeypatch):
+    """未確認が多い答案で、候補の照会を直列に積み上げない（別モデルのレビューで指摘）。
+
+    候補は 1 件ずつ similarity 走査を掛けるので、20 件あれば 20 回走る。verify は
+    答えを出す前に必ず通す道具なので、送信全体を待たせる。名前の列挙自体は全件残す。
+    """
+    calls = []
+    real = verify._db
+    def spy(sql, params, **kw):
+        if "similarity" in sql:
+            calls.append(params)
+        return real(sql, params, **kw)
+    monkeypatch.setattr(verify, "_db", spy)
+    t = "。".join(f"《架空のカード{i}》" for i in range(12))
+    r = v(t)
+    assert "未確認の名前 12 件" in r, "名前の列挙は全件残す"
+    assert len(calls) <= 5, f"候補の照会が {len(calls)} 回走った（上限 5）"

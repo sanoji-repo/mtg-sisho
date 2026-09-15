@@ -151,8 +151,9 @@ def find_partner_cards(card_name: str, scope: str = "edh",
     # constructed で全体の 48%・edh で 31% を占めていた（残りは共起の集計）。
     # 表は card_scope_deck_counts（scope, card_id → n_decks）と scope_deck_counts。
     # 数え方は同じ（board を区別せず・土地も含み・二重計上も除かない）＝答えは変わらない。
-    # 表が無い/その scope の行が無いときは 0 件でなく従来どおり数えるのでなく、
-    # pct と lift が NULL になる（下の COALESCE で分母 0 を避ける）＝夜間ジョブが回れば埋まる。
+    # 表が無い/その scope の行が無いときは pct と lift が NULL になる（下の CASE WHEN da.n > 0）
+    # ＝夜間ジョブが回れば埋まる。2026-09-15 まで greatest(da.n, 1) で 1 を代入していたため、
+    # 分母が未集計のカードで 1200% のような値を返しうる状態だった（コメントと実装のずれ）。
     sql = (
         "WITH da AS (SELECT COALESCE(max(d.n_decks), 0) AS n FROM card_scope_deck_counts d"
         "            JOIN mtg_cards_v2 m ON m.id = d.card_id"
@@ -172,9 +173,12 @@ def find_partner_cards(card_name: str, scope: str = "edh",
         " nb AS (SELECT d.card_id, d.n_decks AS n FROM card_scope_deck_counts d"
         "        WHERE d.scope = %(scope)s AND d.card_id IN (SELECT pid FROM top))"
         " SELECT c.card_name, c.name_display, t.n_ab,"
-        "        round(100.0 * t.n_ab / greatest(da.n, 1), 1) AS pct,"
-        "        round((t.n_ab::numeric / greatest(da.n, 1))"
-        "              / nullif(nb.n::numeric / nullif(npool.n, 0), 0), 1) AS lift"
+        # 2026-09-15: 分母が無いときは 1 で割らず NULL にする。greatest(da.n, 1) だと
+        # 「このカード入りのデッキ数が未集計」なのに n_ab をそのまま百分率にして
+        # 1200% のような値を返しうる（掟「不在は NULL・番兵禁止」・下の out で ? と書く）。
+        "        CASE WHEN da.n > 0 THEN round(100.0 * t.n_ab / da.n, 1) END AS pct,"
+        "        CASE WHEN da.n > 0 THEN round((t.n_ab::numeric / da.n)"
+        "              / nullif(nb.n::numeric / nullif(npool.n, 0), 0), 1) END AS lift"
         " FROM top t JOIN mtg_cards_v2 c ON c.id = t.pid"
         " LEFT JOIN nb ON nb.card_id = t.pid, da, npool"
         " ORDER BY " + order_sql + " LIMIT %(limit)s")
@@ -188,7 +192,7 @@ def find_partner_cards(card_name: str, scope: str = "edh",
         rows = _db(sql, {**params, "cand_limit": None}, lane=LANE_HEAVY)
     if not rows:
         return f"共起なし: {name}（scope={scope}・英語の正式カード名で指定してください）"
-    out = [f"{disp}: {pct}%（{n_ab} 本同居・lift {lift if lift is not None else '?'}）"
+    out = [f"{disp}: {pct if pct is not None else '?'}%（{n_ab} 本同居・lift {lift if lift is not None else '?'}）"
            for en, disp, n_ab, pct, lift in rows]
     return (f"scope={scope}・order_by={order_by} の同居カード上位。"
             "pct=このカード入りデッキのうち相方も入れている割合・lift=偶然同居の期待値比"

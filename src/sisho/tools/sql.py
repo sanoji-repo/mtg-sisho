@@ -59,7 +59,9 @@ def query_mtg_database(sql: str, max_rows: int = 30) -> str:
         return "0 行（クエリは成功）。"
     cols, rows, ja_note = _attach_japanese_names(cols, rows)
     def cell(v):
-        s = "" if v is None else str(v)
+        # 2026-09-15: NULL は "NULL" と書く。空文字と同じ空欄にすると、利用者は
+        # 「値が無い」のか「空の値がある」のかを区別できない（掟「不在は NULL・番兵禁止」）。
+        s = "NULL" if v is None else str(v)
         return s if len(s) <= 160 else s[:157] + "…"
     lines = [" | ".join(cols)]
     lines += [" | ".join(cell(v) for v in r) for r in rows]

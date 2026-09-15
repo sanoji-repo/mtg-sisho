@@ -188,3 +188,16 @@ def test_describe_survives_db_error(monkeypatch):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_null_is_distinguishable_from_empty_string():
+    """NULL と空文字を同じ空欄で返さない（掟「不在は NULL・番兵禁止」）。
+
+    別モデルのレビューで指摘: SELECT NULL::text, ''::text が両方とも空欄になり、
+    利用者は「値が無い」のか「空の値がある」のかを区別できなかった。
+    """
+    out = q("-- NULL と空文字の区別\nSELECT NULL::text AS absent, ''::text AS empty")
+    body = [l for l in out.split("\n") if "|" in l][1]      # 見出しの次＝データ行
+    a, b = [c.strip() for c in body.split("|")]
+    assert a != b, f"NULL と空文字が同じ表記になっている（{a!r} と {b!r}）"
+    assert a == "NULL", f"不在は NULL と書く（実際: {a!r}）"

@@ -26,6 +26,10 @@ def lookup_mtg_rule(query: str, limit: int = 12) -> str:
     _log_tool("lookup_mtg_rule", {"query": query})
 
     query = query.strip()
+    # 2026-09-15: 空の検索語を断る。最終フォールバックが ILIKE '%%' になるため、
+    # 以前は用語集の先頭から任意の条文を「正常な結果」として返していた。
+    if not query:
+        return "検索語が空です。条番号（例: 702.19）か、調べたい語（例: trample・呪禁）を渡してください。"
     limit = max(1, min(int(limit), 30))
     import re as _re
     if _re.fullmatch(r"\d{1,3}(\.\d+[a-z]?)?\.?", query):
@@ -85,6 +89,10 @@ GET_CARD_RULINGS_DESCRIPTION = (
 def get_card_rulings(card_name: str, limit: int = 20) -> str:
     _log_tool("get_card_rulings", {"card_name": card_name})
 
+    # 2026-09-15: 空のカード名を断る（下のフォールバックが ILIKE '%%' でアルファベット順の
+    # 先頭から任意の裁定を返していた）。
+    if not card_name.strip():
+        return "カード名が空です。英語の正式カード名（例: Lightning Bolt）を渡してください。"
     limit = max(1, min(int(limit), 40))
     rows = _db(
         "SELECT card_name, published_at, comment FROM card_rulings"
