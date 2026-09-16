@@ -19,6 +19,99 @@ MCP の `query_mtg_database` はこれらを読み取り専用の役割（`reado
 | 共起 | 60 枚構築 809,108 組・統率者戦 2,143,267 組 | 同上 |
 | リミテッド（ドラフト）統計 | 34 セット・10,509 行（セット×カードの勝率とピック順・2026-09-04 集計・表 `limited_card_stats`）＋色の組み合わせ・相性・ランク帯・ピック側の集計 5 表（`limited_color_stats` ほか） | 17Lands Public Datasets（CC BY 4.0）から派生した集計値 |
 
+## 関連図（2026-09-17）
+
+中核 8 表の関係。**実線は実在する外部キー、破線は外部キー制約が無く名前や識別子の一致で繋がる参照**。設計の考え方は末尾の節にある。
+
+```mermaid
+---
+title: mtg_sisho 中核テーブル関連図
+config:
+  flowchart:
+    curve: stepBefore
+---
+flowchart TD
+    classDef t fill:#f4f6fa,stroke:#48566b,stroke-width:1.2px,color:#161922;
+
+    subgraph g_cards["カード・セット情報"]
+        mtg_cards_v2["mtg_cards_v2<br>（カード本体）"]
+        mtg_sets["mtg_sets<br>（セット一覧）"]
+    end
+
+    subgraph g_decks["実デッキ情報"]
+        deck_list["deck_list<br>（実デッキ見出し）"]
+        deck_cards["deck_cards<br>（デッキ明細）"]
+    end
+
+    subgraph g_stats["採用率・統計"]
+        card_format_strength["card_format_strength<br>（構築採用率）"]
+        format_deck_counts["format_deck_counts<br>（フォーマット別デッキ総数）"]
+        limited_card_stats["limited_card_stats<br>（ドラフト統計）"]
+    end
+
+    subgraph g_rulings["公式裁定"]
+        card_rulings["card_rulings<br>（公式裁定）"]
+    end
+
+    class mtg_cards_v2,mtg_sets,deck_list,deck_cards,card_format_strength,format_deck_counts,limited_card_stats,card_rulings t;
+
+    %% 実在する外部キー（実線）
+    mtg_cards_v2 --> mtg_cards_v2
+    deck_cards --> deck_list
+    deck_cards --> mtg_cards_v2
+    card_format_strength --> mtg_cards_v2
+
+    %% 論理参照（破線）
+    mtg_cards_v2 -.-> mtg_sets
+    card_format_strength -.-> format_deck_counts
+    card_rulings -.-> mtg_cards_v2
+    limited_card_stats -.-> mtg_cards_v2
+    limited_card_stats -.-> mtg_sets
+
+    style g_cards fill:#ffffff,stroke:#9aa4b5,stroke-width:1px
+    style g_decks fill:#ffffff,stroke:#9aa4b5,stroke-width:1px
+    style g_stats fill:#ffffff,stroke:#9aa4b5,stroke-width:1px
+    style g_rulings fill:#ffffff,stroke:#9aa4b5,stroke-width:1px
+```
+
+### 凡例
+- **実線矢印（`-->`）**: 実在する外部キー（全 7 本のうち中核 4 本を図示。残り 3 本の扱いは後述）。
+- **破線矢印（`-.->`）**: 外部キー制約が無く、名前や識別子の一致で繋がる参照。
+
+### 線の一覧
+
+| 線 | 参照元 | 参照先 | 繋ぐ列 |
+| --- | --- | --- | --- |
+| 実線 | `mtg_cards_v2` | `mtg_cards_v2` | `rebalance_of`（原型カード） |
+| 実線 | `deck_cards` | `deck_list` | `deck_id`（所属デッキ） |
+| 実線 | `deck_cards` | `mtg_cards_v2` | `card_id`（解決済みカード） |
+| 実線 | `card_format_strength` | `mtg_cards_v2` | `card_id`（集計対象カード） |
+| 破線 | `mtg_cards_v2` | `mtg_sets` | `set_code`（代表印刷セット） |
+| 破線 | `card_format_strength` | `format_deck_counts` | `format_name`（母数） |
+| 破線 | `card_rulings` | `mtg_cards_v2` | `card_id` / `oracle_id` |
+| 破線 | `limited_card_stats` | `mtg_cards_v2` | `db_card_name`（名前で照合） |
+| 破線 | `limited_card_stats` | `mtg_sets` | `expansion`（収録セット） |
+
+### 図から外したテーブルとその理由
+本図では可読性を保つため中核の 8 表に絞り込み、以下のテーブルを図から除外しています。
+
+#### 外部キーを持つが図から除外したテーブル（3 表）
+- `edh_card_strength`: `mtg_cards_v2.id` への外部キー（ON DELETE CASCADE）を持ちますが、`card_format_strength` と同構造の統率者戦特化集計テーブルであり、関係モデルが重複するため割愛しました。
+- `card_scope_deck_counts`: `mtg_cards_v2.id` への外部キー（ON DELETE CASCADE）を持ちますが、DATA_MODEL.md の 19 表一覧に含まれないスコープ別集計テーブルのため割愛しました。
+- `players`: `deck_list.player_id` からの外部キー参照先ですが、開発側環境のみに存在するテーブルであり、公開データベースには含まれないため割愛しました。
+
+#### 外部キーを持たないその他のテーブル（10 表）
+- `mtg_cards_v2_nonlegal`: 非合法カードの退避用テーブルであり、`mtg_cards_v2` と同構造かつ外部キー・外部参照を持たないため。
+- `mtg_rules`: 総合ルールの条文と用語集を保持するテーブルであり、他テーブルと結合を持たない独立データであるため。
+- `card_cooccurrence`: 構築デッキから算出したカード名ペアの共起テーブルであり、派生集計の構造が重複するため。
+- `edh_card_cooccurrence_v2`: `card_cooccurrence` と同趣旨の統率者戦向けカード ID ペア共起テーブルであり、派生集計の構造が重複するため。
+- `mtgo_name_alias`: MTGO 固有のカード別名表示を正式名へ読み替える辞書テーブルであり、中核の参照構造から外れるため。
+- `limited_color_stats`: リミテッドの色勝率集計テーブルであり、カード単位ではなくアーキタイプ（色の組み合わせ）単位の集計であるため。
+- `limited_matchup_stats`: リミテッドの色相性集計テーブルであり、カード単位ではなく色同士のマッチアップ集計であるため。
+- `limited_format_stats`: リミテッド環境指標集計テーブルであり、カード単位ではなくセット全体の環境統計であるため。
+- `limited_card_rank_stats`: `limited_card_stats` をランク帯別に細分化した集計テーブルであり、参照関係が同一であるため。
+- `limited_card_pick_stats`: `limited_card_stats` のピック指標に特化した集計テーブルであり、参照関係が同一であるため。
+
 ## テーブル一覧
 
 | テーブル | 行数 | 役割 |
