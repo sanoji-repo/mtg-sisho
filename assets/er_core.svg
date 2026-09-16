@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="680" viewBox="0 0 880 680" font-family="Hiragino Sans, Noto Sans JP, Meiryo, sans-serif" role="img" aria-labelledby="title desc">
+<title id="title">mtg_sisho 中核テーブル関連図</title>
+<desc id="desc">8 表と 9 本の参照。実線は外部キー、破線は外部キー制約のない参照。矢印は参照元から参照先へ向かう。接続列は本文の線の一覧を参照。</desc>
+<defs><marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="8" refX="9" refY="4" orient="auto" viewBox="0 0 9 8"><path d="M0 0 L9 4 L0 8 Z" fill="#48566b"/></marker></defs>
+<rect width="880" height="680" fill="#ffffff"/>
+<text x="440" y="39" text-anchor="middle" font-size="21" font-weight="700" fill="#161922">mtg_sisho 中核テーブル関連図</text>
+<text x="440" y="67" text-anchor="middle" font-size="13" fill="#5b6274">実線：外部キー　／　破線：外部キー制約のない参照</text>
+<rect x="20" y="100" width="250" height="324" fill="none" stroke="#a6afbd" stroke-width="1"/>
+<text x="36" y="124" font-size="14" font-weight="600" fill="#5b6274">実デッキ情報</text>
+<rect x="310" y="100" width="260" height="140" fill="none" stroke="#a6afbd" stroke-width="1"/>
+<text x="326" y="124" font-size="14" font-weight="600" fill="#5b6274">公式裁定</text>
+<rect x="310" y="285" width="260" height="343" fill="none" stroke="#a6afbd" stroke-width="1"/>
+<text x="326" y="309" font-size="14" font-weight="600" fill="#5b6274">カード・セット情報</text>
+<rect x="610" y="100" width="250" height="528" fill="none" stroke="#a6afbd" stroke-width="1"/>
+<text x="626" y="124" font-size="14" font-weight="600" fill="#5b6274">採用率・統計</text>
+<rect x="40" y="180" width="210" height="64" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<text x="145" y="207" text-anchor="middle" font-size="15" font-weight="600" fill="#161922">deck_list</text>
+<text x="145" y="229" text-anchor="middle" font-size="13" fill="#5b6274">実デッキ見出し</text>
+<rect x="40" y="330" width="210" height="64" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<text x="145" y="357" text-anchor="middle" font-size="15" font-weight="600" fill="#161922">deck_cards</text>
+<text x="145" y="379" text-anchor="middle" font-size="13" fill="#5b6274">デッキ明細</text>
+<rect x="335" y="150" width="210" height="64" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<text x="440" y="177" text-anchor="middle" font-size="15" font-weight="600" fill="#161922">card_rulings</text>
+<text x="440" y="199" text-anchor="middle" font-size="13" fill="#5b6274">公式裁定</text>
+<rect x="330" y="330" width="220" height="80" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<text x="440" y="365" text-anchor="middle" font-size="15" font-weight="600" fill="#161922">mtg_cards_v2</text>
+<text x="440" y="387" text-anchor="middle" font-size="13" fill="#5b6274">カード本体</text>
+<rect x="330" y="540" width="220" height="64" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<text x="440" y="567" text-anchor="middle" font-size="15" font-weight="600" fill="#161922">mtg_sets</text>
+<text x="440" y="589" text-anchor="middle" font-size="13" fill="#5b6274">セット一覧</text>
+<rect x="630" y="180" width="210" height="64" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<text x="735" y="207" text-anchor="middle" font-size="15" font-weight="600" fill="#161922">format_deck_counts</text>
+<text x="735" y="229" text-anchor="middle" font-size="13" fill="#5b6274">フォーマット別デッキ総数</text>
+<rect x="630" y="330" width="210" height="64" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<text x="735" y="357" text-anchor="middle" font-size="15" font-weight="600" fill="#161922">card_format_strength</text>
+<text x="735" y="379" text-anchor="middle" font-size="13" fill="#5b6274">構築採用率</text>
+<rect x="630" y="540" width="210" height="64" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<text x="735" y="567" text-anchor="middle" font-size="15" font-weight="600" fill="#161922">limited_card_stats</text>
+<text x="735" y="589" text-anchor="middle" font-size="13" fill="#5b6274">ドラフト統計</text>
+<polyline points="145,330 145,244" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="250,362 330,362" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="630,362 550,362" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="350,410 350,460 380,460 380,410" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="440,410 440,540" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+<polyline points="735,330 735,244" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+<polyline points="440,214 440,330" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+<polyline points="735,540 735,470 520,470 520,410" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+<polyline points="630,572 550,572" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+<text x="440" y="660" text-anchor="middle" font-size="12" fill="#5b6274">矢印：参照元 → 参照先　・　接続する列は本文「線の一覧」を参照</text>
+</svg>
