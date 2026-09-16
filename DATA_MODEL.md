@@ -23,60 +23,13 @@ MCP の `query_mtg_database` はこれらを読み取り専用の役割（`reado
 
 中核 8 表の関係。**実線は実在する外部キー、破線は外部キー制約が無く名前や識別子の一致で繋がる参照**。設計の考え方は末尾の節にある。
 
-```mermaid
----
-title: mtg_sisho 中核テーブル関連図
-config:
-  flowchart:
-    curve: stepBefore
----
-flowchart TD
-    classDef t fill:#f4f6fa,stroke:#48566b,stroke-width:1.2px,color:#161922;
+![mtg_sisho 中核テーブル関連図。カード本体を中心に、実デッキ・採用率と統計・公式裁定・セット一覧が繋がる。実線は外部キー、破線は外部キー制約のない参照。](assets/er_core.svg)
 
-    subgraph g_cards["カード・セット情報"]
-        mtg_cards_v2["mtg_cards_v2<br>（カード本体）"]
-        mtg_sets["mtg_sets<br>（セット一覧）"]
-    end
-
-    subgraph g_decks["実デッキ情報"]
-        deck_list["deck_list<br>（実デッキ見出し）"]
-        deck_cards["deck_cards<br>（デッキ明細）"]
-    end
-
-    subgraph g_stats["採用率・統計"]
-        card_format_strength["card_format_strength<br>（構築採用率）"]
-        format_deck_counts["format_deck_counts<br>（フォーマット別デッキ総数）"]
-        limited_card_stats["limited_card_stats<br>（ドラフト統計）"]
-    end
-
-    subgraph g_rulings["公式裁定"]
-        card_rulings["card_rulings<br>（公式裁定）"]
-    end
-
-    class mtg_cards_v2,mtg_sets,deck_list,deck_cards,card_format_strength,format_deck_counts,limited_card_stats,card_rulings t;
-
-    %% 実在する外部キー（実線）
-    mtg_cards_v2 --> mtg_cards_v2
-    deck_cards --> deck_list
-    deck_cards --> mtg_cards_v2
-    card_format_strength --> mtg_cards_v2
-
-    %% 論理参照（破線）
-    mtg_cards_v2 -.-> mtg_sets
-    card_format_strength -.-> format_deck_counts
-    card_rulings -.-> mtg_cards_v2
-    limited_card_stats -.-> mtg_cards_v2
-    limited_card_stats -.-> mtg_sets
-
-    style g_cards fill:#ffffff,stroke:#9aa4b5,stroke-width:1px
-    style g_decks fill:#ffffff,stroke:#9aa4b5,stroke-width:1px
-    style g_stats fill:#ffffff,stroke:#9aa4b5,stroke-width:1px
-    style g_rulings fill:#ffffff,stroke:#9aa4b5,stroke-width:1px
-```
+図の元は `assets/er_core_gen.py`（標準ライブラリだけの生成脚本）。箱の座標と折れ線の通り道がその中にあり、走らせると SVG と座標の検証結果を作り直す。
 
 ### 凡例
-- **実線矢印（`-->`）**: 実在する外部キー（全 7 本のうち中核 4 本を図示。残り 3 本の扱いは後述）。
-- **破線矢印（`-.->`）**: 外部キー制約が無く、名前や識別子の一致で繋がる参照。
+- **実線の矢印**: 実在する外部キー（全 7 本のうち中核 4 本を図示。残り 3 本の扱いは後述）。
+- **破線の矢印**: 外部キー制約が無く、名前や識別子の一致で繋がる参照。
 
 ### 線の一覧
 
