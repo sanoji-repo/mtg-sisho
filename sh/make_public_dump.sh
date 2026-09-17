@@ -2,7 +2,7 @@
 # make_public_dump.sh — 公開サーバー（読み取り専用）用の pg_dump を作る（2026-08-23・開発側＝家の VM で走らせる）
 # =========================================================================
 # 背景: 公開する MCP の後ろを家の PC から別の公開サーバー（Pi／シンクライアント／VPS）へ出すため、
-#       「公開サーバーに要る表だけ」を -Fc で書き出す。bak_*・埋め込み表・eval/query_log・共起 v1 は含めない。
+#       「公開サーバーに要る表だけ」を -Fc で書き出す。開発側だけの表（players・name_ja_manual・card_cooccurrence_nonlegal・deck_cards_nonlegal）は含めない。
 #       実測（2026-08-23・VM）: 表 12 本・約 75MB・12 秒（ジャッジパネルの評価者が計測）。
 # 方式: コンテナ内 pg_dump 18（ホストの pg_dump は 17 でサーバ 18 に不可）を docker exec。
 #       --no-owner --no-privileges＝所有者と GRANT は含めない（公開サーバー側の restore_public_dump.sh が
@@ -23,6 +23,7 @@ OUT="$DEST/sisho_public_${STAMP}.dump"
 # （publication の表と揃える＝sh/sisho_repl/01 と同じ 19 表・limited_card_stats は 2026-08-31・limited_* 5 表は 2026-09-02・mtg_sets は 2026-09-03 追加）。
 TABLES=(mtg_cards_v2 mtg_cards_v2_nonlegal mtg_rules card_rulings deck_list deck_cards
         card_format_strength edh_card_strength format_deck_counts
+        card_scope_deck_counts scope_deck_counts
         card_cooccurrence edh_card_cooccurrence_v2 mtgo_name_alias
         limited_card_stats
         limited_color_stats limited_matchup_stats limited_format_stats limited_card_rank_stats limited_card_pick_stats
