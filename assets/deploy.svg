@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="2000" viewBox="0 0 880 2000" font-family="Hiragino Sans, Noto Sans JP, Meiryo, sans-serif" role="img" aria-labelledby="title desc">
+<title id="title">mtg_sisho 配置図</title>
+<desc id="desc">開発機は家の Ubuntu 仮想マシンで、取り込み・集計と正本の PostgreSQL 18 publisher を持つ。別の Ubuntu Server 機は公開用 PostgreSQL 18 subscriber、門つき MCP サーバー、Tailscale Funnel、自機の見張りを持つ。論理レプリケーションの接続開始は公開サーバーから開発機へ、データの流れは開発機から公開サーバーへ。これらは同じ通信を二つの意味で描いたものである。初期化と作り直しでは開発側で公開用 dump を作り、公開側で復元する。MCP は readonly_ai で DB を読み、Funnel が 8765 をインターネットへ公開する。利用者の AI と開発機の外部監視は公開 URL に接続する。ACL は開発機から公開側の SSH と 8765 を許可し、公開側から他ノードへは原則拒否。開発側 PG へのレプリケーション接続は例外。プレイヤー名は開発側 players 表に隔離し、publication と dump に含めない。定期実行とバックアップの周期は図内に記載。破線は接続開始、実線は処理・データ方向、双方向矢印は要求と応答。</desc>
+<defs><marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse" viewBox="0 0 9 8"><path d="M0 0 L9 4 L0 8 Z" fill="#48566b"/></marker></defs>
+<rect width="880" height="2000" fill="#ffffff"/>
+<rect x="40" y="105" width="340" height="210" fill="#ffffff" stroke="#9aa4b5" stroke-width="1.2"/>
+<rect x="520" y="105" width="300" height="85" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="520" y="245" width="300" height="85" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="20" y="375" width="380" height="1405" fill="#ffffff" stroke="#9aa4b5" stroke-width="1.2"/>
+<rect x="480" y="375" width="380" height="1405" fill="#ffffff" stroke="#9aa4b5" stroke-width="1.2"/>
+<rect x="40" y="465" width="340" height="100" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="40" y="620" width="340" height="140" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="40" y="840" width="340" height="240" fill="#edf4ff" stroke="#48566b" stroke-width="1.2"/>
+<rect x="40" y="1250" width="340" height="110" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="40" y="1405" width="340" height="350" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="500" y="465" width="340" height="90" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="500" y="620" width="340" height="110" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="500" y="840" width="340" height="240" fill="#edf4ff" stroke="#48566b" stroke-width="1.2"/>
+<rect x="500" y="1250" width="340" height="110" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="500" y="1405" width="340" height="100" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="500" y="1545" width="340" height="210" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="20" y="1810" width="840" height="155" fill="#ffffff" stroke="#9aa4b5" stroke-width="1.2"/>
+<polyline points="670,190 670,245" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<polyline points="820,285 870,285 870,510 840,510" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<polyline points="380,510 440,510 440,285 520,285" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<polyline points="670,555 670,620" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<polyline points="670,730 670,840" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<polyline points="210,760 210,840" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="500,925 380,925" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+<polyline points="210,1080 210,1150 670,1150 670,1080" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="40,990 30,990 30,1305 40,1305" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="380,1305 500,1305" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="840,1305 850,1305 850,1000 840,1000" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<text x="40" y="40" font-size="25" font-weight="700" fill="#161922">mtg_sisho 配置図</text>
+<text x="40" y="73" font-size="17" font-weight="400" fill="#161922">開発機・公開サーバーと、その接続</text>
+<text x="56" y="135" font-size="17" font-weight="700" fill="#161922">線の読み方</text>
+<text x="56" y="165" font-size="14" font-weight="400" fill="#161922">実線：データ・処理の向き</text>
+<text x="56" y="193" font-size="14" font-weight="400" fill="#161922">破線：レプリケーションの接続開始</text>
+<text x="56" y="221" font-size="14" font-weight="400" fill="#161922">双方向：要求と応答</text>
+<text x="56" y="260" font-size="14" font-weight="400" fill="#161922">レプリケーションの 2 本は、</text>
+<text x="56" y="288" font-size="14" font-weight="400" fill="#161922">同じ通信の異なる向きを示す</text>
+<text x="540" y="140" font-size="18" font-weight="700" fill="#161922">利用者の AI アシスタント</text>
+<text x="540" y="170" font-size="15" font-weight="400" fill="#161922">公開 URL へ接続</text>
+<text x="540" y="280" font-size="19" font-weight="700" fill="#161922">インターネット</text>
+<text x="540" y="310" font-size="15" font-weight="400" fill="#161922">公開 URL へのアクセス</text>
+<text x="40" y="408" font-size="23" font-weight="700" fill="#161922">開発機</text>
+<text x="40" y="438" font-size="16" font-weight="400" fill="#161922">家の仮想マシン・Ubuntu</text>
+<text x="500" y="408" font-size="23" font-weight="700" fill="#161922">公開サーバー</text>
+<text x="500" y="438" font-size="16" font-weight="400" fill="#161922">別の機械・Ubuntu Server</text>
+<text x="56" y="496" font-size="18" font-weight="700" fill="#161922">外からの見張り</text>
+<text x="56" y="524" font-size="15" font-weight="400" fill="#161922">公開 URL で健全性を定期確認</text>
+<text x="56" y="549" font-size="14" font-weight="400" fill="#161922">mtg_rag_health</text>
+<text x="56" y="654" font-size="19" font-weight="700" fill="#161922">取り込み・集計の脚本</text>
+<text x="56" y="686" font-size="15" font-weight="400" fill="#161922">データを取得・整形して DB を更新</text>
+<text x="56" y="718" font-size="14" font-weight="400" fill="#161922">定期実行の内容は下段に記載</text>
+<text x="56" y="876" font-size="21" font-weight="700" fill="#161922">PostgreSQL 18</text>
+<text x="56" y="909" font-size="16" font-weight="700" fill="#161922">publisher ｜ データの正本</text>
+<text x="516" y="498" font-size="21" font-weight="700" fill="#161922">Tailscale Funnel</text>
+<text x="516" y="532" font-size="15" font-weight="400" fill="#161922">8765 をインターネットへ公開</text>
+<text x="516" y="655" font-size="19" font-weight="700" fill="#161922">MCP サーバー（門つき）</text>
+<text x="516" y="688" font-size="15" font-weight="400" fill="#161922">待ち受け：8765</text>
+<text x="516" y="715" font-size="15" font-weight="400" fill="#161922">readonly_ai で DB を読む</text>
+<text x="516" y="876" font-size="21" font-weight="700" fill="#161922">PostgreSQL 18</text>
+<text x="516" y="909" font-size="16" font-weight="700" fill="#161922">subscriber ｜ 公開用の複製</text>
+<text x="516" y="943" font-size="15" font-weight="400" fill="#161922">約 0.9 GB</text>
+<text x="516" y="976" font-size="14" font-weight="400" fill="#161922">読み取り専用の役割：readonly_ai</text>
+<text x="516" y="1011" font-size="14" font-weight="400" fill="#161922">開発機の PostgreSQL へ接続を開始</text>
+<text x="516" y="1045" font-size="15" font-weight="400" fill="#161922">論理レプリケーションで追従</text>
+<text x="412" y="908" font-size="14" font-weight="700" fill="#161922">接続開始</text>
+<text x="419" y="1132" font-size="14" font-weight="700" fill="#161922">データ</text>
+<text x="56" y="1193" font-size="14" font-weight="400" fill="#161922">日々の更新：論理レプリケーション</text>
+<text x="516" y="1193" font-size="14" font-weight="400" fill="#161922">データは開発機から受信</text>
+<text x="56" y="1281" font-size="18" font-weight="700" fill="#161922">公開用 dump の書き出し</text>
+<text x="56" y="1311" font-size="14" font-weight="400" fill="#161922">sh/make_public_dump.sh</text>
+<text x="56" y="1340" font-size="15" font-weight="400" fill="#161922">初期化・作り直し用</text>
+<text x="516" y="1281" font-size="18" font-weight="700" fill="#161922">dump から復元</text>
+<text x="516" y="1311" font-size="14" font-weight="400" fill="#161922">sh/restore_public_dump.sh</text>
+<text x="516" y="1340" font-size="15" font-weight="400" fill="#161922">数分で作り直す運用</text>
+<text x="420" y="1288" font-size="14" font-weight="700" fill="#161922">dump</text>
+<text x="56" y="1438" font-size="19" font-weight="700" fill="#161922">開発機の定期実行</text>
+<text x="56" y="1472" font-size="16" font-weight="700" fill="#161922">毎日 03:00〜10:00</text>
+<text x="56" y="1501" font-size="14" font-weight="400" fill="#161922">MTGTop8・MTGO・Moxfield の</text>
+<text x="56" y="1528" font-size="14" font-weight="400" fill="#161922">差分取得を並行実行</text>
+<text x="56" y="1555" font-size="14" font-weight="400" fill="#161922">完了後、共起を全件再集計</text>
+<text x="56" y="1595" font-size="15" font-weight="700" fill="#161922">4 時間おき（実行時刻の 30 分）</text>
+<text x="56" y="1624" font-size="14" font-weight="400" fill="#161922">MTGO 公式デッキの過去分を取得</text>
+<text x="56" y="1651" font-size="14" font-weight="400" fill="#161922">1 回に 1 か月分ずつ遡る</text>
+<text x="56" y="1693" font-size="16" font-weight="700" fill="#161922">毎週日曜 00:00</text>
+<text x="56" y="1724" font-size="14" font-weight="400" fill="#161922">論理バックアップ・4 世代保持</text>
+<text x="516" y="1438" font-size="19" font-weight="700" fill="#161922">自機の見張り</text>
+<text x="516" y="1473" font-size="15" font-weight="400" fill="#161922">公開サーバー自身の状態を定期記録</text>
+<text x="516" y="1577" font-size="18" font-weight="700" fill="#161922">公開サーバーに置かないもの</text>
+<text x="516" y="1610" font-size="14" font-weight="400" fill="#161922">プレイヤー名（players 表に隔離）</text>
+<text x="516" y="1637" font-size="14" font-weight="400" fill="#161922">publication・dump ともに対象外</text>
+<text x="40" y="1843" font-size="20" font-weight="700" fill="#161922">Tailscale ACL</text>
+<text x="40" y="1877" font-size="16" font-weight="400" fill="#161922">開発機 → 公開サーバー：SSH・8765 を許可</text>
+<text x="40" y="1910" font-size="16" font-weight="400" fill="#161922">公開サーバー → 他ノード：原則拒否</text>
+<text x="40" y="1943" font-size="16" font-weight="400" fill="#161922">例外：論理レプリケーションの接続先となる開発機の PostgreSQL</text>
+</svg>
