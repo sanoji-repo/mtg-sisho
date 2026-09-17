@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="1740" viewBox="0 0 880 1740" font-family="Hiragino Sans, Noto Sans JP, Meiryo, sans-serif" role="img" aria-labelledby="title desc">
+<title id="title">mtg_sisho データの流れ</title>
+<desc id="desc">指定された七つの出所から取り込み・加工・公開へ至るデータの流れ。Scryfall のバルクから英語のカード本体、日本語名と日本語本文、公式裁定を取得。Wizards of the Coast から総合ルールの条文と用語集を取得。MTGO 公式デッキリストと MTGTop8 から大会デッキ、Moxfield から多人数統率者戦の公開デッキ、MTGJSON AllDeckFiles から構築済み製品のデッキを取得。出所ごとの脚本で取得済みをスキップし、同じコマンドで新規分だけを取り込む。元の情報を保持し、デッキのカード名は出所の表記のまま保存する。後からカード本文の構造化、デッキとカードの非破壊の対応付け、フォーマット別採用率、共起の集計を行う。17Lands Public Datasets は別経路で、S3 の公開ファイルを一セット一回取得し、gz を流し読みしてセットとカードごとの集計値だけを表に保存する。生データは DB にもリポジトリにも入れず再配布しない。公開対象のデータは論理レプリケーションで公開サーバーへ流れる。矢印はデータの流れを表す。</desc>
+<defs><marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="8" refX="9" refY="4" orient="auto" viewBox="0 0 9 8"><path d="M0 0 L9 4 L0 8 Z" fill="#48566b"/></marker></defs>
+<rect width="880" height="1740" fill="#ffffff"/>
+<rect x="20" y="100" width="840" height="70" fill="#ffffff" stroke="#48566b" stroke-width="1.2"/>
+<rect x="20" y="210" width="260" height="320" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="310" y="210" width="260" height="320" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="600" y="210" width="260" height="320" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="20" y="600" width="260" height="130" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="310" y="600" width="260" height="130" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="600" y="600" width="260" height="130" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="20" y="810" width="260" height="170" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="310" y="810" width="260" height="170" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="600" y="810" width="260" height="170" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="20" y="1060" width="260" height="190" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="310" y="1060" width="260" height="190" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="20" y="1350" width="840" height="135" fill="#edf4ff" stroke="#48566b" stroke-width="1.2"/>
+<rect x="280" y="1570" width="320" height="110" fill="#edf4ff" stroke="#48566b" stroke-width="1.2"/>
+<polyline points="150,530 150,600" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="440,530 440,600" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="730,530 730,600" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="150,730 150,810" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="440,730 440,810" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="730,730 730,810" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="150,980 150,1060" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="440,980 440,1060" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="150,1250 150,1350" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="440,1250 440,1350" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="730,980 730,1350" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="440,1485 440,1570" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<text x="30" y="40" font-size="25" font-weight="700" fill="#161922">mtg_sisho データの流れ</text>
+<text x="30" y="73" font-size="17" font-weight="400" fill="#161922">出所から取り込み・加工・公開へ</text>
+<text x="38" y="128" font-size="17" font-weight="700" fill="#161922">取り込みの共通方針：取得済みはスキップ</text>
+<text x="38" y="155" font-size="15" font-weight="400" fill="#161922">同じコマンドを毎晩実行しても、新規分だけを取りに行く差分運用</text>
+<text x="36" y="244" font-size="20" font-weight="700" fill="#161922">カード・ルール</text>
+<text x="36" y="285" font-size="15" font-weight="700" fill="#161922">Scryfall（バルクデータ）</text>
+<text x="36" y="315" font-size="14" font-weight="400" fill="#161922">カード本体（英語）</text>
+<text x="36" y="343" font-size="14" font-weight="400" fill="#161922">日本語名・日本語本文・公式裁定</text>
+<text x="36" y="392" font-size="15" font-weight="700" fill="#161922">Wizards of the Coast</text>
+<text x="36" y="422" font-size="14" font-weight="400" fill="#161922">（総合ルール）</text>
+<text x="36" y="452" font-size="14" font-weight="400" fill="#161922">条文・用語集</text>
+<text x="326" y="244" font-size="18" font-weight="700" fill="#161922">大会・公開・製品デッキ</text>
+<text x="326" y="282" font-size="15" font-weight="700" fill="#161922">MTGO 公式デッキリスト</text>
+<text x="326" y="307" font-size="14" font-weight="400" fill="#161922">大会デッキ</text>
+<text x="326" y="340" font-size="15" font-weight="700" fill="#161922">MTGTop8</text>
+<text x="326" y="365" font-size="14" font-weight="400" fill="#161922">大会デッキ（紙の大会が主）</text>
+<text x="326" y="398" font-size="15" font-weight="700" fill="#161922">Moxfield</text>
+<text x="326" y="423" font-size="14" font-weight="400" fill="#161922">多人数統率者戦の公開デッキ</text>
+<text x="326" y="456" font-size="14" font-weight="700" fill="#161922">MTGJSON（AllDeckFiles）</text>
+<text x="326" y="482" font-size="14" font-weight="400" fill="#161922">構築済み製品のデッキ</text>
+<text x="616" y="245" font-size="20" font-weight="700" fill="#161922">17Lands</text>
+<text x="616" y="280" font-size="16" font-weight="700" fill="#161922">Public Datasets</text>
+<text x="616" y="320" font-size="15" font-weight="400" fill="#161922">ドラフトの生データ</text>
+<text x="616" y="365" font-size="15" font-weight="400" fill="#161922">S3 の公開ファイル</text>
+<text x="616" y="400" font-size="15" font-weight="400" fill="#161922">1 セットにつき 1 回取得</text>
+<text x="36" y="633" font-size="17" font-weight="700" fill="#161922">出所別の取り込み</text>
+<text x="36" y="665" font-size="14" font-weight="400" fill="#161922">バルク・公式テキストを取得</text>
+<text x="36" y="697" font-size="14" font-weight="400" fill="#161922">出所ごとの脚本で取り込む</text>
+<text x="326" y="633" font-size="17" font-weight="700" fill="#161922">出所別の取り込み</text>
+<text x="326" y="665" font-size="14" font-weight="400" fill="#161922">大会・公開・製品デッキを取得</text>
+<text x="326" y="697" font-size="14" font-weight="400" fill="#161922">出所ごとの脚本で取り込む</text>
+<text x="616" y="633" font-size="17" font-weight="700" fill="#161922">ダウンロード・集計</text>
+<text x="616" y="665" font-size="15" font-weight="400" fill="#161922">gz を流し読み</text>
+<text x="616" y="697" font-size="15" font-weight="400" fill="#161922">セット × カードで集計</text>
+<text x="36" y="845" font-size="17" font-weight="700" fill="#161922">元の情報を表に保持</text>
+<text x="36" y="880" font-size="14" font-weight="400" fill="#161922">カード情報・日本語の名前と本文</text>
+<text x="36" y="910" font-size="14" font-weight="400" fill="#161922">総合ルール・公式裁定</text>
+<text x="36" y="947" font-size="14" font-weight="400" fill="#161922">出所から取り込んだ情報を保持</text>
+<text x="326" y="845" font-size="17" font-weight="700" fill="#161922">出所の表記のまま保持</text>
+<text x="326" y="880" font-size="15" font-weight="400" fill="#161922">デッキの見出し・明細</text>
+<text x="326" y="912" font-size="14" font-weight="400" fill="#161922">カード名は出所の表記のまま</text>
+<text x="326" y="946" font-size="14" font-weight="400" fill="#161922">カードとの対応は後から埋める</text>
+<text x="616" y="845" font-size="17" font-weight="700" fill="#161922">集計値だけを表に保存</text>
+<text x="616" y="877" font-size="14" font-weight="400" fill="#161922">勝率・ピック順など</text>
+<text x="616" y="908" font-size="14" font-weight="400" fill="#161922">生データは DB・リポジトリに</text>
+<text x="616" y="934" font-size="14" font-weight="400" fill="#161922">入れない</text>
+<text x="616" y="963" font-size="14" font-weight="400" fill="#161922">生データは再配布しない</text>
+<text x="36" y="1095" font-size="18" font-weight="700" fill="#161922">導出情報を追加</text>
+<text x="36" y="1130" font-size="15" font-weight="400" fill="#161922">カード本文から構造化</text>
+<text x="36" y="1162" font-size="14" font-weight="400" fill="#161922">除去・サーチ・ドロー・マナ加速</text>
+<text x="36" y="1194" font-size="15" font-weight="400" fill="#161922">導出列を作る</text>
+<text x="36" y="1227" font-size="14" font-weight="400" fill="#161922">総合ルール・公式裁定も保持</text>
+<text x="326" y="1095" font-size="18" font-weight="700" fill="#161922">対応付け・集計</text>
+<text x="326" y="1130" font-size="14" font-weight="400" fill="#161922">デッキとカードを対応付け</text>
+<text x="326" y="1162" font-size="14" font-weight="400" fill="#161922">元のカード名は保持（非破壊）</text>
+<text x="326" y="1194" font-size="15" font-weight="400" fill="#161922">フォーマット別の採用率</text>
+<text x="326" y="1227" font-size="15" font-weight="400" fill="#161922">共起の集計</text>
+<text x="40" y="1386" font-size="21" font-weight="700" fill="#161922">公開対象のデータ</text>
+<text x="40" y="1420" font-size="16" font-weight="400" fill="#161922">カード・ルール・裁定・デッキと、導出情報・集計表</text>
+<text x="40" y="1454" font-size="16" font-weight="400" fill="#161922">17Lands 由来のデータは集計値のみ</text>
+<text x="300" y="1605" font-size="21" font-weight="700" fill="#161922">公開サーバーへ</text>
+<text x="300" y="1643" font-size="17" font-weight="400" fill="#161922">論理レプリケーション</text>
+<text x="30" y="1715" font-size="14" font-weight="400" fill="#161922">矢印：データの流れ　／　出所・権利の詳細：docs/DATA_SOURCES.md</text>
+</svg>
