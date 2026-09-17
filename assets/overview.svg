@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="1220" viewBox="0 0 880 1220" font-family="Hiragino Sans, Noto Sans JP, Meiryo, sans-serif" role="img" aria-labelledby="title desc">
+<title id="title">mtg_sisho 全体図：問いの解釈は利用者側の AI、サーバーは事実を返す</title>
+<desc id="desc">利用者は言語モデルを持つ AI アシスタントに質問する。確認済みクライアントは Claude Code、claude.ai のカスタムコネクタ、ChatGPT の開発者モードのカスタムコネクタ。門は札の発行・検査とレート制限を行う。MCP の道具は 10 個あり、9 個は PostgreSQL 18 内で完結。readonly_ai で読み取り、検索・照合・計算を行う。外部 API に出るのは find_combos だけで、https://backend.commanderspellbook.com/find-my-combos に都度照会する。この道具もカード名照合に DB を使う。道具ログには入力と成功・エラー、計時を記録。双方向矢印は要求と応答、片方向矢印はログ記録。</desc>
+<defs><marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse" viewBox="0 0 9 8"><path d="M0 0 L9 4 L0 8 Z" fill="#48566b"/></marker></defs>
+<rect width="880" height="1220" fill="#ffffff"/>
+<rect x="40" y="130" width="180" height="110" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="290" y="105" width="550" height="170" fill="#edf4ff" stroke="#48566b" stroke-width="1.2"/>
+<rect x="20" y="345" width="840" height="590" fill="#ffffff" stroke="#9aa4b5" stroke-width="1.2"/>
+<rect x="50" y="435" width="780" height="170" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="50" y="665" width="560" height="245" fill="#ffffff" stroke="#48566b" stroke-width="1.2"/>
+<rect x="70" y="735" width="340" height="155" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="430" y="735" width="160" height="155" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="650" y="675" width="180" height="150" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="50" y="1040" width="420" height="125" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<rect x="520" y="1040" width="300" height="125" fill="#f4f6fa" stroke="#48566b" stroke-width="1.2"/>
+<polyline points="220,185 290,185" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<polyline points="560,275 560,435" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<polyline points="320,605 320,665" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<polyline points="610,700 650,700" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-end="url(#arrow)"/>
+<polyline points="230,890 230,1040" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<polyline points="490,890 490,1080 470,1080" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<polyline points="590,850 850,850 850,1100 820,1100" fill="none" stroke="#48566b" stroke-width="1.8" stroke-linejoin="miter" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="40" y="40" font-size="24" font-weight="700" fill="#161922">mtg_sisho 全体図</text>
+<text x="40" y="73" font-size="19" font-weight="700" fill="#161922">問いを解釈する AI と、事実を返すサーバー</text>
+<text x="60" y="165" font-size="19" font-weight="700" fill="#161922">利用者（人）</text>
+<text x="60" y="198" font-size="15" font-weight="400" fill="#161922">質問する</text>
+<text x="60" y="222" font-size="15" font-weight="400" fill="#161922">回答を受け取る</text>
+<text x="310" y="135" font-size="19" font-weight="700" fill="#161922">AI アシスタント</text>
+<text x="310" y="164" font-size="16" font-weight="400" fill="#161922">問いの解釈・道具の選択・回答の構成</text>
+<text x="310" y="191" font-size="13" font-weight="700" fill="#161922">確認済みのクライアント</text>
+<text x="310" y="214" font-size="14" font-weight="400" fill="#161922">Claude Code ／ claude.ai（カスタムコネクタ）</text>
+<text x="310" y="247" font-size="14" font-weight="400" fill="#161922">ChatGPT（開発者モードのカスタムコネクタ）</text>
+<text x="578" y="312" font-size="14" font-weight="700" fill="#161922">MCP</text>
+<text x="40" y="378" font-size="21" font-weight="700" fill="#161922">公開サーバー</text>
+<text x="595" y="378" font-size="15" font-weight="700" fill="#161922">事実の取得・照合・計算</text>
+<text x="595" y="406" font-size="15" font-weight="400" fill="#161922">速く正確に返す</text>
+<text x="70" y="464" font-size="18" font-weight="700" fill="#161922">門 ｜ 接続用の合言葉（札）の発行・検査</text>
+<text x="70" y="495" font-size="15" font-weight="700" fill="#161922">レート制限：滑走 60 秒窓（既定値）</text>
+<text x="70" y="523" font-size="15" font-weight="400" fill="#161922">接続元 IP：60 回/分　・　全体：300 回/分　・　札：60 回/分</text>
+<text x="70" y="551" font-size="15" font-weight="400" fill="#161922">find_combos：札ごと 10 回/分</text>
+<text x="70" y="581" font-size="15" font-weight="400" fill="#161922">日次の上限は札の発行だけ：IP 3 回/日・全体 100 回/日</text>
+<text x="70" y="699" font-size="20" font-weight="700" fill="#161922">MCP サーバー ｜ 道具は 10 個</text>
+<text x="86" y="763" font-size="18" font-weight="700" fill="#161922">DB 内で完結する 9 個</text>
+<text x="86" y="793" font-size="14" font-weight="400" fill="#161922">カード・総合ルール・公式裁定（3）</text>
+<text x="86" y="819" font-size="14" font-weight="400" fill="#161922">共起（1）・SQL 実行／スキーマ（2）</text>
+<text x="86" y="845" font-size="14" font-weight="400" fill="#161922">回答文のカード名照合（1）</text>
+<text x="86" y="871" font-size="14" font-weight="400" fill="#161922">確率の厳密計算（1）・DB 健全性（1）</text>
+<text x="442" y="763" font-size="17" font-weight="700" fill="#161922">外部照会 1 個</text>
+<text x="442" y="793" font-size="15" font-weight="700" fill="#161922">find_combos</text>
+<text x="442" y="823" font-size="15" font-weight="400" fill="#161922">唯一の外向き</text>
+<text x="442" y="851" font-size="14" font-weight="400" fill="#161922">名前の照合は</text>
+<text x="442" y="874" font-size="14" font-weight="400" fill="#161922">DB も利用</text>
+<text x="668" y="706" font-size="18" font-weight="700" fill="#161922">道具ログ</text>
+<text x="668" y="738" font-size="14" font-weight="400" fill="#161922">入力・成功／エラー</text>
+<text x="668" y="766" font-size="14" font-weight="400" fill="#161922">所要時間</text>
+<text x="668" y="794" font-size="14" font-weight="400" fill="#161922">DB 呼び出しの計時</text>
+<text x="70" y="1073" font-size="21" font-weight="700" fill="#161922">PostgreSQL 18</text>
+<text x="70" y="1104" font-size="16" font-weight="400" fill="#161922">読み取り専用の役割：readonly_ai</text>
+<text x="70" y="1136" font-size="15" font-weight="400" fill="#161922">カード・ルール・統計・SQL 関数</text>
+<text x="538" y="1071" font-size="16" font-weight="700" fill="#161922">外部 API</text>
+<text x="538" y="1101" font-size="19" font-weight="700" fill="#161922">Commander Spellbook</text>
+<text x="538" y="1127" font-size="14" font-weight="400" fill="#161922">都度照会 /find-my-combos</text>
+<text x="538" y="1151" font-size="12" font-weight="400" fill="#161922">backend.commanderspellbook.com</text>
+<text x="40" y="1200" font-size="14" font-weight="400" fill="#161922">双方向矢印：要求・応答　／　片方向矢印：ログ記録</text>
+</svg>
