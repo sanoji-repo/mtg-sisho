@@ -13,7 +13,12 @@ Sisho の公開サーバー（読み取り専用の複製）を、家の PC と�
 | 開発側（家の VM） | データを作る | 夜間ジョブ・搬入ジョブ・共起の洗い替え・ベンチ。`sh/make_public_dump.sh` で公開サーバー用 dump を書き出す |
 | 公開サーバー（別の機械） | 返事をする | PostgreSQL（公開サーバー用の表だけ・読み取り専用）・MCP サーバー・Tailscale。`sh/restore_public_dump.sh` で dump を受ける |
 
-公開サーバーに置かないもの: プレイヤー名（開発側の `players` 表に隔離・dump にも publication にも含めない・`deck_list.player_name` 列は 2026-08-31 に廃止）・バックアップ表・埋め込み表・評価の表・呼び出しログ。
+公開サーバーに置かないもの: プレイヤー名（開発側の `players` 表に隔離・dump にも publication にも含めない・`deck_list.player_name` 列は 2026-08-31 に廃止）・手動の日本語名補正表（`name_ja_manual`）・非合法側の共起とデッキ明細（`card_cooccurrence_nonlegal`・`deck_cards_nonlegal`）。
+
+![mtg_sisho 配置図。家の仮想マシンが正本の PostgreSQL を持ち、別の機械が読み取り専用の複製と門つき MCP サーバーと Tailscale Funnel を持つ。論理レプリケーションは公開サーバーから接続を張り、データは開発機から流れる。](../assets/deploy.svg)
+
+図の元は `assets/deploy_gen.py`（標準ライブラリだけの生成脚本）。箱の座標と折れ線の通り道がその中にあり、走らせると SVG と座標の検証結果を作り直す。
+
 
 ## 機械を選ぶときの確認（中古を買う前に）
 
@@ -84,7 +89,7 @@ sudo -u postgres env DB_PASS_ROAI=<.env と同じ値> PGUSER=postgres PGHOST=/va
 開発側（VM）:
 1. PostgreSQL を `wal_level=logical` にして再起動（docker compose なら command に `-c wal_level=logical`）。`max_slot_wal_keep_size` も置く（公開サーバーが長く落ちても開発側のディスクが埋まらない保険）。
 2. 公開サーバーから届く口を開ける（docker の ports に Tailscale の IP・Tailscale ACL に `tag:sisho → <VM>:5435`）。pg_hba は `host all all all scram-sha-256` があれば足りる。
-3. `sh/sisho_repl/01_vm_publication.sql` を流す（ロール `sisho_repl`＝REPLICATION＋公開する列だけ SELECT／publication `sisho_pub`＝19 表（`limited_card_stats`・17Lands 追加集計 5 表 `limited_*`・`mtg_sets` を含む・`make_public_dump.sh` の TABLES と同じ）・全表を明示の列指定——ただし主キーの無い `mtg_cards_v2_nonlegal`（REPLICA IDENTITY FULL）だけは列指定なし。列指定を付けると UPDATE/DELETE が「Column list used by the publication does not cover the replica identity」で拒否される（2026-08-31 実測））。
+3. `sh/sisho_repl/01_vm_publication.sql` を流す（ロール `sisho_repl`＝REPLICATION＋公開する列だけ SELECT／publication `sisho_pub`＝21 表（`limited_card_stats`・17Lands 追加集計 5 表 `limited_*`・`mtg_sets`・スコープ別集計 2 表 `card_scope_deck_counts`／`scope_deck_counts` を含む・`make_public_dump.sh` の TABLES と同じ）・全表を明示の列指定——ただし主キーの無い `mtg_cards_v2_nonlegal`（REPLICA IDENTITY FULL）だけは列指定なし。列指定を付けると UPDATE/DELETE が「Column list used by the publication does not cover the replica identity」で拒否される（2026-08-31 実測））。
    - `deck_list` の列指定に `player_name` を入れない＝名前は公開サーバーへ流れない。
    - 生成列（`mtg_cards_v2.name_display`）は列指定に入れない（公開サーバーが自分で計算する。入れると公開サーバー側で "incompatible generated column"）。
    - 主キーの無い表（`mtg_cards_v2_nonlegal`）は `REPLICA IDENTITY FULL`。
