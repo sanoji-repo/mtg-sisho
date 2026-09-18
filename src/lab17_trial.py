@@ -14,9 +14,10 @@
   ATA     Average Taken At        = 取られたピック番号の平均（1 始まり）
   pick_number は 0 始まりなので +1 して 1 始まりに揃える。
 
-使い方: python src/lab17_trial.py --set LCI --event PremierDraft [--dir data/17lands] [--no-db]
+使い方: python src/lab17_trial.py --set LCI --event PremierDraft [--dir data/17lands] [--no-db] [--migrate] [--out 道]
 出力: public.limited_card_stats（冪等= (expansion, event_type, card_name) で UPSERT）と logs/17lands_trial_YYYYMMDD.md
 生の gz は事前に置いておく（取得は sh/lab17_import_sets.sh が S3 の公開ファイルから行う）。
+表と列を作るのは --migrate のときだけ（通常運転では DDL を打たない）。
 """
 from __future__ import annotations
 import argparse, gzip, os, sys, time, datetime as dt
@@ -24,6 +25,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(__file__))
+from db_config import ddl_cursor, missing_columns   # noqa: E402（置き場所を足した後に読む）
 
 # 置き場所はリポジトリ直下から解く（作者の開発環境の絶対パスを使わない・2026-09-18）。
 # 生の gz は data/17lands（.gitignore 済み）・報告は logs/（同じく）。
@@ -31,6 +33,29 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 L17_DIR = os.environ.get("L17_DIR", os.path.join(_REPO_ROOT, "data", "17lands"))
 
 GAME_PREFIXES = ("opening_hand_", "drawn_", "tutored_", "deck_", "sideboard_")
+
+# 表と列の正本（作るのは --migrate のときだけ・通常運転は在るかどうかだけ確かめる）。
+# 列の並びは INSERT の順番でもある（cols として使う）。
+_REQUIRED_COLUMNS = ("expansion", "event_type", "card_name",
+                     "gih_games", "gih_wins", "gih_wr", "oh_games", "oh_wins", "oh_wr",
+                     "gd_games", "gd_wins", "gd_wr", "gp_games", "gp_wins", "gp_wr",
+                     "seen_packs", "alsa", "taken_count", "ata",
+                     "in_cards_v2", "db_card_name", "match_kind")
+_SCHEMA_DDL = """
+CREATE TABLE IF NOT EXISTS public.limited_card_stats (
+  expansion text NOT NULL, event_type text NOT NULL, card_name text NOT NULL,
+  gih_games int, gih_wins int, gih_wr numeric(6,4),
+  oh_games int, oh_wins int, oh_wr numeric(6,4),
+  gd_games int, gd_wins int, gd_wr numeric(6,4),
+  gp_games int, gp_wins int, gp_wr numeric(6,4),
+  seen_packs int, alsa numeric(6,2), taken_count int, ata numeric(6,2),
+  in_cards_v2 boolean, computed_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (expansion, event_type, card_name));
+ALTER TABLE public.limited_card_stats
+  ADD COLUMN IF NOT EXISTS db_card_name text, ADD COLUMN IF NOT EXISTS match_kind text;
+GRANT SELECT ON public.limited_card_stats TO readonly_ai;
+"""
+
 
 
 def log(msg: str) -> None:
@@ -98,8 +123,16 @@ def draft_stats(path: str, chunksize: int = 50000) -> pd.DataFrame:
         for s, e in zip(starts, ends):
             vec = last[s:e].max(0)
             k = key[s]
-            if s == 0 and carry_key == k:                             # 前チャンクの尻尾と合流
-                vec = np.maximum(vec, carry_vec)
+            if s == 0:
+                if carry_key == k:                                    # 前チャンクの尻尾と合流
+                    vec = np.maximum(vec, carry_vec)
+                elif carry_vec is not None:
+                    # 境界がちょうどパックの切れ目に当たった場合＝持ち越した尻尾は
+                    # もう続きが来ないので、ここで確定させる。これを忘れると境界ごとに
+                    # 1 パック黙って消えた（2026-09-18 CODEX の指摘 2・合成 CSV で再現:
+                    # 同じ 4 行をチャンク 4 と 2 で読むとパック 2 → 1・ALSA 1.5 → 2.0）
+                    sum_last += carry_vec; n_seen += (carry_vec > 0); n_packs += 1
+                carry_key = carry_vec = None
             if e == len(key):                                         # このチャンクの尻尾＝次に持ち越す
                 carry_key, carry_vec = k, vec
                 continue
@@ -119,6 +152,9 @@ def main() -> int:
     ap.add_argument("--set", required=True); ap.add_argument("--event", default="PremierDraft")
     ap.add_argument("--dir", default=L17_DIR); ap.add_argument("--no-db", action="store_true")
     ap.add_argument("--min-games", type=int, default=500)
+    ap.add_argument("--migrate", action="store_true",
+                    help="表と列を作る（通常運転では DDL を打たない・2026-09-18）")
+    ap.add_argument("--out", default=None, help="報告の書き出し先（既定は logs/17lands_trial_<日付>.md）")
     a = ap.parse_args()
     gpath = f"{a.dir}/game_data_public.{a.set}.{a.event}.csv.gz"
     dpath = f"{a.dir}/draft_data_public.{a.set}.{a.event}.csv.gz"
@@ -173,22 +209,20 @@ def main() -> int:
         matched = int(df["in_cards_v2"].sum()); n_front = int(df["match_kind"].eq("front").sum())
         n_moji = int(df["match_kind"].eq("mojibake").sum())
         # 書き込み（冪等）
+        # 通常運転では DDL を打たない（空振りでも ACCESS EXCLUSIVE を要求し、読みの
+        # 後ろに並ぶと玉突きになる・2026-09-18）。作るのは --migrate のときだけで、
+        # そのときも lock_timeout つき（行列の先頭で粘らない）。
+        if a.migrate:
+            with ddl_cursor(conn) as cur:
+                cur.execute(_SCHEMA_DDL)
+        else:
+            miss = missing_columns(conn, "limited_card_stats", _REQUIRED_COLUMNS)
+            if miss:
+                raise SystemExit(
+                    "public.limited_card_stats に必要な列がありません: " + ", ".join(miss) +
+                    "\n  初回は --migrate を付けて実行してください（表と列を作ります）。")
         with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS public.limited_card_stats (
-                  expansion text NOT NULL, event_type text NOT NULL, card_name text NOT NULL,
-                  gih_games int, gih_wins int, gih_wr numeric(6,4),
-                  oh_games int, oh_wins int, oh_wr numeric(6,4),
-                  gd_games int, gd_wins int, gd_wr numeric(6,4),
-                  gp_games int, gp_wins int, gp_wr numeric(6,4),
-                  seen_packs int, alsa numeric(6,2), taken_count int, ata numeric(6,2),
-                  in_cards_v2 boolean, computed_at timestamptz NOT NULL DEFAULT now(),
-                  PRIMARY KEY (expansion, event_type, card_name))""")
-            cur.execute("ALTER TABLE public.limited_card_stats ADD COLUMN IF NOT EXISTS db_card_name text, ADD COLUMN IF NOT EXISTS match_kind text")
-            cur.execute("GRANT SELECT ON public.limited_card_stats TO readonly_ai")  # public の既定 ACL でも付くが明示（冪等）
-            cols = ["expansion", "event_type", "card_name", "gih_games", "gih_wins", "gih_wr", "oh_games", "oh_wins", "oh_wr",
-                    "gd_games", "gd_wins", "gd_wr", "gp_games", "gp_wins", "gp_wr", "seen_packs", "alsa", "taken_count", "ata",
-                    "in_cards_v2", "db_card_name", "match_kind"]
+            cols = list(_REQUIRED_COLUMNS)
             rows = [tuple(None if (isinstance(v, float) and np.isnan(v)) else (int(v) if isinstance(v, (np.integer,)) else v)
                           for v in r) for r in df[cols].itertuples(index=False, name=None)]
             cur.executemany(f"""
@@ -200,9 +234,11 @@ def main() -> int:
 
     # 報告（生の数字を残す）
     stamp = dt.date.today().strftime("%Y%m%d")
-    out_dir = os.environ.get("L17_REPORT_DIR", os.path.join(_REPO_ROOT, "logs"))
-    os.makedirs(out_dir, exist_ok=True)
-    out = os.path.join(out_dir, f"17lands_trial_{stamp}.md")
+    # 器（sh/lab17_import_sets.sh）とファイル名でやり取りすると、日付を双方で
+    # 別々に求めるので午前 0 時に食い違う。明示的に受け取れるようにした（2026-09-18）
+    out = a.out or os.path.join(os.environ.get("L17_REPORT_DIR", os.path.join(_REPO_ROOT, "logs")),
+                                f"17lands_trial_{stamp}.md")
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     top = df[df["gih_games"] >= a.min_games].sort_values("gih_wr", ascending=False)
     early = df[df["seen_packs"] >= 200].sort_values("alsa")
     def tbl(x: pd.DataFrame, cols: list[str], n: int = 20) -> str:

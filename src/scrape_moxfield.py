@@ -225,10 +225,9 @@ def save_deck(conn, deck_json: dict, bracket: int | None = None, source: str = S
     deck_name = deck_json.get("name") or unique_name
     raw_format = deck_json.get("format")
     format_name = FORMAT_NAMES.get(raw_format, raw_format)
-# 設計判断: この取り込みはプレイヤー名を持たない（2026-08-31）。
-# deck_list に player_name 列は無く、名前を隔離する players 表は開発側だけに置く
-# （DATA_MODEL.md「プレイヤー名は開発側の players 表に隔離し、公開側の DB には
-# 名前も ID も置かない」）。集めずに捨てるのではなく、最初から取らない。
+# 設計判断: この取り込みはプレイヤー名を持たない（2026-08-31）。deck_list に
+# player_name 列は無く、名前を隔離する players 表は開発側だけに置く。
+# 集めてから捨てるのではなく、最初から取らない。
 # Moxfield の作者名（createdByUser.userName）は取得しない。
 
     with conn.cursor() as cur:
