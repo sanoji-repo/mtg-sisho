@@ -202,7 +202,7 @@ def norm_card_name(name: str) -> str:
 
 
 def extract_decks(data: dict, info: dict) -> tuple[str, str | None, list[dict]]:
-    """→ (event_name, event_date, [ {loginid, player, placement, cards:[(name,count,board)]} ])"""
+    """→ (event_name, event_date, [ {loginid, placement, cards:[(name,count,board)]} ])"""
     is_league = "publish_date" in data
     if is_league:
         event_name = data.get("name") or info["event_part"] or "League"
@@ -232,7 +232,6 @@ def extract_decks(data: dict, info: dict) -> tuple[str, str | None, list[dict]]:
         # deck_name の鍵: League は同一プレイヤーが同日に複数 5-0 することがある →
         # 行ごとに一意な loginplayeventcourseid を優先（無ければ loginid）。順位引きは loginid
         deck_key = str(d.get("loginplayeventcourseid") or loginid)   # 大会型は loginid のまま（初回本走と同じ鍵）
-        player = d.get("player") or None
         cards: list[tuple[str, int, str]] = []
         for c in d.get("main_deck") or []:
             attrs = c.get("card_attributes") or {}
@@ -261,7 +260,8 @@ def extract_decks(data: dict, info: dict) -> tuple[str, str | None, list[dict]]:
             cards.append((norm_card_name(name), qty, sb_board))
         if not cards:
             continue
-        decks.append({"loginid": loginid, "deck_key": deck_key, "player": player,
+        # プレイヤー名（d["player"]）は取らない（下の設計判断の注記を参照）
+        decks.append({"loginid": loginid, "deck_key": deck_key,
                       "placement": rank_by_login.get(loginid), "cards": cards})
     return event_name, event_date, decks
 
@@ -284,16 +284,20 @@ def save_event(conn, info: dict, event_name: str, event_date: str | None,
     with conn.cursor() as cur:
         for d in decks:
             unique_name = f"mtgo_{info['site_name']}_{d['deck_key']}"
+            # 設計判断: この取り込みはプレイヤー名を持たない（2026-08-31）。deck_list に
+            # player_name 列は無く、名前を隔離する players 表は開発側だけに置く
+            # （DATA_MODEL.md「プレイヤー名は開発側の players 表に隔離し、公開側の DB には
+            # 名前も ID も置かない」）。集めずに捨てるのではなく、最初から取らない。
             cur.execute("""
                 INSERT INTO deck_list
                     (deck_name, set_code, source, tournament_name, tournament_date,
-                     placement, player_name, format_name, source_url,
+                     placement, format_name, source_url,
                      tournament_event_id, archetype)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
                 ON CONFLICT (deck_name) DO NOTHING
                 RETURNING id
             """, (unique_name, info["format_key"][:10], info["source"], event_name,
-                  event_date, d["placement"], d["player"], info["format_name"],
+                  event_date, d["placement"], info["format_name"],
                   url, info["event_id"]))
             row = cur.fetchone()
             if row is None:

@@ -46,8 +46,8 @@ design note（実測で確定した点・2026-07-21 追加検分）:
     を使う。デッキが Commander の singleton legal 建築（100枚・禁止カード無し等）
     を満たすかの構造化フラグ＝R9 の「crisp な属性は厳格に」の一族。
   - tournament_name/tournament_date/placement は Moxfield に対応概念が無い
-    ため NULL のまま（不在は NULL・番兵にしない）。player_name はデッキ
-    投稿者の Moxfield ユーザー名（実データなので NULL にしない）。
+    ため NULL のまま（不在は NULL・番兵にしない）。デッキ投稿者の名前は
+    取り込まない（2026-08-31 の設計判断・DATA_MODEL.md を参照）。
   - archetype 列（MTGTop8 の大会公式アーキタイプ名）に相当する概念が無い
     ので NULL のまま。hub_names は捨てず raw JSON ログにだけ残す（列は作らない）。
   - **bracket は deck_list に新規列として保存**（verify_schema で在ることを確かめる・列を作るのは移行側。
@@ -225,20 +225,24 @@ def save_deck(conn, deck_json: dict, bracket: int | None = None, source: str = S
     deck_name = deck_json.get("name") or unique_name
     raw_format = deck_json.get("format")
     format_name = FORMAT_NAMES.get(raw_format, raw_format)
-    author = (deck_json.get("createdByUser") or {}).get("userName")
+# 設計判断: この取り込みはプレイヤー名を持たない（2026-08-31）。
+# deck_list に player_name 列は無く、名前を隔離する players 表は開発側だけに置く
+# （DATA_MODEL.md「プレイヤー名は開発側の players 表に隔離し、公開側の DB には
+# 名前も ID も置かない」）。集めずに捨てるのではなく、最初から取らない。
+# Moxfield の作者名（createdByUser.userName）は取得しない。
 
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO deck_list
                 (deck_name, set_code, source, tournament_name, tournament_date,
-                 player_name, format_name, source_url, tournament_event_id,
+                 format_name, source_url, tournament_event_id,
                  archetype, bracket)
-            VALUES (%s, %s, %s, NULL, NULL, %s, %s, %s, NULL, NULL, %s)
+            VALUES (%s, %s, %s, NULL, NULL, %s, %s, NULL, NULL, %s)
             ON CONFLICT (deck_name) DO NOTHING
             RETURNING id;
             """,
-            (unique_name, format_name, source, author, format_name, source_url, bracket),
+            (unique_name, format_name, source, format_name, source_url, bracket),
         )
         result = cur.fetchone()
 
