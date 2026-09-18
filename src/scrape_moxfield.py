@@ -50,7 +50,7 @@ design note（実測で確定した点・2026-07-21 追加検分）:
     投稿者の Moxfield ユーザー名（実データなので NULL にしない）。
   - archetype 列（MTGTop8 の大会公式アーキタイプ名）に相当する概念が無い
     ので NULL のまま。hub_names は捨てず raw JSON ログにだけ残す（列は作らない）。
-  - **bracket は deck_list に新規列として保存**（ensure_columns で
+  - **bracket は deck_list に新規列として保存**（verify_schema で在ることを確かめる・列を作るのは移行側。
     ADD COLUMN IF NOT EXISTS・他 source は NULL のまま・既存踏襲の idiom）。
 
 使い方:
@@ -73,7 +73,7 @@ import psycopg2
 import psycopg2.extras
 import requests
 
-from db_config import DB_CONFIG
+from db_config import DB_CONFIG, connect_scrape, read_cursor
 
 API_SCHEME = "https"
 API_HOST = "api2.moxfield.com"
@@ -172,18 +172,25 @@ def search_cards(query: str) -> dict:
 
 # ─── DB 操作 ──────────────────────────────────────────────────
 
-def ensure_columns(conn):
-    """deck_list に bracket 列を追加する（他 source は NULL のまま・既存踏襲の idiom）"""
-    with conn.cursor() as cur:
-        cur.execute(
-            "ALTER TABLE deck_list ADD COLUMN IF NOT EXISTS bracket INTEGER;"
-        )
-    conn.commit()
+def verify_schema(conn):
+    """deck_list に bracket 列が在るか確かめる（足りなければ止める・2026-09-18）。
+
+    2026-09-18 まではここで毎回 ALTER TABLE ADD COLUMN IF NOT EXISTS を打っていた。
+    列が既に在っても DDL は対象表の ACCESS EXCLUSIVE を要求するので、他の取り込みが
+    読みのトランザクションを開けたまま HTTP を叩いている間ずっと待ち、ロック待ちは
+    先着順なのでその後ろに INSERT や SELECT まで並ぶ（2026-09-18 実測: 一晩の待ち 77.6 分）。
+    列を作るのは移行の仕事。作ってよいときだけ --migrate を付ける。
+    """
+    from db_config import migrate_requested, require_columns
+    require_columns(conn, "deck_list", ("bracket",),
+                    "ALTER TABLE deck_list ADD COLUMN IF NOT EXISTS bracket INTEGER;",
+                    migrate=migrate_requested(), label="ALTER")
 
 
 def get_scraped_public_ids(conn, source: str = SOURCE) -> set[str]:
     """既に取り込み済みの publicId を取得（deck_name= f"moxfield_{public_id}" から復元）"""
-    with conn.cursor() as cur:
+    # 読んだら閉じる（この後 HTTP を叩いている間ロックを握らない・2026-09-18）
+    with read_cursor(conn) as cur:
         cur.execute(
             "SELECT deck_name FROM deck_list WHERE source = %s",
             (source,),
@@ -350,8 +357,8 @@ def sample_by_bracket(fmt: str, brackets: list[int], per_bracket: int,
 # ─── メイン処理 ───────────────────────────────────────────────
 
 def run_bracket_batch(fmt: str, brackets: list[int], per_bracket: int, sort_type: str, max_pages: int):
-    conn = psycopg2.connect(**DB_CONFIG)
-    ensure_columns(conn)
+    conn = connect_scrape()
+    verify_schema(conn)
     scraped = get_scraped_public_ids(conn)
     print(f"既存 {len(scraped)} 件はスキップ対象\n")
 
@@ -381,8 +388,8 @@ def run_bracket_batch(fmt: str, brackets: list[int], per_bracket: int, sort_type
 
 
 def scrape(fmt: str, commander_card_id: str | None, limit: int):
-    conn = psycopg2.connect(**DB_CONFIG)
-    ensure_columns(conn)
+    conn = connect_scrape()
+    verify_schema(conn)
     scraped = get_scraped_public_ids(conn)
     print(f"既存 {len(scraped)} 件はスキップ対象")
 

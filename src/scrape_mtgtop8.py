@@ -52,7 +52,7 @@ import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
-from db_config import DB_CONFIG
+from db_config import DB_CONFIG, connect_scrape, read_cursor
 
 BASE_URL       = "https://www.mtgtop8.com"
 REQUEST_INTERVAL = 2.75  # 秒（礼儀正しいスクレイピング・2026-07-18 夜間実行では2.5-3.0秒指定）
@@ -212,7 +212,8 @@ def get_deck_cards(deck_id: int, sb_board: str = "side") -> list[tuple[str, int,
 
 def get_scraped_event_ids(conn, source: str = SOURCE) -> set[int]:
     """既に取り込み済みのイベントIDを取得（再開用）"""
-    with conn.cursor() as cur:
+    # 読んだら閉じる（この後 HTTP を叩いている間ロックを握らない・2026-09-18）
+    with read_cursor(conn) as cur:
         cur.execute("""
             SELECT DISTINCT tournament_event_id FROM deck_list
             WHERE source = %s AND tournament_event_id IS NOT NULL
@@ -220,10 +221,12 @@ def get_scraped_event_ids(conn, source: str = SOURCE) -> set[int]:
         return {row[0] for row in cur.fetchall()}
 
 
-def ensure_columns(conn):
-    """deck_list に大会データ用カラムを追加する"""
-    with conn.cursor() as cur:
-        cur.execute("""
+_REQUIRED_COLUMNS = ("tournament_name", "tournament_date", "placement", "player_name",
+                     "format_name", "source_url", "tournament_event_id")
+# (source, tournament_event_id) は重複検出とバックフィルの JOIN/GROUP BY で頻繁に使う組
+# （2026-07-18 大会名調査より）。無くても答えは同じなので、欠けは警告だけにする。
+_REQUIRED_INDEX = "deck_list_tournament_event_id_idx"
+_DDL = """
             ALTER TABLE deck_list
             ADD COLUMN IF NOT EXISTS tournament_name  TEXT,
             ADD COLUMN IF NOT EXISTS tournament_date  DATE,
@@ -232,15 +235,28 @@ def ensure_columns(conn):
             ADD COLUMN IF NOT EXISTS format_name      TEXT,
             ADD COLUMN IF NOT EXISTS source_url       TEXT,
             ADD COLUMN IF NOT EXISTS tournament_event_id INTEGER;
-        """)
-        # (source, tournament_event_id) は重複検出・バックフィルの JOIN/GROUP BY で
-        # 頻繁に使う組。既存は無索引だったため追加する（2026-07-18 大会名調査より）。
-        cur.execute("""
+"""
+
+
+def verify_schema(conn):
+    """deck_list に必要な列と索引が在るか確かめる（足りなければ止める）。
+
+    2026-09-18 まではここで毎回 ALTER TABLE ADD COLUMN IF NOT EXISTS と
+    CREATE INDEX IF NOT EXISTS を打っていた。列が既に在っても DDL は対象表の
+    ACCESS EXCLUSIVE を要求するので、別の取り込みが読みのトランザクションを開けたまま
+    HTTP を叩いている間ずっと待つ。ロック待ちは先着順なので、待っている DDL の後ろに
+    来た INSERT や SELECT まで並ぶ（2026-09-18 実測: 取り込みを 3 本並行で動かすと
+    一晩の待ち合計が 77.6 分）。列を作るのは移行の仕事なので、通常運転では在るか
+    確かめるだけにする。作ってよいときだけ --migrate を付ける。
+    """
+    from db_config import migrate_requested, require_columns, require_indexes
+    require_columns(conn, "deck_list", _REQUIRED_COLUMNS, _DDL,
+                    migrate=migrate_requested(), label="ALTER")
+    require_indexes(conn, "deck_list", (_REQUIRED_INDEX,),
+                    """
             CREATE INDEX IF NOT EXISTS deck_list_tournament_event_id_idx
             ON deck_list (source, tournament_event_id);
-        """)
-    conn.commit()
-    print("カラム追加完了")
+        """, migrate=migrate_requested())
 
 
 def save_deck(conn, event_id: int, event_name: str, event_date: str | None,
@@ -287,8 +303,8 @@ def save_deck(conn, event_id: int, event_name: str, event_date: str | None,
 # ─── メイン処理 ───────────────────────────────────────────────
 
 def scrape(format_code: str, meta: int, year: int):
-    conn = psycopg2.connect(**DB_CONFIG)
-    ensure_columns(conn)
+    conn = connect_scrape()
+    verify_schema(conn)
 
     # EDH（Duel Commander）は source を分離し、SB: 行を統率者として扱う
     if format_code == "EDH":
