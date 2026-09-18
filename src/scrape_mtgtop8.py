@@ -103,10 +103,12 @@ def get_event_ids(format_code: str, meta: int) -> list[int]:
     return unique_ids
 
 
-def get_deck_ids(event_id: int) -> tuple[str, str | None, list[tuple[int, str, str]]]:
+def get_deck_ids(event_id: int) -> tuple[str, str | None, list[tuple[int, str]]]:
     """
     イベントページからイベント名・大会日・デッキIDを取得する。
-    戻り値: (event_name, event_date_iso_or_None, [(deck_id, deck_name, player_name), ...])
+    戻り値: (event_name, event_date_iso_or_None, [(deck_id, deck_name), ...])
+
+    プレイヤー名は取らない（下の設計判断の注記を参照）。
     """
     url  = f"{BASE_URL}/event?e={event_id}"
     html = fetch(url)
@@ -133,22 +135,15 @@ def get_deck_ids(event_id: int) -> tuple[str, str | None, list[tuple[int, str, s
         html
     )
 
-    # プレイヤー名を取得
-    player_links = re.findall(
-        r'href=["\']?search\?player=([^"\'&>]+)["\']?[^>]*class=["\']?player["\']?',
-        html
-    )
-
     results = []
-    for i, (deck_id, deck_name) in enumerate(deck_links):
-        player = player_links[i].replace("+", " ") if i < len(player_links) else ""
+    for deck_id, deck_name in deck_links:
         # リンクテキストは HTML 実体参照のことがある（&rarr; ＝未分類の矢印表示・
         # 1,356 本が番兵値として archetype に混入していた 2026-08-20 発見の虫）。
         # 実体を解いた上で、矢印だけの「名無し」は空にする＝下流の or None で NULL 化。
         name = html_lib.unescape(deck_name).strip()
         if name in {"→", "←"}:
             name = ""
-        results.append((int(deck_id), name, player.strip()))
+        results.append((int(deck_id), name))
 
     return event_name, event_date, results
 
@@ -221,7 +216,11 @@ def get_scraped_event_ids(conn, source: str = SOURCE) -> set[int]:
         return {row[0] for row in cur.fetchall()}
 
 
-_REQUIRED_COLUMNS = ("tournament_name", "tournament_date", "placement", "player_name",
+# 設計判断: この取り込みはプレイヤー名を持たない（2026-08-31）。
+# deck_list に player_name 列は無く、名前を隔離する players 表は開発側だけに置く
+# （DATA_MODEL.md「プレイヤー名は開発側の players 表に隔離し、公開側の DB には
+# 名前も ID も置かない」）。集めずに捨てるのではなく、最初から取らない。
+_REQUIRED_COLUMNS = ("tournament_name", "tournament_date", "placement",
                      "format_name", "source_url", "tournament_event_id")
 # (source, tournament_event_id) は重複検出とバックフィルの JOIN/GROUP BY で頻繁に使う組
 # （2026-07-18 大会名調査より）。無くても答えは同じなので、欠けは警告だけにする。
@@ -231,7 +230,6 @@ _DDL = """
             ADD COLUMN IF NOT EXISTS tournament_name  TEXT,
             ADD COLUMN IF NOT EXISTS tournament_date  DATE,
             ADD COLUMN IF NOT EXISTS placement        INTEGER,
-            ADD COLUMN IF NOT EXISTS player_name      TEXT,
             ADD COLUMN IF NOT EXISTS format_name      TEXT,
             ADD COLUMN IF NOT EXISTS source_url       TEXT,
             ADD COLUMN IF NOT EXISTS tournament_event_id INTEGER;
@@ -260,7 +258,7 @@ def verify_schema(conn):
 
 
 def save_deck(conn, event_id: int, event_name: str, event_date: str | None,
-              deck_id: int, deck_name: str, player_name: str,
+              deck_id: int, deck_name: str,
               format_code: str, cards: list[tuple[str, int, str]],
               archetype: str = "", source: str = SOURCE) -> bool:
     """デッキを DB に保存する。重複の場合は False を返す"""
@@ -271,13 +269,13 @@ def save_deck(conn, event_id: int, event_name: str, event_date: str | None,
         cur.execute("""
             INSERT INTO deck_list
                 (deck_name, set_code, source, tournament_name, tournament_date,
-                 player_name, format_name, source_url, tournament_event_id,
+                 format_name, source_url, tournament_event_id,
                  archetype)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (deck_name) DO NOTHING
             RETURNING id;
         """, (unique_name, format_code, source, event_name, event_date,
-              player_name, FORMAT_NAMES.get(format_code, format_code),
+              FORMAT_NAMES.get(format_code, format_code),
               source_url, event_id, archetype or None))
         result = cur.fetchone()
 
@@ -345,14 +343,14 @@ def scrape(format_code: str, meta: int, year: int):
         if not deck_infos:
             continue
 
-        for deck_id, archetype, player_name in deck_infos:
+        for deck_id, archetype in deck_infos:
             cards = get_deck_cards(deck_id, sb_board=sb_board)
             if not cards:
                 continue
 
             saved = save_deck(
                 conn, event_id, event_name, event_date,
-                deck_id, archetype, player_name,
+                deck_id, archetype,
                 format_code, cards,
                 archetype=archetype, source=source,
             )
