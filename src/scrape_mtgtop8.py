@@ -282,6 +282,10 @@ def save_deck(conn, event_id: int, event_name: str, event_date: str | None,
         result = cur.fetchone()
 
     if result is None:
+        # 重複＝書く物は無いが、INSERT で開いたトランザクションは閉じて返す。
+        # 開けたまま返すと、呼び出し側が次のデッキを HTTP で取っている間ずっと
+        # ロックを握り、connect_scrape の網（60 秒）に切られる（2026-09-18）
+        conn.rollback()
         return False
 
     deck_db_id = result[0]
@@ -422,6 +426,8 @@ if __name__ == "__main__":
                         help="年（ログ表示用）")
     parser.add_argument("--status", action="store_true",
                         help="取得状況確認")
+    parser.add_argument("--migrate", action="store_true",
+                        help="足りない列や索引を作る（通常運転では DDL を打たない・2026-09-18）")
     args = parser.parse_args()
 
     if args.status:

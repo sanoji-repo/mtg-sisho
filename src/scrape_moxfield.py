@@ -243,6 +243,10 @@ def save_deck(conn, deck_json: dict, bracket: int | None = None, source: str = S
         result = cur.fetchone()
 
     if result is None:
+        # 重複＝書く物は無いが、INSERT で開いたトランザクションは閉じて返す。
+        # 開けたまま返すと、呼び出し側が次のデッキを HTTP で取っている間ずっと
+        # ロックを握り、connect_scrape の網（60 秒）に切られる（2026-09-18）
+        conn.rollback()
         return False
 
     deck_db_id = result[0]
@@ -428,6 +432,8 @@ def main():
     parser.add_argument("--fmt-candidates", default="commander,Commander",
                          help="smoke-test で試す fmt 候補（カンマ区切り）")
     parser.add_argument("--status", action="store_true", help="取得状況を表示")
+    parser.add_argument("--migrate", action="store_true",
+                        help="足りない列や索引を作る（通常運転では DDL を打たない・2026-09-18）")
     parser.add_argument("--fmt", default="commander", help="本走で使う fmt 値")
     parser.add_argument("--commander", default=None,
                          help="統率者名で絞る場合（--commander-card-id を先に解決すること）")

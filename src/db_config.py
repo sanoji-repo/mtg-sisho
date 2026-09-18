@@ -172,7 +172,11 @@ def ddl_cursor(conn, timeout=None):
     import psycopg2
     cur = conn.cursor()
     try:
-        cur.execute(f"SET lock_timeout = '{timeout or DDL_LOCK_TIMEOUT}'")
+        # SET LOCAL ＝ このトランザクションの間だけ有効。抜けるときの RESET と
+        # その commit が要らなくなる（finally の中の commit は、KeyboardInterrupt で
+        # 中断したときに途中までの DDL を確定させてしまう。BaseException は
+        # except Exception に入らない・2026-09-18）。
+        cur.execute(f"SET LOCAL lock_timeout = '{timeout or DDL_LOCK_TIMEOUT}'")
         yield cur
         conn.commit()
     except psycopg2.errors.LockNotAvailable:
@@ -184,15 +188,10 @@ def ddl_cursor(conn, timeout=None):
             " FROM pg_stat_activity WHERE datname='rag_dev' ORDER BY xact_start\""
             "\n  待ってから、または窓を外して再実行してください（DDL_LOCK_TIMEOUT で伸ばせます）。"
         )
-    except Exception:
+    except BaseException:       # KeyboardInterrupt・SystemExit も捨てる側に倒す
         conn.rollback()
         raise
     finally:
-        try:
-            cur.execute("RESET lock_timeout")
-            conn.commit()
-        except Exception:
-            pass
         cur.close()
 
 
