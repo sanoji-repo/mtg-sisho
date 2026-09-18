@@ -46,7 +46,7 @@ import psycopg2
 import psycopg2.extras
 import requests
 
-from db_config import DB_CONFIG
+from db_config import DB_CONFIG, connect_scrape, read_cursor
 
 BASE_URL = "https://www.mtgo.com"
 REQUEST_INTERVAL = 2.0
@@ -183,7 +183,7 @@ def load_alias(conn) -> None:
     """mtgo_name_alias（MTGO 表示名→紙の正式名・2026-08-22 新設）を読み込む。
     実例: om1「Through the Omenpaths」= MTGO 限定のスパイダーマン別名（Kavaero, Mind-Bitten → Superior Spider-Man）。
     Scryfall では printed_name に別名・name に紙の名前が入る。表の再生成は docs/ai/WORKLOG 8/22 の手順。"""
-    with conn.cursor() as cur:
+    with read_cursor(conn) as cur:      # 読んだら閉じる（HTTP の間ロックを握らない・2026-09-18）
         cur.execute("SELECT mtgo_name, card_name FROM mtgo_name_alias")
         _ALIAS.update({a: b for a, b in cur.fetchall()})
 
@@ -269,7 +269,7 @@ def extract_decks(data: dict, info: dict) -> tuple[str, str | None, list[dict]]:
 # ─── DB ─────────────────────────────────────────────────────────────────
 
 def scraped_urls(conn) -> set[str]:
-    with conn.cursor() as cur:
+    with read_cursor(conn) as cur:      # 同上。この後の fetch は 1 秒 1 回で長い
         cur.execute("SELECT DISTINCT source_url FROM deck_list "
                     "WHERE source LIKE 'mtgo%%' AND source_url IS NOT NULL")
         return {r[0] for r in cur.fetchall()}
@@ -322,7 +322,7 @@ def month_range(a: str, b: str):
 
 def run(months, limit: int | None, dry_run: bool, include_limited: bool,
         formats: set[str] | None):
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = connect_scrape()
     load_alias(conn)
     done = scraped_urls(conn)
     tot_pages = tot_decks = tot_dup = skipped = 0
