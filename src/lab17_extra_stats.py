@@ -15,7 +15,7 @@ num_turns／num_mulligans と draft_data の pick_maindeck_rate／event_match_wi
 rank は帯だけに揃える（bronze…mythic・小文字・古いセットの 'Platinum-4-0-0-0' は先頭の帯・欠けは 'none'）。wr は生成列（wins/games）。
 db_card_name は limited_card_stats（同セット・同 card_name）から写す。
 
-使い方: python src/lab17_extra_stats.py --set ECL [--event PremierDraft] [--dir data/17lands] [--no-db]
+使い方: python src/lab17_extra_stats.py --set ECL [--event PremierDraft] [--dir data/17lands] [--no-db] [--migrate]
 """
 from __future__ import annotations
 import argparse, datetime as dt, os, sys, time
@@ -181,10 +181,37 @@ def upsert(conn, table: str, keys: list[str], cols: list[str], df: pd.DataFrame,
     return len(vals)
 
 
+_TABLES = ("limited_color_stats", "limited_matchup_stats", "limited_format_stats",
+           "limited_card_rank_stats", "limited_card_pick_stats")
+
+
+def _verify_schema(conn, migrate: bool) -> None:
+    """通常運転では DDL を打たず、5 表が在ることだけ確かめる（2026-09-18）。
+
+    CREATE TABLE IF NOT EXISTS も空振りでも対象表の ACCESS EXCLUSIVE を要求するので、
+    読みの後ろに並ぶと玉突きになる。作るのは --migrate のときだけ・lock_timeout つき。
+    """
+    from db_config import ddl_cursor, read_cursor
+    if migrate:
+        with ddl_cursor(conn) as cur:
+            cur.execute(DDL)
+        return
+    with read_cursor(conn) as cur:
+        cur.execute("SELECT table_name FROM information_schema.tables"
+                    " WHERE table_schema = 'public' AND table_name = ANY(%s)", (list(_TABLES),))
+        have = {r[0] for r in cur.fetchall()}
+    miss = [t for t in _TABLES if t not in have]
+    if miss:
+        raise SystemExit("public に表がありません: " + ", ".join(miss) +
+                         "\n  初回は --migrate を付けて実行してください（5 表を作ります）。")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--set", required=True); ap.add_argument("--event", default="PremierDraft")
     ap.add_argument("--dir", default=L17_DIR); ap.add_argument("--no-db", action="store_true")
+    ap.add_argument("--migrate", action="store_true",
+                    help="5 表を作る（通常運転では DDL を打たない・2026-09-18）")
     a = ap.parse_args()
     exp, ev = a.set, a.event
     gpath = os.path.join(a.dir, f"game_data_public.{exp}.{ev}.csv.gz")
@@ -201,8 +228,7 @@ def main() -> int:
     import psycopg2
     from db_config import DB_CONFIG
     conn = psycopg2.connect(**DB_CONFIG)
-    with conn.cursor() as cur:
-        cur.execute(DDL)
+    _verify_schema(conn, a.migrate)
     n1 = upsert(conn, "limited_color_stats", ["main_colors", "splash"], ["main_colors", "splash", "games", "wins"], g["color"], exp, ev)
     n2 = upsert(conn, "limited_matchup_stats", ["main_colors", "opp_colors"], ["main_colors", "opp_colors", "games", "wins"], g["match"], exp, ev)
     n3 = upsert(conn, "limited_format_stats", ["rank"], ["rank", "games", "wins", "on_play_games", "on_play_wins", "turns_sum", "mulligans_sum"], g["fmt"], exp, ev)

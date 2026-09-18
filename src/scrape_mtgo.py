@@ -285,9 +285,10 @@ def save_event(conn, info: dict, event_name: str, event_date: str | None,
         for d in decks:
             unique_name = f"mtgo_{info['site_name']}_{d['deck_key']}"
             # 設計判断: この取り込みはプレイヤー名を持たない（2026-08-31）。deck_list に
-            # player_name 列は無く、名前を隔離する players 表は開発側だけに置く
-            # （DATA_MODEL.md「プレイヤー名は開発側の players 表に隔離し、公開側の DB には
-            # 名前も ID も置かない」）。集めずに捨てるのではなく、最初から取らない。
+            # player_name 列は無く、名前を隔離する players 表は開発側だけに置く。
+            # ただし deck_name には出所側のキー（loginplayeventcourseid・無ければ
+            # loginid）が重複判定のために残る＝「名前を持たない」であって「出所側の
+            # 識別子が一切無い」ではない（2026-09-18 に明示）。
             cur.execute("""
                 INSERT INTO deck_list
                     (deck_name, set_code, source, tournament_name, tournament_date,
