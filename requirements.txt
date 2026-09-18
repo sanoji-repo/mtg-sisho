@@ -5,6 +5,9 @@ requests==2.33.1
 beautifulsoup4==4.14.3
 tqdm==4.67.3
 ijson==3.5.0
+# リミテッド統計の集計（src/lab17_trial.py・src/lab17_extra_stats.py）。
+numpy==2.4.4
+pandas==3.0.5
 # MCP サーバー（src/mcp_server.py）。
 mcp==2.0.0
 
