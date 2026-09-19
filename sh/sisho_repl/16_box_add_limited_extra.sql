@@ -1,4 +1,4 @@
--- 16_box_add_limited_extra.sql — 公開サーバー（sisho・rag_sisho）側: 17Lands 追加集計 5 表を受ける表を作り、購読を更新する（2026-09-02）
+-- 16_box_add_limited_extra.sql — 公開サーバー（sisho・rag_sisho）側: 17Lands 追加集計 5 表を受ける表を作り、購読を更新する
 -- 走らせ方:
 --   1) VM から:  scp sh/sisho_repl/16_box_add_limited_extra.sql sisho:/tmp/ && ssh sisho chmod 644 /tmp/16_box_add_limited_extra.sql
 --   2) 公開サーバーで:     sudo -u postgres psql -d rag_sisho -v ON_ERROR_STOP=1 -f /tmp/16_box_add_limited_extra.sql

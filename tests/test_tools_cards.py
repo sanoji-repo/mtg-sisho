@@ -182,7 +182,7 @@ def test_search_valid_formats_covers_arena_formats():
     """
     valid = cards._valid_formats()
     assert {"standard", "modern", "commander", "pauper"} <= set(valid), f"主要な鍵（{valid}）"
-    # 2026-09-14: 全行展開をやめて先頭 100 行から採るようにしたので、一覧が痩せたら気づく
+    # 全行展開をやめて先頭 100 行から採るようにしたので、一覧が痩せたら気づく
     assert len(valid) >= 20, f"鍵の一覧が痩せている（{len(valid)} 個・標本の行数が足りない?）"
     assert not (set(cards.ARENA_FORMATS) - set(valid)), (
         f"Arena の形式はすべて legalities の鍵にある（欠け: {set(cards.ARENA_FORMATS) - set(valid)}）")

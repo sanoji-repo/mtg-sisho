@@ -42,18 +42,18 @@ from db_config import DB_CONFIG
 
 
 # 1v1 構築（card_format_strength に入る・率の横断比較に参加する）
-# v5（2026-08-22・設計判断）: MTGO 公式（mtgo／mtgo_vintage／mtgo_pauper／mtgo_other=Premodern）を追加。
+# v5（設計判断）: MTGO 公式（mtgo／mtgo_vintage／mtgo_pauper／mtgo_other=Premodern）を追加。
 #   **MTGO の大会は MTGO 公式を正とし、mtgtop8 の MTGO 転載行（tournament_name LIKE 'MTGO %'）は
 #   集計から外す**（二重計上の除去・mtgtop8 は紙の大会担当）。条件は _NOT_TOP8_MTGO。
 CONSTRUCTED_SOURCES = ("mtgtop8", "mtgtop8_vintage", "mtgtop8_pauper",
                        "mtgo", "mtgo_vintage", "mtgo_pauper", "mtgo_other")
 # シングルトン系（edh_card_strength に入る・EDH 指定クエリ専用・
 # Duel Commander と多人数 Commander は format_name 列で区別・テーブルは共用）
-# v5: MTGO の Duel Commander League（mtgo_edh）も乗せる（方針「一応のせるか」）。
+# v5: MTGO の Duel Commander League（mtgo_edh）も乗せる。
 EDH_SOURCES = ("mtgtop8_edh", "moxfield_edh", "mtgo_edh")
 # mtgtop8 系の MTGO 転載行を外す条件（deck_list の別名 dl 前提）。
 # **MTGO 公式がその形式を覆っている期間（最古日以降）だけ**外す——全期間で外すと、バックフィル前の
-# 歴史（2024〜2026-07）が欠けて分母が 3 割落ちる（2026-08-22 初回実測で踏んだ）。バックフィルが
+# 歴史（2024〜2026-07）が欠けて分母が 3 割落ちる（初回実測で踏んだ）。バックフィルが
 # 進むほど境界は自動で過去へ動く。
 _NOT_TOP8_MTGO = (" AND NOT (dl.source LIKE 'mtgtop8%%' AND dl.tournament_name LIKE 'MTGO %%'"
                   "   AND dl.tournament_date >= (SELECT MIN(o.tournament_date) FROM deck_list o"

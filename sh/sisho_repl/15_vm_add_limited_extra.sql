@@ -1,4 +1,4 @@
--- 15_vm_add_limited_extra.sql — 開発側（VM）側: 17Lands の追加集計 5 表を publication に足す（2026-09-02・承認「A はいる」）
+-- 15_vm_add_limited_extra.sql — 開発側（VM）側: 17Lands の追加集計 5 表を publication に足す
 -- 走らせ方（VM で）:
 --   docker exec -i pg18-primary psql -U devuser -d rag_dev -v ON_ERROR_STOP=1 -f - < sh/sisho_repl/15_vm_add_limited_extra.sql
 -- 順番: この 15 → 公開サーバーで 16_box_add_limited_extra.sql（表を作ってから REFRESH PUBLICATION）。

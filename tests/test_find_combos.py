@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import mcp_server as m
-import sisho.tools.combos as combos      # _spellbook_post の差し替え先（2026-09-05 Step 3 で
+import sisho.tools.combos as combos      # _spellbook_post の差し替え先（
                                          # find_combos がこのモジュールへ移った。mcp_server の
                                          # 再輸出 m._spellbook_post を差し替えても道具には届かない）
 from conftest import DB_AVAILABLE, requires_db

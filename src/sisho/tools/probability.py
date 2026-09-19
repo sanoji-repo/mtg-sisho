@@ -9,7 +9,7 @@ from sisho.db import LANE_LIGHT, _db
 from sisho.toollog import _log_tool
 
 
-# ─── 確率計算の入口（2026-09-04 方針「あらゆる確率計算をどこかに格納して…」→「ひとまず最低限だけ」）───
+# ─── 確率計算の入口 ───
 # 計算の本体は DB の SQL 関数（sql/prob_functions.sql・超幾何・IMMUTABLE）。ここは名前付き引数で受けて同じ関数を呼び、
 # 数字と式と入力の復唱を返す薄い入口。LLM に算術をさせない・自由なコード実行は置かない（公開サーバーは 2 コア・公開口）。
 # データと結合したいときは query_mtg_database から関数を直接呼ぶ（例: SELECT mtg_land_drops(60, 24, 4, true)）。

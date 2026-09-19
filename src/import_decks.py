@@ -164,7 +164,7 @@ def import_decks(conn):
 # ─── 共起集計 ─────────────────────────────────────────────────
 
 # EDH（Duel Commander・多人数Commander）は card_cooccurrence と物理分離
-# （2026-07-22 設計判断）。理由: 共起の意味論が構築と別物——構築は同一
+# （設計判断）。理由: 共起の意味論が構築と別物——構築は同一
 # アーキタイプの netdeck コピーで co_count が水増しされやすいのに対し、
 # EDH は 100枚シングルトンで各デッキがほぼ独立に構築されるため、高い
 # co_count はより強いシナジー信号になる。スキーマは card_cooccurrence と
@@ -204,7 +204,7 @@ def update_cooccurrence(conn, source: str = SOURCE, table: str = "card_cooccurre
     """
     print(f"共起集計中（source={source} → {table}）...")
 
-    # 2026-08-22 設計判断「MTGO の大会は MTGO 公式を正・mtgtop8 は紙担当」: mtgtop8 系 source の集計では、
+    # 取り決め: MTGO の大会は MTGO 公式を正とし、mtgtop8 は紙の大会担当。mtgtop8 系 source の集計では、
     # MTGO 公式（source LIKE 'mtgo%'）が同形式を覆っている期間の MTGO 転載行（tournament_name LIKE 'MTGO %'）
     # を外す（採用率 recompute_card_format_strength と同じ条件・全期間で外すと歴史が欠ける）。
     excl = ""
@@ -224,7 +224,7 @@ def update_cooccurrence(conn, source: str = SOURCE, table: str = "card_cooccurre
 
         # 共起集計（同じデッキのカードペアをカウント）
         # 完全同一リスト（全 board・枚数込みの署名一致）は source 内で 1 本に潰す
-        # （2026-08-20 承認の重複除去ジョブ。ネットデッキ写しが直近メタのペアだけを
+        # （重複除去ジョブ。ネットデッキ写しが直近メタのペアだけを
         #  選択的に水増しする実測 28% の歪み対策。採用率系テーブルは対象外＝
         #  「何人が選んだか」は人気の信号として残す）
         cur.execute(f"""

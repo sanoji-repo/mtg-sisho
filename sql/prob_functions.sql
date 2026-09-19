@@ -1,4 +1,4 @@
--- prob_functions.sql — 確率計算の SQL 関数（2026-09-04 方針「ひとまず最低限だけ作ろう」）
+-- prob_functions.sql — 確率計算の SQL 関数
 -- 掟: LLM に算術をさせない。計算は決定的な関数（IMMUTABLE・numeric）で、返り値の入口（MCP の mtg_probability）が式と入力を書き戻す。
 -- 走らせ方: VM   docker exec -i pg18-primary psql -U devuser -d rag_dev -v ON_ERROR_STOP=1 -f - < sql/prob_functions.sql
 --           公開サーバー   sudo -u postgres psql -d rag_sisho -v ON_ERROR_STOP=1 -f /tmp/prob_functions.sql

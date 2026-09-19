@@ -31,7 +31,7 @@ def _load_dotenv(path: str = None) -> None:
     .env が無ければ何もしない（その場合は環境変数のみで動く）。
     """
     if path is None:
-        # コードは src/ 配下・.env はリポジトリ直下（2026-07-24 の配置替えに追随。
+        # コードは src/ 配下・.env はリポジトリ直下（配置替えに追随。
         # 旧配置=同階層もフォールバックで見る＝将来また動かしても静かに壊れない）
         here = os.path.dirname(os.path.abspath(__file__))
         path = os.path.join(os.path.dirname(here), ".env")
@@ -64,7 +64,7 @@ DB_CONFIG_PRIMARY = {**_COMMON, "port": int(os.environ.get("DB_PORT", "5435"))}
 DB_CONFIG_STANDBY = {**_COMMON, "port": int(os.environ.get("DB_PORT_STANDBY", "5436"))}
 
 # reembed・共起集計等の重い更新処理中に作成するフラグファイル。
-# 既定はリポジトリ直下（2026-09-05 Step 3 で作者の開発環境の絶対パス /mnt/mtg_rag/.primary_updating から置き換え）。
+# 既定はリポジトリ直下。
 # この脚本は sh/ からも素で使われるので sisho 包みを import せず自前で位置を解く。
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FLAG_FILE = os.environ.get("DB_FLAG_FILE", os.path.join(_REPO_ROOT, ".primary_updating"))
@@ -85,14 +85,14 @@ def get_db_config() -> dict:
 DB_CONFIG = DB_CONFIG_PRIMARY
 
 
-# ─── スクレイパ用の接続と読み取り（2026-09-18）─────────────────
+# ─── スクレイパ用の接続と読み取り─────────────────
 #
 # HTTP を叩いている間トランザクションを開けたままにすると、読み取りでも
 # deck_list の ACCESS SHARE を握り続ける（psycopg2 は既定で自動コミット
 # しないので、最初の SELECT でトランザクションが開いたままになる）。
 # そこへ別のスクレイパが DDL を打つと ACCESS EXCLUSIVE 待ちになり、ロック待ちは
 # 先着順なので、その後ろに来た INSERT や SELECT まで並ぶ。
-# 2026-09-18 実測: 行列 2 分 10 秒・一晩の待ち合計 77.6 分（pg_blocking_pids で
+# 実測: 行列 2 分 10 秒・一晩の待ち合計 77.6 分（pg_blocking_pids で
 # 連鎖を確認: ある取り込みの idle in transaction → 別の取り込みの ALTER →
 # 三つ目の取り込みの SELECT）。
 # 対策は二段。read_cursor が読みのトランザクションを必ず閉じ、
@@ -136,16 +136,16 @@ def read_cursor(conn):
         conn.rollback()
 
 
-# ─── DDL とスキーマ確認の作法（2026-09-18）────────────────────────
+# ─── DDL とスキーマ確認の作法────────────────────────
 #
 # 掟: 通常運転では DDL を打たない。打つときは行列の先頭で粘らない。
 #
 # 理由。ADD COLUMN IF NOT EXISTS も CREATE INDEX IF NOT EXISTS も、結果が空振りでも
 # 対象表の ACCESS EXCLUSIVE（索引は SHARE）を要求する。誰かが長いトランザクションを
 # 開けていると DDL はそこで待ち、PostgreSQL のロック待ちは先着順なので、後から来た
-# INSERT や SELECT まで DDL の後ろに並ぶ。2026-07-13 に一度これで渋滞し（手で打った
-# ALTER が 90 分居座った読みに堰き止められ後続が玉突き）、2026-09-18 には毎晩の取り込みの中で
-# 毎晩起きていたことが分かった（一晩の待ち合計 77.6 分）。7/13 の教訓は recompute の
+# INSERT や SELECT まで DDL の後ろに並ぶ。以前これで渋滞し（手で打った
+# ALTER が 90 分居座った読みに堰き止められ後続が玉突き）、後に毎晩の取り込みの中でも
+# 毎晩起きていたことが分かった（一晩の待ち合計 77.6 分）。このときの教訓は recompute の
 # TRUNCATE にだけ入っていて、他の 20 本には入っていなかった。
 #
 # 使い方:
@@ -175,7 +175,7 @@ def ddl_cursor(conn, timeout=None):
         # SET LOCAL ＝ このトランザクションの間だけ有効。抜けるときの RESET と
         # その commit が要らなくなる（finally の中の commit は、KeyboardInterrupt で
         # 中断したときに途中までの DDL を確定させてしまう。BaseException は
-        # except Exception に入らない・2026-09-18）。
+        # except Exception に入らない）。
         cur.execute(f"SET LOCAL lock_timeout = '{timeout or DDL_LOCK_TIMEOUT}'")
         yield cur
         conn.commit()

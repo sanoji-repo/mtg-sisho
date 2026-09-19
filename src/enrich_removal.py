@@ -48,7 +48,7 @@ def find_types(p):
     return [t for t in TT if re.search(r'\b' + t + r's?\b', p)]
 
 
-# 対象句のトークン: アポストロフィ・数字込み（2026-07-15 修理⑤: 紅蓮破の
+# 対象句のトークン: アポストロフィ・数字込み（実例: 紅蓮破の
 # "if it's blue" が旧クラス [a-z\-] のアポストロフィで句切れて青が消えていた）
 TOK = r"[a-z0-9'\-]+"
 
@@ -57,13 +57,13 @@ def parse(oracle):
     t = strip_reminder(oracle).replace('\n', ' ')
     tl = t.lower()
     target_types, target_detail = set(), []
-    # リスト列挙（A, B, or C）を丸ごと取る（2026-07-15 修理④: 失せろの
+    # リスト列挙（A, B, or C）を丸ごと取る（実例: 失せろの
     # 「クリーチャー、エンチャント、PW」の 2 項目以降が消えていた）
     for m in re.finditer(
             rf"target ({TOK}(?:[, ]+(?:or )?{TOK}){{0,10}})", tl):
         phrase = m.group(1).strip().rstrip(',')
         words = [w.strip(',') for w in phrase.split()]
-        # 修理⑨（2026-07-18・錨=熾火心の挑戦者）: 「becomes the target of a spell」
+        # 対象になる判定（実例: 熾火心の挑戦者）: 「becomes the target of a spell」
         # ＝"対象に**なる**" 側の句。"target of ..." は対象を**取る**句ではないので
         # 型抽出から除外（counter 役割の逆向き偽陽性・直行プレビューの目視で検出）
         if words and words[0] == 'of':
@@ -78,14 +78,14 @@ def parse(oracle):
                 target_types.add('noncreature_spell')
             target_detail.append({"phrase": ' '.join(words[:i + 1]), "type": "spell",
                                   "qualifier": (q if q not in (None, 'target') else None)})
-            # 条件付きカウンター判定（R12 の4類型のうち機械化できる3つ・2026-07-07）:
+            # 条件付きカウンター判定（4 類型のうち機械化できる 3 つ）:
             #  (a) 対象制限 = spell の前後に修飾語。前置=「noncreature spell」型／
             #      後置=「spell that targets ...」「spell with mana value ...」型
             #  (b) MV 制限 = "spell with mana value" 型（後置に含まれる）
             #  (c) ソフト  = "unless ... pays" 型（Mana Leak / Force Void 系）
             # 状態依存（"if you control..."）は言い回しが多様なので v1 では拾わない（過小
             # 検出側に倒れる＝条件付きが plain 扱いになるだけ・偽陽性は出ない）。
-            # ピッチ等の代替コストは「唱えること」への条件＝打ち消しは無条件（R12・FoW）
+            # ピッチ等の代替コストは「唱えること」への条件＝打ち消しは無条件（実例: Force of Will）
             # なので、ここでは counter 句の修飾と unless だけを見る。
             _soft  = bool(re.search(r'unless[^.]{0,60}pays?', tl))
             # 後置修飾が unless 節そのもの（"spell unless its controller pays"）の
@@ -95,8 +95,8 @@ def parse(oracle):
                       or (i + 1 < len(words) and words[i + 1] != 'unless'))
             if _soft or _scope:
                 target_types.add('spell_conditional')
-                # 類型分割（2026-07-18 カウンター便・案B）: 「確定カウンター」の
-                # 採点線は R2' と同精神＝範囲制限（対象/MV）は確定性を削らない・
+                # 類型分割: 「確定カウンター」の
+                # 採点の線も同じ精神＝範囲制限（対象/MV）は確定性を削らない・
                 # 支払い回避（unless pays）だけが不確定。soft/scope を別トークンに
                 # して機械判定可能にする。既存 spell_conditional は不変（挙動据え置き・
                 # 状態依存は v1 同様未捕捉＝過小検出側・ワークシートの目視対象）。
@@ -105,7 +105,7 @@ def parse(oracle):
                 if _scope:
                     target_types.add('spell_conditional_scope')
         else:
-            # or/カンマの型別名列挙は broadening＝qualifier に混ぜない（修理④）。
+            # or/カンマの型別名列挙は broadening＝qualifier に混ぜない。
             # 各セグメントの主型を 1 語ずつ除いた残りだけが qualifier
             # （nonartifact / if it's blue / an opponent controls / 複合型の余り）。
             segs = [s.strip() for s in
@@ -139,21 +139,21 @@ def parse(oracle):
     removal = []
 
     def obj(v):
-        """(第一クラス, 全クラス list|None, 対象句の生テキスト)。リスト列挙対応（修理④）"""
+        """(第一クラス, 全クラス list|None, 対象句の生テキスト)。リスト列挙に対応"""
         m = re.search(v + rf' (?:another )?(?:target |all |each |up to \w+ )?'
                           rf'({TOK}(?:[, ]+(?:or )?{TOK}){{0,6}})', tl)
         phrase = m.group(1) if m else ''
         ts = find_types(phrase)
         return (ts[0] if ts else None), (ts if len(ts) > 1 else None), phrase
 
-    # 領域ガード（2026-07-17・錨=アガサの魂の大釜）: 「card from a graveyard」等の
+    # 領域ガード（実例: アガサの魂の大釜）: 「card from a graveyard」等の
     # 墓地/ライブラリ/手札のカード操作は盤面除去でない（bounce/tuck の既存ガードと同族）。
     ZONE_RE = re.compile(r'\b(cards?|graveyards?|library|hand)\b')
 
     def _entry(typ, first, alls, **kw):
         e = {"type": typ, "object": first, **kw}
         if alls:
-            e["objects"] = alls   # 複数クラス時のみ（幅=異なり数の材料・修理⑦）
+            e["objects"] = alls   # 複数クラス時のみ（幅=異なり数の材料）
         return e
 
     def _is_targeted(verb):
@@ -183,7 +183,7 @@ def parse(oracle):
                                       r'exile[^.]*until (end of turn|the next)', tl))))
     m = re.search(r'deals? (\d+|x) damage', tl)
     if m:
-        # targeted 判定拡張（2026-07-17・錨=激情）: 「divided as you choose among
+        # targeted 判定拡張（実例: 激情）: 「divided as you choose among
         # ... target creatures」の割り振り構文も対象を取る。従来の 2 パターンに加え
         # 「damage と target が同文内で近接」を捕捉（全体火力 each/all は含まれない）
         dmg_targeted = bool(
@@ -194,7 +194,7 @@ def parse(oracle):
                         "targeted": dmg_targeted})
     m = re.search(r'[-−]\s?(\d+|x)/[-−]\s?(\d+|x)', tl)
     if m and (m.group(2) == 'x' or (m.group(2).isdigit() and int(m.group(2)) > 0)):
-        # targeted フラグ追加（2026-07-17・錨=税血の収穫者）: R2'補足a の
+        # targeted フラグ追加（実例: 税血の収穫者）: 補足規約の
         # 「対象を取る minus は機構不問クエリで 2」の機械化材料
         removal.append({"type": "minus", "stat": "toughness",
                         "amount": (m.group(2).upper() if m.group(2) == 'x' else int(m.group(2))),
@@ -219,7 +219,7 @@ def parse(oracle):
         removal.append({"type": "tuck", "targeted": True, "where": where,
                         "permanent": where != 'top'})
 
-    # モード分解（2026-07-15 修理②・錨=Burst Lightning）: キッカーで効果が伸びる
+    # モード分解（実例: Burst Lightning）: キッカーで効果が伸びる
     # ダメージは「そのマナ込みの別モード」として追加エントリ化。
     # extra_cost = キッカーの点数（実効コスト = cmc + extra_cost）。
     mk = re.search(r'kicker\s*(?:—|-)?\s*((?:\{[^}]+\})+)', tl)
@@ -230,7 +230,7 @@ def parse(oracle):
                             "targeted": ('any target' in tl or 'to target' in tl),
                             "extra_cost": _mana_value(mk.group(1))})
 
-    # 追加コストの条件化（2026-07-15 修理⑥・錨=Bone Splinters）: R2 の
+    # 追加コストの条件化（実例: Bone Splinters）: 採点規約の
     # 「下振れ・対称コスト付き＝条件」の写し。無条件を名乗れなくする印。
     if removal and re.search(r'as an additional cost to cast this (?:spell|card)', tl):
         for e in removal:
@@ -256,7 +256,7 @@ def _colored_mv(mana_cost: str) -> int:
 
 
 def floor_cost(oracle: str, mana_cost: str, cmc) -> float | None:
-    """実効コストの床値（2026-07-15 修理②・錨=力線の束縛=1）。
+    """実効コストの床値（実例: 力線の束縛=1）。
     コスト軽減の仕組みはカードに書いてある＝ベストケースは内在。
     軽減なしのカードは None（不在は NULL・番兵禁止）。"""
     if not mana_cost:
@@ -270,7 +270,7 @@ def floor_cost(oracle: str, mana_cost: str, cmc) -> float | None:
         return float(_colored_mv(mana_cost))   # 親和系: 無制限軽減→色拘束が床
     if re.search(r'\bdelve\b|affinity for', tl):
         return float(_colored_mv(mana_cost))
-    # 想起（2026-07-16 追補・錨=Solitude②が合成順位から落ちた件）:
+    # 想起（実例: Solitude が合成順位から落ちた件）:
     # マナの想起コストはその点数が床・ピッチ想起（手札から追放）はマナ 0 が床。
     # カードを失うコストはマナ軸の外＝層3（採用率）が織り込む（層設計文書の分業）。
     me = re.search(r'evoke\s*(?:—|-)?\s*((?:\{[^}]+\})+)', tl)
@@ -308,7 +308,7 @@ def main():
             cur.execute(stmt)
     conn.commit()
 
-    # 面対応（2026-07-15）: 導出入力を「唱えられる面」に限定。単面は結果不変なので、
+    # 面対応: 導出入力を「唱えられる面」に限定。単面は結果不変なので、
     # 書き込みは値が実際に変わる行だけ（無駄な全行 UPDATE の物理チャーン回避）。
     cur.execute("""SELECT id, oracle_text, card_faces_json, mana_cost, cmc,
                           target_types, target, removal_types, removal, floor_cmc

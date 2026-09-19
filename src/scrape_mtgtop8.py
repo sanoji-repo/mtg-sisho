@@ -55,7 +55,7 @@ from tqdm import tqdm
 from db_config import DB_CONFIG, connect_scrape, read_cursor
 
 BASE_URL       = "https://www.mtgtop8.com"
-REQUEST_INTERVAL = 2.75  # 秒（礼儀正しいスクレイピング・2026-07-18 夜間実行では2.5-3.0秒指定）
+REQUEST_INTERVAL = 2.75  # 秒（礼儀正しいスクレイピング・夜間実行では 2.5〜3.0 秒を指定）
 SOURCE         = "mtgtop8"
 
 HEADERS = {
@@ -138,7 +138,7 @@ def get_deck_ids(event_id: int) -> tuple[str, str | None, list[tuple[int, str]]]
     results = []
     for deck_id, deck_name in deck_links:
         # リンクテキストは HTML 実体参照のことがある（&rarr; ＝未分類の矢印表示・
-        # 1,356 本が番兵値として archetype に混入していた 2026-08-20 発見の虫）。
+        # 1,356 本が番兵値として archetype に混入していた虫）。
         # 実体を解いた上で、矢印だけの「名無し」は空にする＝下流の or None で NULL 化。
         name = html_lib.unescape(deck_name).strip()
         if name in {"→", "←"}:
@@ -180,7 +180,7 @@ def parse_dec(dec_text: str, sb_board: str = "side") -> tuple[str, str, list[tup
             board = "main"
 
         # "4 [MR] Counterspell" または "4 Counterspell"
-        # 注意: セット記号は空括弧 "[]" のこともある（2026-08-11・クライアントの MCP 検分が発見）。
+        # 注意: セット記号は空括弧 "[]" のこともある（クライアントの MCP 検分が発見）。
         # 旧正規表現は [^\]]+ （1 文字以上）だったため "4 [] Counterspell" の空括弧を
         # 読み飛ばせず「[] Counterspell」として 20 万行/1 万デッキが汚染された。* に修正。
         m = re.match(r'^(\d+)\s+(?:\[[^\]]*\]\s+)?(.+)$', line)
@@ -207,7 +207,7 @@ def get_deck_cards(deck_id: int, sb_board: str = "side") -> list[tuple[str, int,
 
 def get_scraped_event_ids(conn, source: str = SOURCE) -> set[int]:
     """既に取り込み済みのイベントIDを取得（再開用）"""
-    # 読んだら閉じる（この後 HTTP を叩いている間ロックを握らない・2026-09-18）
+    # 読んだら閉じる（この後 HTTP を叩いている間ロックを握らない）
     with read_cursor(conn) as cur:
         cur.execute("""
             SELECT DISTINCT tournament_event_id FROM deck_list
@@ -216,13 +216,13 @@ def get_scraped_event_ids(conn, source: str = SOURCE) -> set[int]:
         return {row[0] for row in cur.fetchall()}
 
 
-# 設計判断: この取り込みはプレイヤー名を持たない（2026-08-31）。deck_list に
+# 設計判断: この取り込みはプレイヤー名を持たない。deck_list に
 # player_name 列は無く、名前を隔離する players 表は開発側だけに置く。
 # 集めてから捨てるのではなく、最初から取らない。
 _REQUIRED_COLUMNS = ("tournament_name", "tournament_date", "placement",
                      "format_name", "source_url", "tournament_event_id")
 # (source, tournament_event_id) は重複検出とバックフィルの JOIN/GROUP BY で頻繁に使う組
-# （2026-07-18 大会名調査より）。無くても答えは同じなので、欠けは警告だけにする。
+# （大会名調査より）。無くても答えは同じなので、欠けは警告だけにする。
 _REQUIRED_INDEX = "deck_list_tournament_event_id_idx"
 _DDL = """
             ALTER TABLE deck_list
@@ -281,7 +281,7 @@ def save_deck(conn, event_id: int, event_name: str, event_date: str | None,
     if result is None:
         # 重複＝書く物は無いが、INSERT で開いたトランザクションは閉じて返す。
         # 開けたまま返すと、呼び出し側が次のデッキを HTTP で取っている間ずっと
-        # ロックを握り、connect_scrape の網（60 秒）に切られる（2026-09-18）
+        # ロックを握り、connect_scrape の網（60 秒）に切られる
         conn.rollback()
         return False
 

@@ -61,7 +61,7 @@ import sys
 import psycopg2
 from psycopg2.extras import execute_batch, Json
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/（2026-09-05 Step 3・旧: 作者の開発環境の絶対パス）
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/
 from db_config import get_db_config
 from enrich_removal import strip_reminder, castable_oracle
 

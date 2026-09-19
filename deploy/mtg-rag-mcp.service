@@ -1,4 +1,4 @@
-# mtg-rag-mcp.service — MCP サーバ（streamable-http :8765）の systemd user unit（2026-08-12）
+# mtg-rag-mcp.service — MCP サーバ（streamable-http :8765）の systemd user unit
 # =========================================================================
 # 置き場所: ~/.config/systemd/user/mtg-rag-mcp.service（claude ユーザー）
 # 前提:     sudo loginctl enable-linger claude 済み（ログイン無しでも起動する）
@@ -13,7 +13,7 @@
 #
 # 注意 1: mcp SDK は venv に無く /home/claude/pylibs にある（boto3 と同じ流儀）。
 #         PYTHONPATH を落とすと ModuleNotFoundError: No module named 'mcp' で即死する。
-# 注意 2: 2026-08-21 設計判断「ルーター・絞り込みゲート・スコア補正部品の全撤廃」により全道具が DB 直結に
+# 注意 2: ルーター・絞り込みゲート・スコア補正部品を全廃したので全道具が DB 直結に
 #         なった＝mtg-rag-api(:8000) への依存は撤去済み。待つのは PostgreSQL(5435) だけ。
 # 注意 3: stdio 版（Claude Code 用）は別経路で、この unit とは無関係に
 #         クライアント側が都度起動する。ここで面倒を見るのは HTTP 版だけ。
@@ -25,7 +25,7 @@ Description=MTG RAG MCP server (streamable-http on 127.0.0.1:8765)
 Type=simple
 WorkingDirectory=/mnt/mtg_rag
 Environment=PYTHONPATH=/home/claude/pylibs
-# 秘密の待ち受けパス MCP_HTTP_PATH（2026-08-22・無ければ /mcp のまま）
+# 秘密の待ち受けパス MCP_HTTP_PATH（無ければ /mcp のまま）
 EnvironmentFile=-%h/.config/mtg-rag/mcp.env
 ExecStartPre=/bin/bash -c 'for i in $(seq 1 60); do [ -f /mnt/mtg_rag/src/mcp_server.py ] && (echo > /dev/tcp/127.0.0.1/5435) 2>/dev/null && exit 0; sleep 2; done; echo "[mtg-rag-mcp] deps not ready (mount/db)"; exit 1'
 ExecStart=/mnt/new_hdd/my_rag_env/bin/python /mnt/mtg_rag/src/mcp_server.py http 8765
@@ -33,7 +33,7 @@ Restart=on-failure
 RestartSec=5
 # 注意 5: uvicorn は停止時に「接続が閉じるまで待つ」。ブラウザ Claude のコネクタは
 #         セッションを掴んだままなので、これが無いと restart が永遠に終わらない
-#         （2026-08-13 に実際に deactivating で固まった）。猶予後に強制終了させる。
+#         （実際に deactivating で固まった）。猶予後に強制終了させる。
 TimeoutStopSec=15
 KillMode=mixed
 

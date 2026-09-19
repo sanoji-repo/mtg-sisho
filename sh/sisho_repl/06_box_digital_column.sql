@@ -1,5 +1,5 @@
 -- 06_box_digital_column.sql — 公開サーバー（sisho・rag_sisho）側: mtg_cards_v2 に digital 列を足し、name_display の式を差し替える
--- （2026-08-31・方針「(B) やろっか」＝Arena 専用カード（アルケミー・A- リバランス等 860 枚）を本線 mtg_cards_v2 に digital 列付きで合流・PHASE2 の記録どおり）
+-- （Arena 専用カード（アルケミー・A- リバランス等 860 枚）を本線 mtg_cards_v2 に digital 列付きで合流）
 --
 -- 順番: この 06（公開サーバーに列を足す）→ VM で 05_vm_digital_column.sql（列＋publication の列指定に digital）→ 公開サーバーで
 --        ALTER SUBSCRIPTION sisho_sub REFRESH PUBLICATION WITH (copy_data = false)（下の 3 節）。
@@ -8,7 +8,7 @@
 -- 設計:
 --   * digital=true ＝ 紙に存在しない Arena 専用のカード（Vintage 非合法・historic 等で合法）。既定の検索は紙（WHERE NOT digital）。
 --   * name_display（生成列・公開サーバーが自分で計算）: 日本語名が無いとき、digital なら「（日本語名未収録）」＝Arena には日本語版があるが
---     まだ持っていない、紙なら従来の「（日本語版なし）」。生成列は式を変えられないので DROP → ADD（依存ビュー・索引なし・8/31 確認）。
+--     まだ持っていない、紙なら従来の「（日本語版なし）」。生成列は式を変えられないので DROP → ADD（依存ビュー・索引なし・確認済み）。
 
 -- 1) 列
 ALTER TABLE public.mtg_cards_v2 ADD COLUMN IF NOT EXISTS digital boolean NOT NULL DEFAULT false;

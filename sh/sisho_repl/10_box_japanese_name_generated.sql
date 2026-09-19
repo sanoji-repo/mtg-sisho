@@ -1,4 +1,4 @@
--- 10_box_japanese_name_generated.sql — 公開サーバー側: japanese_name と name_display を面の列から作る生成列に（R3-1b・2026-08-31）
+-- 10_box_japanese_name_generated.sql — 公開サーバー側: japanese_name と name_display を面の列から作る生成列に
 -- 前提: VM で 09 の step=pub が済み、公開サーバーで REFRESH PUBLICATION (copy_data=false) が済んでいる（japanese_name はもう流れてこない）。
 -- 式は VM の 09 と同じ（公開サーバーが自分で計算する）。
 -- 走らせ方: scp → chmod 644 → sudo -u postgres psql -d rag_sisho -v ON_ERROR_STOP=1 -f /tmp/10_box_japanese_name_generated.sql

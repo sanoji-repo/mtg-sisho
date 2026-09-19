@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lab17_import_sets.sh — 17Lands Public Datasets（CC BY 4.0）PremierDraft の全セット搬入（2026-08-31）
+# lab17_import_sets.sh — 17Lands Public Datasets（CC BY 4.0）PremierDraft の全セット搬入
 #
 # 一覧: sh/17lands_premier_sets.tsv（expansion \t last_updated \t draft_url \t game_url）。
 #   17Lands の Public Datasets のページに載っている S3 の公開ファイルだけを対象にする
@@ -9,7 +9,7 @@
 #   報告を logs/17lands/trial_<SET>.md へ移す。
 # 冪等: 段ごとに済みを判定する（基本集計＝limited_card_stats・追加 5 表＝limited_card_pick_stats）。
 #   基本が済んだ後に追加が失敗した場合、セット全体を飛ばすと追加だけ永久に空のまま残る
-#   （2026-09-18 CODEX の指摘 1）。引数にセット名を並べるとそれだけ（試運転用）。
+#   （レビューの指摘）。引数にセット名を並べるとそれだけ（試運転用）。
 # 表が無い初回は --migrate で作る（脚本は通常運転では DDL を打たない）。
 # 生の CSV は再配布しない（DB に入れるのは集計値だけ・帰属は 17Lands https://www.17lands.com/）。
 set -u
@@ -63,7 +63,7 @@ while IFS=$'\t' read -r exp upd durl gurl; do
     echo "[$(ts)] 基本集計は済み: $code" >> "$LOG"
   fi
   # 追加 5 表（color/matchup/format/rank/pick）。段を分けて判定するので、ここだけ
-  # 失敗した場合は次回この段からやり直せる（2026-09-05 に HOB で 0 行のまま残った穴）
+  # 失敗した場合は次回この段からやり直せる（HOB で 0 行のまま残った穴）
   if [ "$have_extra" = 0 ]; then
     if PYTHONPATH=src $PYBIN src/lab17_extra_stats.py --set "$code" --event PremierDraft \
          --dir "$DIR" --migrate >> "$LOG" 2>&1; then
@@ -76,5 +76,5 @@ done < "$LIST"
 echo "[$(ts)] === 搬入終了 ok=$n_ok skip=$n_skip fail=$n_fail ===" >> "$LOG"
 $PSQL -c \
   "SELECT expansion, count(*) AS cards, sum(gih_games) AS gih_games, count(*) FILTER (WHERE NOT in_cards_v2) AS unmatched FROM public.limited_card_stats GROUP BY expansion ORDER BY expansion" >> "$LOG" 2>&1
-# 失敗があれば器も失敗で終わる（最後の一覧 SQL の成功で隠さない・CODEX の指摘 4）
+# 失敗があれば器も失敗で終わる（最後の一覧 SQL の成功で隠さない）
 [ "$n_fail" -eq 0 ] || { echo "[$(ts)] 失敗 $n_fail 件あり（exit 1）" >> "$LOG"; exit 1; }

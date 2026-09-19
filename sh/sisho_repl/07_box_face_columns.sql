@@ -1,5 +1,5 @@
--- 07_box_face_columns.sql — 公開サーバー（sisho・rag_sisho）側: mtg_cards_v2 に面の列 4 本＋出所の列 2 本を足す（R3-1a・2026-08-31 承認）
--- 設計台帳: docs/ai/CARD_FACES_DESIGN.md（P1〜P7・D1・D7・D9）。
+-- 07_box_face_columns.sql — 公開サーバー（sisho・rag_sisho）側: mtg_cards_v2 に面の列 4 本＋出所の列 2 本を足す
+-- 設計の要点は DATA_MODEL.md の「名前が二つあるカード」を参照。
 --
 -- 順番: この 07（公開サーバーに列）→ VM で 08_vm_face_columns_publish.sql（publication の列指定に 6 列を足す）
 --        → 公開サーバーで ALTER SUBSCRIPTION sisho_sub REFRESH PUBLICATION WITH (copy_data = false)

@@ -13,7 +13,7 @@ from sisho.toollog import TOOL_LOG_MAX, _log_tool
 from sisho.tools.cards import _archetype_lines, _resolve_draft_set
 
 
-# ─── 自由 SQL の口（2026-08-11・発案「エージェント自身が SQL を叩く路線」）───
+# ─── 自由 SQL の口（エージェント自身が SQL を叩く路線）───
 # 鞘は三重: (1) readonly_ai ロールと (2) statement_timeout 10 秒は sisho/db.py の
 # _db_readonly（原文の注記もそちらへ一緒に移した）・(3) 入口で SELECT/WITH 以外と複文を
 # 拒否＋行数・セル長の上限で応答を制限（コンテキスト爆発防止）は下の query_mtg_database。
@@ -34,7 +34,7 @@ QUERY_MTG_DATABASE_DESCRIPTION = ("【名前の掟】カード名は返り値の
       "mtg_land_drops(deck,lands,turn,on_play,mull)・mtg_combo_by_turn(deck,a,b,turn,on_play,mull)・mtg_cards_seen(turn,on_play,mull)。")
 def query_mtg_database(sql: str, max_rows: int = 30) -> str:
     _log_tool("query_mtg_database", {"sql": sql[:max(150, TOOL_LOG_MAX)]})
-    # 先頭コメントのタグ（2026-09-03 方針「全ての SQL にコメントを付けさせ、届いたら Python を一つ通す」・読むだけで書き換えない）
+    # 先頭コメントのタグ（全ての SQL にコメントを付けてもらい、届いたら Python を一つ通す・読むだけで書き換えない）
     import re as _re
     _m = _re.match(r"\s*--[^\n]*?#([A-Za-z0-9_\-]{2,40})", sql)
     tag_set = _resolve_draft_set(_m.group(1).strip()) if _m else None
@@ -59,7 +59,7 @@ def query_mtg_database(sql: str, max_rows: int = 30) -> str:
         return "0 行（クエリは成功）。"
     cols, rows, ja_note = _attach_japanese_names(cols, rows)
     def cell(v):
-        # 2026-09-15: NULL は "NULL" と書く。空文字と同じ空欄にすると、利用者は
+        # NULL は "NULL" と書く。空文字と同じ空欄にすると、利用者は
         # 「値が無い」のか「空の値がある」のかを区別できない（掟「不在は NULL・番兵禁止」）。
         s = "NULL" if v is None else str(v)
         return s if len(s) <= 160 else s[:157] + "…"
@@ -102,7 +102,7 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
             (cands, cands, cands), lane=LANE_LIGHT)
     except Exception:
         return cols, rows, ""
-    # 2026-08-31（R3-4）: 正式名・表面名は表面の完成形（name_display）、裏面名はその面の完成形。裏面名が本物のカード名と同じ（prepare）なら本物が勝つ
+    # 正式名・表面名は表面の完成形（name_display）、裏面名はその面の完成形。裏面名が本物のカード名と同じ（prepare）なら本物が勝つ
     ja_of: dict[str, str] = {}
     for en, label, enf, enb, jab, dg in hits:
         ja_of[en] = label
@@ -146,8 +146,8 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
 
 
 # 表ごとの注記（出典・列の意味）。返り値に載せる＝クライアントに確実に届くのは返り値だけ
-# （2026-08-22 設計判断「MCP の返り値は自己完結」）。変わる事実（収録セット一覧）は固定文にせず実測で添える。
-# 2026-08-31 まで一覧は relname だけ返していた（スキーマ落ち）→ public 以外の表は「スキーマ名.表名」で返す。
+# （MCP の返り値は自己完結させる）。変わる事実（収録セット一覧）は固定文にせず実測で添える。
+# 以前は一覧が relname だけだった（スキーマ落ち）→ public 以外の表は「スキーマ名.表名」で返す。
 # 17Lands 集計は同日 limited_card_stats → public.limited_card_stats に統合（設計判断・表 1 枚に別スキーマは不要）。
 _TABLE_NOTES = {
     "mtg_cards_v2": (
@@ -249,7 +249,7 @@ def describe_mtg_tables(table_name: str | None = None) -> str:
         # 列一覧。「スキーマ名.表名」でも表名だけでも受ける（スキーマ無しなら該当する全スキーマを出す）
         sch_in, _, tbl_in = table_name.strip().rpartition(".")
         sch, tbl = _ident(sch_in), _ident(tbl_in)
-        # 2026-09-05（Step 6 作業 2）: 削った結果が元と違うなら**検索せずに断る**。
+        # 削った結果が元と違うなら**検索せずに断る**。
         # _ident は使えない文字を黙って捨てるので、`deck-list` は `decklist` に化けて
         # 「テーブルなし: deck-list」＝「そんな表は無い」と嘘をつく（実際は表名の書き方の問題）。
         # 無害化そのものは残す（_db_readonly はプレースホルダを受けない＝文字種で守る鞘）。

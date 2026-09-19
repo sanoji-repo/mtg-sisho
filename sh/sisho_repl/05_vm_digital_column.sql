@@ -1,5 +1,5 @@
 -- 05_vm_digital_column.sql — 開発側（VM）側: mtg_cards_v2 に digital 列・name_display の式差し替え・publication の列指定に digital
--- （2026-08-31・方針「(B) やろっか」。設計は 06_box_digital_column.sql の頭書きと docs/ai/PHASE2.md の Alchemy/Historic 節）
+-- （設計は 06_box_digital_column.sql の頭書きを参照）
 --
 -- 順番: 公開サーバーで 06（列を先に）→ この 05 → 公開サーバーで REFRESH PUBLICATION (copy_data=false) → VM で sh/migrate_digital_20260831.sql（860 枚の合流）。
 -- 走らせ方: docker exec -i pg18-primary psql -U devuser -d rag_dev -v ON_ERROR_STOP=1 -f - < sh/sisho_repl/05_vm_digital_column.sql
@@ -26,7 +26,7 @@ ALTER PUBLICATION sisho_pub ADD TABLE
   public.mtg_cards_v2 (id, card_name, type_line, oracle_text, mana_cost, colors, rarity, layout, embed_text, japanese_name, japanese_oracle_text, power, toughness, loyalty, cmc, color_identity, set_code, set_name, collector_number, card_faces_json, keywords, legalities, tournament_score, produced_mana, edhrec_rank, game_changer, face_cmcs, has_x, is_mana_boost, target_types, target, removal_types, removal, front_keywords, face_types, floor_cmc, draw_count, draw_x, image_url, image_url_ja, set_codes, tutor, dig, digital);
 
 -- 4) nonlegal は列指定なしで載せ直す（REPLICA IDENTITY FULL の表に列指定があると、合流の DELETE が
---    「Column list used by the publication does not cover the replica identity」で拒否される・8/31 実測）
+--    「Column list used by the publication does not cover the replica identity」で拒否される・実測）
 ALTER PUBLICATION sisho_pub DROP TABLE public.mtg_cards_v2_nonlegal;
 ALTER PUBLICATION sisho_pub ADD TABLE public.mtg_cards_v2_nonlegal;
 

@@ -27,7 +27,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(__file__))
 from db_config import ddl_cursor, missing_columns   # noqa: E402（置き場所を足した後に読む）
 
-# 置き場所はリポジトリ直下から解く（作者の開発環境の絶対パスを使わない・2026-09-18）。
+# 置き場所はリポジトリ直下から解く（作者の開発環境の絶対パスを使わない）。
 # 生の gz は data/17lands（.gitignore 済み）・報告は logs/（同じく）。
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 L17_DIR = os.environ.get("L17_DIR", os.path.join(_REPO_ROOT, "data", "17lands"))
@@ -68,7 +68,7 @@ def game_stats(path: str, chunksize: int = 20000) -> pd.DataFrame:
     cards = sorted({c[len("deck_"):] for c in header if c.startswith("deck_")})
     oh = [f"opening_hand_{c}" for c in cards]; dr = [f"drawn_{c}" for c in cards]; dk = [f"deck_{c}" for c in cards]
     usecols = ["won"] + oh + dr + dk
-    dtype = {c: "float32" for c in oh + dr + dk}  # 古いセット（STX 等）は NA 混じり＝int だと読めない（2026-08-31）。NaN>0=False＝不在扱い
+    dtype = {c: "float32" for c in oh + dr + dk}  # 古いセット（STX 等）は NA 混じり＝int だと読めない。NaN>0=False＝不在扱い
     acc = {k: np.zeros(len(cards), dtype=np.int64) for k in
            ("gih_games", "gih_wins", "oh_games", "oh_wins", "gd_games", "gd_wins", "gp_games", "gp_wins")}
     n_games = 0; n_wins = 0; t0 = time.time()
@@ -96,7 +96,7 @@ def draft_stats(path: str, chunksize: int = 50000) -> pd.DataFrame:
     cards = sorted({c[len("pack_card_"):] for c in header if c.startswith("pack_card_")})
     pc = [f"pack_card_{c}" for c in cards]
     usecols = ["draft_id", "pack_number", "pick_number", "pick"] + pc
-    dtype = {c: "float32" for c in pc}  # 同上（NA 対策・2026-08-31）
+    dtype = {c: "float32" for c in pc}  # 同上（NA 対策）
     idx = {c: i for i, c in enumerate(cards)}
     sum_last = np.zeros(len(cards), dtype=np.int64); n_seen = np.zeros(len(cards), dtype=np.int64)
     sum_taken = np.zeros(len(cards), dtype=np.int64); n_taken = np.zeros(len(cards), dtype=np.int64)
@@ -129,7 +129,7 @@ def draft_stats(path: str, chunksize: int = 50000) -> pd.DataFrame:
                 elif carry_vec is not None:
                     # 境界がちょうどパックの切れ目に当たった場合＝持ち越した尻尾は
                     # もう続きが来ないので、ここで確定させる。これを忘れると境界ごとに
-                    # 1 パック黙って消えた（2026-09-18 CODEX の指摘 2・合成 CSV で再現:
+                    # 1 パック黙って消えた（レビューの指摘・合成 CSV で再現:
                     # 同じ 4 行をチャンク 4 と 2 で読むとパック 2 → 1・ALSA 1.5 → 2.0）
                     sum_last += carry_vec; n_seen += (carry_vec > 0); n_packs += 1
                 carry_key = carry_vec = None
@@ -190,7 +190,7 @@ def main() -> int:
                 front.setdefault(fr, full)
             cur.execute("SELECT card_name FROM mtg_cards_v2_nonlegal")
             names_nl = {r[0] for r in cur.fetchall()}
-        # 17lands の CSV ヘッダは非 ASCII を 1 文字 "?" に潰すことがある（TMT: "Bespoke B?" ← Bespoke Bō・2026-08-31 zcat で実確認）。
+        # 17lands の CSV ヘッダは非 ASCII を 1 文字 "?" に潰すことがある（TMT: "Bespoke B?" ← Bespoke Bō・zcat で実確認）。
         # "?" を「非 ASCII 1 文字」として正式名（完全名・表面名）に当て、一意に決まるときだけ採る（誤帰属より取り逃し）。
         import re
         cand_pairs = [(n_, n_) for n_ in names] + list(front.items())
@@ -210,7 +210,7 @@ def main() -> int:
         n_moji = int(df["match_kind"].eq("mojibake").sum())
         # 書き込み（冪等）
         # 通常運転では DDL を打たない（空振りでも ACCESS EXCLUSIVE を要求し、読みの
-        # 後ろに並ぶと玉突きになる・2026-09-18）。作るのは --migrate のときだけで、
+        # 後ろに並ぶと玉突きになる）。作るのは --migrate のときだけで、
         # そのときも lock_timeout つき（行列の先頭で粘らない）。
         if a.migrate:
             with ddl_cursor(conn) as cur:
@@ -235,7 +235,7 @@ def main() -> int:
     # 報告（生の数字を残す）
     stamp = dt.date.today().strftime("%Y%m%d")
     # 器（sh/lab17_import_sets.sh）とファイル名でやり取りすると、日付を双方で
-    # 別々に求めるので午前 0 時に食い違う。明示的に受け取れるようにした（2026-09-18）
+    # 別々に求めるので午前 0 時に食い違う。明示的に受け取れるようにした
     out = a.out or os.path.join(os.environ.get("L17_REPORT_DIR", os.path.join(_REPO_ROOT, "logs")),
                                 f"17lands_trial_{stamp}.md")
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)

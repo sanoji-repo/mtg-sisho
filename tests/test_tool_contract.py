@@ -115,7 +115,7 @@ def test_tool_contract(name):
     assert got["signature"] == exp["signature"], f"{name}: 引数の名前・型注釈・既定値"
     assert got["parameters"] == exp["parameters"], f"{name}: 引数の JSON Schema"
     # Python 3.13+ はコンパイル時に docstring の共通インデントを剥がす（3.12 の snapshot と公開サーバー 3.14 で
-    # 空白だけ違う・2026-09-05 公開サーバーで実測）→ 両側を inspect.cleandoc で揃えて比べる
+    # 空白だけ違う・公開サーバーで実測）→ 両側を inspect.cleandoc で揃えて比べる
     assert _cleandoc(got["doc"]) == _cleandoc(exp["doc"]), f"{name}: docstring は移動しても消さない・変えない"
 
 

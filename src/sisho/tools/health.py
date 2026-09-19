@@ -54,7 +54,7 @@ def mtg_rag_health(deep: bool = False) -> str:
     t0 = time.time()
     try:
         # deck_list を 2 回走査していた（COUNT と MAX が別の副問い合わせ・実測 6,515 頁）。
-        # 1 回の走査で両方採ると 3,420 頁（2026-09-14 実測・#885）。索引で逃げる手は無く、
+        # 1 回の走査で両方採ると 3,420 頁（実測）。索引で逃げる手は無く、
         # deck_list_format_date_idx は (format_name, tournament_date) の複合なので
         # MAX 単独だと索引を丸ごと読んで 12,278 頁とかえって重い。
         # 時間キャッシュも試したが、呼び出しは 10 分に 1 回でほとんど当たらない一方、
@@ -67,7 +67,7 @@ def mtg_rag_health(deep: bool = False) -> str:
             "  FROM (SELECT count(*) AS n, max(tournament_date)::text AS latest FROM deck_list) d", ())
         n_card, n_rule, n_rul, n_deck, latest = rows[0]
         # ドラフト統計（17Lands 集計・limited_card_stats）は表が無い環境もあるので別口で・失敗は 0
-        # 2026-09-15: 表が無い（未搬入）と、照会できない（障害・権限・timeout）を分ける。
+        # 表が無い（未搬入）と、照会できない（障害・権限・timeout）を分ける。
         # 以前はどちらも 0 にして status: ok を返していたので、「本当に 0 件」と
         # 「引けなかった」が区別できなかった（掟「不在は NULL・番兵禁止」）。
         n_l17, l17_note = None, None
@@ -85,7 +85,7 @@ def mtg_rag_health(deep: bool = False) -> str:
             "decks": n_deck, "latest_deck": latest,
             "draft_stat_sets": n_l17,          # 照会できなかったときは null（0 と区別する）
             "draft_stat_note": l17_note or "17Lands 集計・表 limited_card_stats・セット一覧は describe_mtg_tables",
-            # 再起動や配備のたびに「今動いているのはいつのコードか」を返り値だけで言えるように（#814）
+            # 再起動や配備のたびに「今動いているのはいつのコードか」を返り値だけで言えるように
             "started_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(_STARTED)),
             "uptime_hours": round((time.time() - _STARTED) / 3600, 1),
             "code_version": _CODE},

@@ -24,7 +24,7 @@ import os
 
 from mcp.server import MCPServer
 
-# 役目ごとの包み（2026-09-05 Step 2・Step 3 で切り出し）。旧名で受けるのは tests と外の脚本が
+# 役目ごとの包み。旧名で受けるのは tests と外の脚本が
 # m._RateLimiter・m._db・m._log_tool のまま触れるようにするため（再輸出）。
 from sisho.db import _db, _db_readonly, _db_slot          # noqa: F401（再輸出のみ）
 from sisho.ratelimit import RateLimiter as _RateLimiter, RateLimitASGI as _RateLimitASGI
@@ -39,9 +39,9 @@ from sisho.tools import rules as _tool_rules
 from sisho.tools import sql as _tool_sql
 from sisho.tools import verify as _tool_verify
 
-# 収録概況は「絶対に嘘にならない下限」で書く（2026-08-25 設計判断・単調増加する量は下限表記）。
-# 旧 _data_stamp（2026-08-11・起動時実測の焼き込み）は claude.ai がコネクタ登録時のキャッシュを
-# 持ち続けて 12 時間で 4 万件ずれた（Sisho 59,866 vs mtg-rag 99,827 事件・検証 2026-08-25）
+# 収録概況は「絶対に嘘にならない下限」で書く（設計判断・単調増加する量は下限表記）。
+# 旧 _data_stamp（起動時実測の焼き込み）は claude.ai がコネクタ登録時のキャッシュを
+# 持ち続けて 12 時間で 4 万件ずれた（59,866 対 99,827 のずれを実測）
 # ＝instructions には変わる事実を書かない。版・日付は下限にできないので道具に投げる。
 # 正確な件数・ルール版・鮮度は mtg_rag_health が読んだ瞬間の実測を返す（分担）。
 
@@ -97,10 +97,10 @@ server = MCPServer(
 
 # ─── 道具の登録（この順で相手側の一覧に並ぶ）─────────────────────────────
 # 中身は sisho/tools/*.py。ここに残すのは「どの道具が・どの順で・どの説明で載るか」だけ
-# （2026-09-05 Step 2〜3 の分割）。名前・説明・引数・登録順は契約試験
+# 名前・説明・引数・登録順は契約試験
 # tests/test_tool_contract.py が snapshot と突き合わせて縫っている。
 #
-# observed(...) は計時と出口の道具ログだけを足す薄い包み（2026-09-06 Step 7・sisho/toollog.py）。
+# observed(...) は計時と出口の道具ログだけを足す薄い包み（sisho/toollog.py）。
 # 返り値・例外は素通し、名前・docstring・署名は functools.wraps で保つので、相手側に見える
 # 契約（description・引数の JSON Schema）は包む前と 1 ビットも変わらない
 # ＝契約試験が包み越しの inspect.signature と JSON Schema を snapshot と突き合わせている。
@@ -111,17 +111,17 @@ search_mtg_cards = server.tool(
     name="search_mtg_cards",
     description=_tool_cards.DESCRIPTION)(observed(_tool_cards.search_mtg_cards))
 
-# 確率計算の入口（2026-09-04 方針「あらゆる確率計算をどこかに格納して…」）= sisho/tools/probability.py
+# 確率計算の入口 = sisho/tools/probability.py
 mtg_probability = server.tool(
     name="mtg_probability",
     description=_tool_probability.DESCRIPTION)(observed(_tool_probability.mtg_probability))
 
-# Commander Spellbook（2026-09-04 承認・外部 API を都度照会）= sisho/tools/combos.py
+# Commander Spellbook（外部 API を都度照会）= sisho/tools/combos.py
 find_combos = server.tool(
     name="find_combos",
     description=_tool_combos.DESCRIPTION)(observed(_tool_combos.find_combos))
 
-# 総合ルールと公式裁定（ローカル DB 直結・2026-08-10）= sisho/tools/rules.py
+# 総合ルールと公式裁定（ローカル DB 直結）= sisho/tools/rules.py
 lookup_mtg_rule = server.tool(
     name="lookup_mtg_rule",
     description=_tool_rules.LOOKUP_MTG_RULE_DESCRIPTION)(observed(_tool_rules.lookup_mtg_rule))
@@ -134,12 +134,12 @@ find_partner_cards = server.tool(
     name="find_partner_cards",
     description=_tool_partners.DESCRIPTION)(observed(_tool_partners.find_partner_cards))
 
-# 自由 SQL の口（2026-08-11 発案）= sisho/tools/sql.py
+# 自由 SQL の口（発案）= sisho/tools/sql.py
 query_mtg_database = server.tool(
     name="query_mtg_database",
     description=_tool_sql.QUERY_MTG_DATABASE_DESCRIPTION)(observed(_tool_sql.query_mtg_database))
 
-# 答案検査（2026-08-22 夕・設計判断「選択肢 1」）= sisho/tools/verify.py
+# 答案検査 = sisho/tools/verify.py
 verify_answer = server.tool(
     name="verify_answer",
     description=_tool_verify.DESCRIPTION)(observed(_tool_verify.verify_answer))
@@ -182,7 +182,7 @@ _NAME_CACHE = _tool_verify._NAME_CACHE
 _JA_STOP = _tool_verify._JA_STOP
 
 
-# レート制限（配布前の門・2026-09-02）は sisho/ratelimit.py へ切り出した（2026-09-05 Step 2）。
+# レート制限（配布前の門）は sisho/ratelimit.py へ切り出した。
 # 旧名 _RateLimiter／_RateLimitASGI で届くように冒頭で別名輸入している（切り出し先の公開名は
 # RateLimiter／RateLimitASGI）。設計の経緯と実測値はそちらの注記に丸ごと移してある。
 
@@ -206,17 +206,17 @@ def _uvicorn_kwargs(port: int, log_level: str) -> dict:
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == "http":
-        # リモート版（一時公開試験・2026-08-10）: 127.0.0.1 に束縛し、外への口は
+        # リモート版（一時公開試験）: 127.0.0.1 に束縛し、外への口は
         # Cloudflare 即席トンネルが持つ。DNS rebinding 防御はトンネルの Host 名
         # （毎回ランダム）が allowed_hosts に書けないため、この一時試験に限り無効化。
         # 恒久のリモート版（工程表 3 番）では allowed_hosts を固定ドメインで縫うこと。
         from mcp.server.transport_security import TransportSecuritySettings
         port = int(sys.argv[2]) if len(sys.argv) > 2 else 8765
-        # 待ち受けパス（2026-08-22・設計判断「2 で」）: Funnel のホスト名は CT ログで公開される
+        # 待ち受けパス: Funnel のホスト名は CT ログで公開される
         # ので、秘密は URL のパスに持たせる。既定 /mcp・本番は unit の EnvironmentFile
         # （~/.config/mtg-rag/mcp.env・claude 専用ホーム）から MCP_HTTP_PATH を注入。
         http_path = os.environ.get("MCP_HTTP_PATH", "/mcp")
-        # stateless（2026-08-29・公開サーバーで採用）: claude.ai のコネクタは道具呼び出しをセッション ID
+        # stateless（公開サーバーで採用）: claude.ai のコネクタは道具呼び出しをセッション ID
         # 無しで送ってくることがあり、既定（stateful）だと「Bad Request: Missing session ID」で
         # 全滅する（公開サーバーの実測・health 1 回成功→以降 400）。道具はすべて独立（サーバ発の通知なし）
         # なので、リクエストごとに独立処理しても失うものは無い。MCP_STATELESS=1 で有効。
@@ -227,11 +227,11 @@ if __name__ == "__main__":
             stateless_http=stateless,
             transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
             host="127.0.0.1")
-        # 停止は 3 秒で切り上げる（2026-08-31 17:45 の実測: 公開サーバーの再起動で uvicorn が「接続が閉じるのを待つ」まま
+        # 停止は 3 秒で切り上げる（実測: 公開サーバーの再起動で uvicorn が「接続が閉じるのを待つ」まま
         # systemd の TimeoutStopSec=15 に掛かり SIGKILL → 'timeout' 失敗 → OnFailure（Discord＋ビープ）が鳴った。
         # claude.ai のコネクタが SSE を掴んだままにするので、待っても閉じない。SDK の run() は uvicorn.Config に
         # graceful の上限を渡さないため、ここで uvicorn を直接組む。道具は 1 秒未満で返るので 3 秒あれば取りこぼさない）
-        # 門と札の外皮（2026-09-07 小片 8・sisho/gate.py を参照）。
+        # 門と札の外皮（sisho/gate.py を参照）。
         # 札ごとのレート制限・発行ページ（/issue）・旧パス互換を GateASGI が束ねる。
         from sisho.gate import GateASGI
         app = GateASGI.from_env(app, inner_path=http_path)

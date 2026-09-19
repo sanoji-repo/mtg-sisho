@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 MCP_ON = {"mcpServers": {"mtg-rag": {
     "command": "/mnt/new_hdd/my_rag_env/bin/python",
-    "args": [os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp_server.py")],   # 自分と同じ src/（2026-09-05 Step 3）
+    "args": [os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp_server.py")],   # 自分と同じ src/
     "env": {"PYTHONPATH": "/home/claude/pylibs"}}}}
 MCP_OFF = {"mcpServers": {}}
 
@@ -58,7 +58,7 @@ def judge(truth, ans):
     return "noja_wrong" if "日本語版なし" in a else "wrong"
 
 
-# 既定の組み込み道具は両条件とも切る（2026-08-21 実測: リポジトリ内 cwd だと単体条件が Bash/Read で
+# 既定の組み込み道具は両条件とも切る（実測: リポジトリ内 cwd だと単体条件が Bash/Read で
 # DB やファイルを覗き 6 ターンになった＝「記憶のみ」にならない）。MCP 有りの道具は MCP だけ。
 BUILTIN_TOOLS = ("Bash,Read,Edit,Write,MultiEdit,Glob,Grep,LS,WebSearch,WebFetch,Task,Agent,"
                  "NotebookEdit,NotebookRead,TodoWrite,TodoRead,Skill,KillShell,BashOutput")

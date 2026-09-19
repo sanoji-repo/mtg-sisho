@@ -38,7 +38,7 @@ def _startup_sets_blurb() -> str:
 
 
 _SETS_BLURB = _startup_sets_blurb()
-# 冒頭用の短い版（2026-09-03 追試: 末尾の一覧では Sonnet の「Marvel は MTG でない」の先入観に勝てず、MSH の問いで道具を呼ばなかった。
+# 冒頭用の短い版（追試: 末尾の一覧では、あるモデルの「Marvel は MTG でない」という先入観に勝てず、MSH の問いで道具を呼ばなかった。
 # 説明文は全文届いていた（1,961 字をクライアントが引用できた）ので、位置の問題＝最初の一文に置く）
 _SETS_HEAD = ((lambda m: f"【まず読む】このデータベースは MTG の最新セット {m} まで収録（Marvel Super Heroes＝MSH・Secrets of Strixhaven＝SOS も MTG の正式セット）。"
               "知らないセット名・記号・カード名は『MTG ではない』と決めつけず、必ずこの道具で引いてから答える。")(

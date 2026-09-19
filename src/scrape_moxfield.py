@@ -189,7 +189,7 @@ def verify_schema(conn):
 
 def get_scraped_public_ids(conn, source: str = SOURCE) -> set[str]:
     """既に取り込み済みの publicId を取得（deck_name= f"moxfield_{public_id}" から復元）"""
-    # 読んだら閉じる（この後 HTTP を叩いている間ロックを握らない・2026-09-18）
+    # 読んだら閉じる（この後 HTTP を叩いている間ロックを握らない）
     with read_cursor(conn) as cur:
         cur.execute(
             "SELECT deck_name FROM deck_list WHERE source = %s",
@@ -225,7 +225,7 @@ def save_deck(conn, deck_json: dict, bracket: int | None = None, source: str = S
     deck_name = deck_json.get("name") or unique_name
     raw_format = deck_json.get("format")
     format_name = FORMAT_NAMES.get(raw_format, raw_format)
-# 設計判断: この取り込みはプレイヤー名を持たない（2026-08-31）。deck_list に
+# 設計判断: この取り込みはプレイヤー名を持たない。deck_list に
 # player_name 列は無く、名前を隔離する players 表は開発側だけに置く。
 # 集めてから捨てるのではなく、最初から取らない。
 # Moxfield の作者名（createdByUser.userName）は取得しない。
@@ -248,7 +248,7 @@ def save_deck(conn, deck_json: dict, bracket: int | None = None, source: str = S
     if result is None:
         # 重複＝書く物は無いが、INSERT で開いたトランザクションは閉じて返す。
         # 開けたまま返すと、呼び出し側が次のデッキを HTTP で取っている間ずっと
-        # ロックを握り、connect_scrape の網（60 秒）に切られる（2026-09-18）
+        # ロックを握り、connect_scrape の網（60 秒）に切られる
         conn.rollback()
         return False
 

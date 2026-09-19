@@ -116,8 +116,8 @@ def test_db_readonly_route_success(fake_db, monkeypatch):
     cfg = calls[0]
     assert cfg["user"] == "readonly_ai"
     assert cfg["password"] == "mock_roai_secret"
-    # 既定は重いレーンなので 10000ms（2026-09-14 設計判断で反転・宣言し忘れを安全側へ倒す。
-    # スロットの分割そのものは 2026-09-07 の裁定どおり 重いレーン 4 + バイパス 1）
+    # 既定は重いレーンなので 10000ms（設計判断で反転・宣言し忘れを安全側へ倒す。
+    # スロットの分割そのものは 取り決めどおり 重いレーン 4 + バイパス 1）
     assert cfg["options"] == "-c statement_timeout=10000"
     for k, v in DB_CONFIG.items():
         if k not in ("user", "password", "options"):

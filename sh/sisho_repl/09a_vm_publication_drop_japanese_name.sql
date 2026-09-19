@@ -1,11 +1,11 @@
--- 09a_vm_publication_drop_japanese_name.sql（第一段: publication から japanese_name を外す） — 開発側（VM）側: japanese_name と name_display を「面の列から作る生成列」に差し替える（R3-1b・2026-08-31 承認）
+-- 09a_vm_publication_drop_japanese_name.sql（第一段: publication から japanese_name を外す） — 開発側（VM）側: japanese_name と name_display を「面の列から作る生成列」に差し替える
 -- 設計台帳 P1・P2・D2・D4・D5: 派生は DB が計算し、コードは書けない。japanese_name は両面揃った時だけ結合、揃わなければ NULL。
 -- 生成列は別の生成列を参照できないので、name_display も面の列から直接作る（旧式は japanese_name を参照していた）。
 --
 -- 順番: 1) この節（publication から japanese_name を外す）→ 公開サーバーで REFRESH PUBLICATION (copy_data=false)
 --        → 2) 公開サーバーで 10_box_japanese_name_generated.sql → 3) この節の後半（VM の差し替え）。
 
--- （初版は psql の \if で二段にしたが \if は文字列比較を受け付けず走らなかった → 09a/09b に分割・2026-08-31 21:1x）
+-- （初版は psql の \if で二段にしたが \if は文字列比較を受け付けず走らなかった → 09a/09b に分割）
 -- 走らせ方: docker exec -i pg18-primary psql -U devuser -d rag_dev -v ON_ERROR_STOP=1 -f - < sh/sisho_repl/09a_vm_publication_drop_japanese_name.sql
 
 ALTER PUBLICATION sisho_pub DROP TABLE public.mtg_cards_v2;

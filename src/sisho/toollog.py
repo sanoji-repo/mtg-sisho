@@ -34,10 +34,10 @@ from sisho.paths import repo_path
 
 TOOL_LOG = os.environ.get(
     "MCP_TOOL_LOG", repo_path("logs", "mcp_tools.log"))
-TOOL_LOG_MAX = int(os.environ.get("MCP_TOOL_LOG_MAX", "200"))   # 引数の記録の上限（ベンチは 2000 にして SQL の表名まで採る・2026-09-03）
+TOOL_LOG_MAX = int(os.environ.get("MCP_TOOL_LOG_MAX", "200"))   # 引数の記録の上限（ベンチは 2000 にして SQL の表名まで採る）
 
-#: 「遅い」の物差し（秒）。超えたら journal に warning（2026-09-06 Step 7・方針「1 秒以上かかった
-#: クエリに警告」）。公開サーバーの PostgreSQL 側も readonly_ai の log_min_duration_statement=1s で同じ線。
+#: 「遅い」の物差し（秒）。超えたら journal に warning（1 秒以上かかった
+#: クエリに警告する）。公開サーバーの PostgreSQL 側も readonly_ai の log_min_duration_statement=1s で同じ線。
 SLOW_SEC = float(os.environ.get("MCP_SLOW_SEC", "1.0"))
 
 #: warning の宛先。uvicorn の系統に乗せると systemd の journal でそのまま読める（HTTP 版）。
@@ -46,7 +46,7 @@ JOURNAL = "uvicorn.error"
 
 # DB 呼び出しの集計器。道具 1 回ぶんをコンテキストに貯める（スレッドローカルと
 # 非同期コルーチンの両方で分離される＝MCP の同期道具・将来の async 道具の両対応）。
-# 2026-09-06 Antigravity の監査で threading.local から移行。今日の道具は同期関数で、mcp 2.0 は
+# 外部レビューの指摘で threading.local から移行。今日の道具は同期関数で、mcp 2.0 は
 # anyio.to_thread.run_sync で別スレッドに投げ、anyio は context を複製して渡す＝動きは同じ。
 _db_stats: contextvars.ContextVar[dict] = contextvars.ContextVar("_db_stats", default=None)
 

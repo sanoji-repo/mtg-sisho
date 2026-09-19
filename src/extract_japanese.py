@@ -27,7 +27,7 @@ def is_japanese(text: str) -> bool:
 from db_config import DB_CONFIG
 
 # 既定は従来どおり。**/mnt/new_hdd は postgres 所有で claude は書けない**ため
-# （2026-08-11 の護送船団で発覚）、別の場所に置いた新版は MTG_ALL_CARDS_JSON で差す。
+# （搬入便で発覚）、別の場所に置いた新版は MTG_ALL_CARDS_JSON で差す。
 JSON_FILE    = os.environ.get("MTG_ALL_CARDS_JSON",
                               "/mnt/new_hdd/all_cards_scryfall.json")
 BATCH_COMMIT = 500
@@ -56,14 +56,14 @@ def extract_printed_text(card: dict) -> tuple[str | None, str | None]:
     ja_name = (card.get("printed_name") or "").strip() or None
     faces = card.get("card_faces") or []
     if not ja_name and faces:
-        # 設計判断 2026-08-21: 「先頭面に日本語名があれば、日本語名を持つ面だけを
-        # // で結合」。adventure/prepare の ja 印刷は Scryfall 側で当事者面の
+        # 取り決め: 先頭面に日本語名があれば、日本語名を持つ面だけを
+        # // で結合する。adventure/prepare の ja 印刷は Scryfall 側で当事者面の
         # printed_name が None（71 枚・厚かましい借り手等）＝全面必須だと永久に NULL。
         # カード上部の名前（先頭面）が本体なので、それを採り、無い面は足さない。
         names = [(f.get("printed_name") or "").strip() for f in faces]
         if names and names[0] and is_japanese(names[0]):
             ja_name = " // ".join(n for n in names if n and is_japanese(n))
-    # 名前にも日本語文字の検査を掛ける（2026-08-21 実測: spg 等の ja 印刷は面の
+    # 名前にも日本語文字の検査を掛ける（実測: spg 等の ja 印刷は面の
     # printed_name が英語のことがあり、面フォールバック導入で 62 枚に
     # 「Dusk // Dawn // Dusk // Dawn」のような英語名が入った）。テキスト側と同じ線。
     if ja_name and not is_japanese(ja_name):
@@ -117,7 +117,7 @@ def run():
     ja_data: dict[str, tuple[str, str | None, str | None]] = {}
     skipped_empty = 0
 
-    # 別名義印刷（Universes Beyond の reskin）の除外（2026-08-11・発見された虫 3）:
+    # 別名義印刷（Universes Beyond の reskin）の除外:
     #   実害: Ragavan の japanese_oracle_text が「ジタン・トライバルが〜」になっていた。
     #   機序: fca（Final Fantasy: Through the Ages）の**日本語版**は printed_name が
     #   正規名（敏捷なこそ泥、ラガバン）なのに printed_text だけキャラ名で書かれており、
@@ -162,7 +162,7 @@ def run():
         if not clean:
             continue                      # 正史の日本語印刷が無い＝採用しない
         best = max(clean, key=lambda c: c[0])
-        # 名前だけは「最新印刷に無ければ、名前を持つ最新の印刷」から補う（2026-08-21）。
+        # 名前だけは「最新印刷に無ければ、名前を持つ最新の印刷」から補う。
         # テキストの採用規則（released_at 最新）は変えない。
         best_name = best[1] or next(
             (c[1] for c in sorted(clean, key=lambda c: c[0], reverse=True) if c[1]),

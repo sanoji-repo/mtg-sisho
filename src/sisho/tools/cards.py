@@ -14,22 +14,22 @@ from sisho.sets_blurb import _SETS_BLURB, _SETS_HEAD
 from sisho.toollog import _log_tool
 
 
-# Arena の形式。これを名指しされたときだけ digital（Arena 専用カード・2026-08-31 合流）を検索に含める。
+# Arena の形式。これを名指しされたときだけ digital（Arena 専用カード）を検索に含める。
 # 既定の検索は紙＝WHERE NOT digital（列 → 並べ方の掟: 紙と Arena 専用を混ぜて並べない）。
 ARENA_FORMATS = {"historic", "alchemy", "timeless", "brawl", "standardbrawl", "gladiator"}
 
 _CARD_COLS: tuple[str, ...] = (
     "card_name", "japanese_name", "type_line", "mana_cost", "power", "toughness",
     "rarity", "oracle_text", "japanese_oracle_text", "edhrec_rank", "name_display", "digital",
-    # 2026-09-16: 収録セット。draft_set を渡されたとき「どれがそのセットのカードか」を
+    # 収録セット。draft_set を渡されたとき「どれがそのセットのカードか」を
     # 返り値自身に書くために引く（下の _mark_draft_set）。掟「返り値は自己完結」。
     # 面の列 4 本は末尾に置いたまま（_row がそこを前提に扱う・test_card_cols が縫っている）。
     "set_codes",
     "name_en_front", "name_en_back", "name_ja_front", "name_ja_back",
 )
 
-# 不明な format の扱い（2026-09-05 Step 5 修正 4・設計判断「一意で近いなら直して再検索・返り値に必ず書く／
-# 複数候補なら直さず選ばせる／遠ければ一覧」）。Step 4 まで legalities->>'modrn' を引くだけだったので、
+# 不明な format の扱い（取り決め: 一意で近いなら直して再検索し返り値に必ず書く／
+# 複数候補なら直さず選ばせる／遠ければ一覧）。以前は legalities->>'modrn' を引くだけだったので、
 # 「そんな鍵は無い」と「その鍵で合法なカードが無い」が同じ「該当なし」に潰れていた。
 _FORMATS_CACHE: dict = {"keys": []}
 # 一意判定のしきい値。difflib.SequenceMatcher の比（0〜1）で 0.8。実物（DB の鍵 23 個）で決めた:
@@ -77,7 +77,7 @@ def _check_format(fmt: str) -> tuple[str, str, str | None]:
     if not fmt or fmt in valid:
         return fmt, "", None
     if not valid:
-        # 鍵の一覧を引けなかった＝検査できない。通すが黙っては通さない（2026-09-14）。
+        # 鍵の一覧を引けなかった＝検査できない。通すが黙っては通さない。
         # 以前はここで素通ししていたので、綴りが違う format が legalities->>'…' に渡り、
         # 全部 NULL ≠ 'legal' で「該当なし」に見えていた（クライアントには区別がつかない）。
         return fmt, (f"format「{fmt}」は検査できなかった（legalities の鍵の一覧を DB から引けなかった）。"
@@ -146,7 +146,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     _log_tool("search_mtg_cards", {"query": query, "format": format, "top_k": top_k, "draft_set": draft_set})
     q = query.strip()
     if not q:
-        # 2026-09-05（Step 6 作業 3）: この道具の答えは JSON なので error も JSON に揃える
+        # この道具の答えは JSON なので error も JSON に揃える
         # （素の文字列と JSON が混ざるとクライアントが読み方を切り替えられない）。文言には
         # 「何が分からなかったか」と「次に何を試すか」の両方を入れる。
         return errors.err_json(
@@ -179,7 +179,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     for t in terms:
         p2 += [f"%{t}%"] * 5
     p2 += ([fmt] if fmt else []) + [top_k]
-    # 2026-09-06（Antigravity 監査の提言 1 を実測で置き換え）: 名前ヒットが top_k 件あれば本文ヒットは
+    # 外部レビューの提言を実測で置き換えた: 名前ヒットが top_k 件あれば本文ヒットは
     # 下の詰め合わせで 1 件も使われない（名前を先に詰めて top_k で止まる）＝引かない。出力は不変。
     # 公開サーバーの実引数 187 通りを VM で再生: 本文検索は 1 検索 339ms のうち平均 260ms（77%）で、実運用の
     # 大半は名前引き（top_k 1〜3）。p1 と p2 を 1 文に束ねても仕事量は減らないので、そちらは採らない。
@@ -201,7 +201,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
             d["japanese_name"] = None
             d["name_note"] = ("日本語名未収録（Arena には日本語版あり）＝name_display をそのまま使う（訳名を作らない）" if d.get("digital")
                               else "日本語版なし＝name_display をそのまま使う（訳名を作らない）")
-        # 面（2026-08-31 R3-4）: 多面カードは faces を同伴し、裏面で当たったときはその面の完成形も返す（name_display は表面固定）
+        # 面: 多面カードは faces を同伴し、裏面で当たったときはその面の完成形も返す（name_display は表面固定）
         enb = d.pop("name_en_back", None); jab = d.pop("name_ja_back", None)
         enf = d.pop("name_en_front", None); jaf = d.pop("name_ja_front", None)
         def _face_disp(en, ja):
@@ -231,11 +231,11 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
             break
     # 3) 一致ゼロのときだけ、曖昧名（pg_trgm 類似度・しきい値 0.3）で救う。
     #    実例: 「孤光のフェニックス」（正しくは弓へんの「弧光」・類似度 0.54）。
-    #    旧・名前の直行ルートが持っていた打ち間違い耐性の、SQL 一本での置き換え（2026-08-21）。
+    #    旧・名前の直行ルートが持っていた打ち間違い耐性の、SQL 一本での置き換え。
     route = "simple_match"
     if not cards:
         route = "fuzzy_name"
-        # 2026-09-14（#850）: 索引で候補を絞ってから同じ条件で再チェックする形に。
+        # 索引で候補を絞ってから同じ条件で再チェックする形に。
         # similarity(a, b) > 0.3 の関数比較だけでは pg_trgm の GIN 索引に乗らず Seq Scan
         # （実測 Buffers 15,582）。演算子 % は索引に乗る（同 93＝167 分の 1）。
         # % の閾値は pg_trgm.similarity_threshold（既定 0.3）なので、後段の
@@ -261,7 +261,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
             "（語を減らす・言い換える・または query_mtg_database で SQL を書く。"
             "日本語名が分からないカードは英語名で引き直すこと＝訳名を推測しない）",
             **({"format_note": format_note} if format_note else {}))
-    # 17Lands の同伴（2026-09-03 方針「同伴は速さの道具＝高確率で当たる分だけ付ける」）:
+    # 17Lands の同伴（速さの道具＝高確率で当たる分だけ付ける）:
     #   draft_set あり → そのセットだけ／不明な記号 → 数字は付けず一覧を返す／なし → 最新 N セット（既定 2）だけ。
     #   それ以外のセットにしか無いカードは、一行の道しるべ（limited_stats_elsewhere）に留める。
     requested = _resolve_draft_set(draft_set) if draft_set else None

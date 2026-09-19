@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mtgo_backfill_cron.sh — MTGO 公式デッキリストのバックフィルを 1 日 1 か月ずつ cron で消化する（2026-08-22 設計者依頼）。
+# mtgo_backfill_cron.sh — MTGO 公式デッキリストのバックフィルを 1 日 1 か月ずつ cron で消化する。
 #
 # 仕組み: state/mtgo_backfill_queue.txt の先頭行「YYYY-MM passN」を 1 行取り出して scrape_mtgo.py --month を走らせ、
 #   成功したら行を消す（失敗したら残す＝翌日やり直し）。pass2＝二周目（取得済み URL は飛ばし、302 で諦めた分だけ拾う・安い）。

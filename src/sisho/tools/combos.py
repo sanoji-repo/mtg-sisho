@@ -18,11 +18,11 @@ _COMBOS_GLOBAL_MIN = int(os.environ.get("MCP_COMBOS_GLOBAL_MIN", "60"))
 _combos_limiter = RateLimiter(per_ip=_COMBOS_PER_MIN, global_=_COMBOS_GLOBAL_MIN, exempt="")
 
 
-# ─── Commander Spellbook（2026-09-04 承認「API 解放されてるんだから使わせてもよくね」）───
-# 取り込まず都度呼ぶ（8/29 survey: 第三者ツールからの API 表示は公式 docs で許容・データのライセンスは明文なし＝再配布は灰
-# → DB に持たない）。返り値に出典と前提の原文を必ず載せる（方針「2 枚だけでは成立しない前提付きが多い」）。
-# bracketTag・結果タグは正確性に欠ける実例（7/28・EDH Build Helper）があるので「参考」と明記。公開サーバーの砂場から backend へは
-# AF_INET 許可で到達済み（9/4 実測 200・1.0 秒）。時間制限 6 秒・失敗はこの道具だけが「届かない」を返す。
+# ─── Commander Spellbook ───
+# 取り込まず都度呼ぶ（調査: 第三者ツールからの API 表示は公式 docs で許容・データのライセンスは明文なし＝再配布は灰
+# → DB に持たない）。返り値に出典と前提の原文を必ず載せる（2 枚だけでは成立しない前提付きが多いため）。
+# bracketTag・結果タグは正確性に欠ける実例（EDH Build Helper）があるので「参考」と明記。公開サーバーの砂場から backend へは
+# AF_INET 許可で到達済み（実測 200・1.0 秒）。時間制限 6 秒・失敗はこの道具だけが「届かない」を返す。
 _SPELLBOOK_URL = os.environ.get("SPELLBOOK_URL", "https://backend.commanderspellbook.com/find-my-combos")
 _SPELLBOOK_TIMEOUT = float(os.environ.get("SPELLBOOK_TIMEOUT", "6"))
 

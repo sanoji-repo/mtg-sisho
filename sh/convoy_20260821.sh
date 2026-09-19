@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# convoy_20260821.sh — 新セット搬入便＋name_ja 修理 704 枚（2026-08-21・承認「やろう。」朝）
+# convoy_20260821.sh — 新セット搬入便＋name_ja 修理 704 枚
 #
-# 8/11 の護送船団の型を継ぐが、8/21 の「ルーター・絞り込みゲート・スコア補正部品 全撤廃」裁定により
+# 以前の搬入便の型を継ぐが、ルーター・絞り込みゲート・スコア補正部品を全廃したので
 # **埋め込み工程（rebuild_embed_text / reembed）と API 載せ替え・eval は無い**。
 #   1. 退避     : 触る列を bak_convoy_20260821 へ（可逆）
 #   2. 取得     : Scryfall bulk（oracle_cards / all_cards・JSONL→配列包み直し）

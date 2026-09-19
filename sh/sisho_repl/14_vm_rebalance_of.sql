@@ -1,5 +1,5 @@
--- 14_vm_rebalance_of.sql — 開発側（VM）側: rebalance_of 列（A- カード → 元カードの id・FK）を足し、publication に載せ、A- 216 枚を充填（2026-08-31 設計判断）
--- 設計: 「A- は X のリバランス」を名前の接頭辞でなく列で持つ（8/31 の議論: 両面カードの A- は裏面にも A- が付き、接頭辞の文字列手術で 13 枚を取りこぼした）。
+-- 14_vm_rebalance_of.sql — 開発側（VM）側: rebalance_of 列（A- カード → 元カードの id・FK）を足し、publication に載せ、A- 216 枚を充填（設計判断）
+-- 設計: 「A- は X のリバランス」を名前の接頭辞でなく列で持つ（両面カードの A- は裏面にも A- が付き、接頭辞の文字列手術で 13 枚を取りこぼしたため）。
 --       元カードは面ごとに A- を外した名前で探す（表・裏とも）。元が本線に無い A- は NULL（今は 0 枚のはず）。
 -- 走らせ方: docker exec -i pg18-primary psql -U devuser -d rag_dev -v ON_ERROR_STOP=1 -f - < sh/sisho_repl/14_vm_rebalance_of.sql
 -- この後: 公開サーバーで REFRESH PUBLICATION (copy_data=false) → VM で UPDATE mtg_cards_v2 SET rebalance_of = rebalance_of WHERE rebalance_of IS NOT NULL（216 行を流す）。

@@ -17,14 +17,14 @@ import time
 
 from sisho.toollog import record_db_call
 
-# ─── DB のスロット取り（2026-08-29・方針「6 本で弾くより順番待ち」）───
+# ─── DB のスロット取り（6 本で弾くより順番待ちにする）───
 # readonly_ai の接続上限（6）にぶつかると「too many connections」で即失敗する。代わりに
 # 同時に DB へ行ける道具を MCP_DB_SLOTS（既定 5・1 本は健全性確認と手動 psql 用に残す）に
 # 絞り、空きが無ければ MCP_DB_WAIT_SEC（既定 20 秒＝statement_timeout 10 秒 × 2）まで待つ。
 # 待ちきれなければ「混雑」を返す（失敗でなく待たせるのが目的）。MCP は 1 プロセスなので
 # プロセス内セマフォで足りる。DB を叩く物が MCP 以外に増えたら pgbouncer に格上げ。
 #
-# 2026-09-07 設計判断: スロットを「重いレーン 4＋バイパス 1」に分ける。
+# 設計判断: スロットを「重いレーン 4＋バイパス 1」に分ける。
 # 重いレーンは _HEAVY_SLOTS と _DB_SLOTS の両方を取り、軽いレーンは _DB_SLOTS のみを取る。
 # 重いレーンが 4 スロット埋まっても、軽いレーンには必ず 1 スロット予約が残る。
 import threading as _threading
@@ -119,9 +119,9 @@ def _run(cfg: dict, sql: str, params: tuple | None, fetch, lane: str = LANE_HEAV
     try:
         with _db_slot(lane=lane):
             # 計時はスロットを取った後から（順番待ちは DB の仕事でない＝道具の所要秒と DB 累計秒の
-            # 差として見える・2026-09-06 Step 7）。接続・実行・取得の全部を 1 回として数える。
+            # 差として見える）。接続・実行・取得の全部を 1 回として数える。
             t0 = time.perf_counter()
-            # 2026-09-15: 接続待ちにも上限を置く。statement_timeout は接続**後**の SQL にしか
+            # 接続待ちにも上限を置く。statement_timeout は接続**後**の SQL にしか
             # 効かないので、宛先がパケットを捨てる状態だと OS の既定まで待ち続け、その間
             # スロットを握ったままになる（5 呼び出しで全スロットが埋まる）。
             conn = psycopg2.connect(connect_timeout=_CONNECT_TIMEOUT_S, **cfg_run)
@@ -149,7 +149,7 @@ def _db(sql: str, params: tuple, lane: str = LANE_HEAVY) -> list[tuple]:
     return _run(DB_CONFIG, sql, params, lambda cur: cur.fetchall(), lane=lane)
 
 
-# ─── 自由 SQL の口（2026-08-11・発案「エージェント自身が SQL を叩く路線」）───
+# ─── 自由 SQL の口（エージェント自身が SQL を叩く路線）───
 # 鞘は三重: (1) readonly_ai ロール（GRANT SELECT のみ＝書き込みは権限層で不可能・
 # 実証済み） (2) statement_timeout 10 秒 (3) 入口で SELECT/WITH 以外と複文を拒否＋
 # 行数・セル長の上限で応答を制限（コンテキスト爆発防止）。

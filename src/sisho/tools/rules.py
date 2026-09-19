@@ -9,7 +9,7 @@ from sisho.names import resolve_face_name
 from sisho.toollog import _log_tool
 
 
-# ─── ローカル DB 直結の道具（2026-08-10 深夜・方針「搬入が要るのでは」への答え）───
+# ─── ローカル DB 直結の道具 ───
 # 試作サーバーは VM に住んでいるので、mtg_rules / card_rulings（ローカルのみ・
 # Aurora 未搬入）に直接手が届く。恒久版ではこの 2 本のデータを搬入 or 焼き込みする
 # （工程表 v0 の 1 番・Aurora/イメージ/VPS の裁定とセット）。読み取り専用クエリのみ。
@@ -26,7 +26,7 @@ def lookup_mtg_rule(query: str, limit: int = 12) -> str:
     _log_tool("lookup_mtg_rule", {"query": query})
 
     query = query.strip()
-    # 2026-09-15: 空の検索語を断る。最終フォールバックが ILIKE '%%' になるため、
+    # 空の検索語を断る。最終フォールバックが ILIKE '%%' になるため、
     # 以前は用語集の先頭から任意の条文を「正常な結果」として返していた。
     if not query:
         return "検索語が空です。条番号（例: 702.19）か、調べたい語（例: trample・呪禁）を渡してください。"
@@ -42,7 +42,7 @@ def lookup_mtg_rule(query: str, limit: int = 12) -> str:
             " WHERE rule_number ~ %s ORDER BY rule_number LIMIT %s",
             (pat, limit), lane=LANE_LIGHT)
     else:
-        # 語検索は FTS の AND（2026-08-11・クライアントからのバグ報告「dies trigger simultaneous で
+        # 語検索は FTS の AND（クライアントからのバグ報告「dies trigger simultaneous で
         # 該当なし」＝旧実装は句全体の部分一致で複数語に無力だった）。plainto_tsquery は
         # 全語 AND・語形正規化つき。ts_rank 順で条文らしさの高い順に返す。
         rows = _db(
@@ -89,7 +89,7 @@ GET_CARD_RULINGS_DESCRIPTION = (
 def get_card_rulings(card_name: str, limit: int = 20) -> str:
     _log_tool("get_card_rulings", {"card_name": card_name})
 
-    # 2026-09-15: 空のカード名を断る（下のフォールバックが ILIKE '%%' でアルファベット順の
+    # 空のカード名を断る（下のフォールバックが ILIKE '%%' でアルファベット順の
     # 先頭から任意の裁定を返していた）。
     if not card_name.strip():
         return "カード名が空です。英語の正式カード名（例: Lightning Bolt）を渡してください。"
@@ -98,8 +98,8 @@ def get_card_rulings(card_name: str, limit: int = 20) -> str:
         "SELECT card_name, published_at, comment FROM card_rulings"
         " WHERE card_name = %s ORDER BY published_at, id LIMIT %s",
         (card_name.strip(), limit), lane=LANE_LIGHT)
-    if not rows:                                   # 面の名前（表・裏）→ 正式名に解決して引く（2026-08-31 R3-4）
-        # 名前の解決は sisho/names.py に 1 つ（2026-09-05 Step 6 作業 1・以前はここに同じ SQL を直書きしていた）。
+    if not rows:                                   # 面の名前（表・裏）→ 正式名に解決して引く
+        # 名前の解決は sisho/names.py に 1 つ（以前はここに同じ SQL を直書きしていた）。
         # 候補は表面一致が先＝裏面名が別の本物のカード名と同じ 21 枚では本物のカードが勝つ（DESIGN 12）。
         full = resolve_face_name(card_name)
         if full:

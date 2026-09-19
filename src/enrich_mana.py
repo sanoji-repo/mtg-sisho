@@ -82,9 +82,9 @@ DOUBLER_RE = re.compile(
     r"|causes? you to add[^.]*?\badd"
     r"|\badds?\s+(?:one|two|three|\{[^}]+\})?\s*additional\b"
     r"|\badds?\s+an\s+additional\b", re.I)
-# 打ち消し呪文の検出（2026-07-26 設計判断「マナ吸収は1にしてしまおう」）:
+# 打ち消し呪文の検出:
 # 打ち消しを含む呪文の Add 文は付随（本業はカウンター・マナはおまけ）＝
-# 7/23 の診断「打ち消せたら一回きりのおまけマナ」（PHASE2 §11 実例3枚目）の
+# 「打ち消せたら一回きりのおまけマナ」という診断の
 # 列への写し。Mana Drain・Mana Sculpt・Plasm Capture・Spell Swindle 型が対象
 COUNTER_SPELL_RE = re.compile(r"\bcounter (target|that|all|it\b)", re.I)
 # 起動型（コロンの左＝コスト）
@@ -145,12 +145,12 @@ def parse_mana_boost(oracle: str, mana_cost: str, type_line: str):
     # 引用符内＝他のオブジェクトに与える能力（トークンへの付与等）は自分の産出
     # でない（Fable of the Mirror-Breaker の Goblin トークン付与「Whenever this
     # token attacks, create a Treasure」を自分の能力と誤読した事故の対策。
-    # 6/24 の宝物注釈バグと同じ「他所のテキストを自分と読む」故障クラス）
+    # 宝物の注釈で踏んだのと同じ「他所のテキストを自分と読む」故障クラス）
     text = re.sub(r'"[^"]*"', '', text)
     is_land = 'Land' in (type_line or '')
     is_spell = bool(re.search(r'\b(Instant|Sorcery)\b', type_line or ''))
     # 打ち消し呪文のマナは付随（本業はカウンター）＝マナ文があっても False 側
-    # （R15 追記・設計判断 2026-07-26。カウンター系クエリでの採点には影響しない＝
+    # （カウンター系クエリでの採点には影響しない＝
     # これは is_mana_boost の話であって counter 判定は target_types の管轄）
     if is_spell and COUNTER_SPELL_RE.search(text):
         if ADD_RE.search(text) or TREASURE_RE.search(text):

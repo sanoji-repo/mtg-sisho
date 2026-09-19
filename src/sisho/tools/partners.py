@@ -51,7 +51,7 @@ _SCOPE_SOURCES: dict[str, list[str]] = {
 
 #: 候補の倍率（exclude_lands のとき、mtg_cards_v2 と突き合わせる前に pool_limit の何倍を
 #: 候補として取るか）。モジュール変数にしてあるのは試験が 0 に差し替えて「絞らない側」と
-#: 答えを突き合わせられるようにするため＝この突き合わせで 2026-09-14 に並びの非決定性を
+#: 答えを突き合わせられるようにするため＝この突き合わせで並びの非決定性を
 #: 見つけた（同居数が同値のカードでどれが上位に残るかが実行計画次第だった）。
 CAND_MULTIPLIER = 10
 
@@ -97,7 +97,7 @@ def find_partner_cards(card_name: str, scope: str = "edh",
     # lift 順は母集団を広めに取ってから並べ替える（count 順は最初から limit で足りる）
     pool_limit = 400 if order_by == "lift" else limit
     min_ab = 10 if order_by == "lift" else 1
-    # 2026-09-14: mtg_cards_v2 と突き合わせる前に候補を絞る（下の top）。土地かどうかは
+    # mtg_cards_v2 と突き合わせる前に候補を絞る（下の top）。土地かどうかは
     # mtg_cards_v2 にしか無いので、exclude_lands のときは落ちる分を見込んで多めに取る。
     # 実測（《太陽の指輪/Sol Ring》= EDH の最悪ケース）: 上位 20 件のうち非土地 6・
     # 上位 50 件のうち 27・上位 100 件のうち 62。10 倍取れば実用上は一度で足りるが、
@@ -105,7 +105,7 @@ def find_partner_cards(card_name: str, scope: str = "edh",
     cand_limit = pool_limit * CAND_MULTIPLIER if exclude_lands else pool_limit
     if not CAND_MULTIPLIER:          # 試験が 0 に差し替えたとき＝絞らない（LIMIT NULL）
         cand_limit = None
-    # 同値の決着まで決めて並びを決定的にする（2026-09-14）。同居数が同じカードは多く
+    # 同値の決着まで決めて並びを決定的にする。同居数が同じカードは多く
     # （例: 「6 本同居」が何十枚もある）、決着手段が無いと「どれが上位 15 に残るか」が
     # 実行計画に左右される＝候補の絞り方を変えると別のカードが返っていた。id で決着させる。
     order_sql = ("lift DESC NULLS LAST, t.n_ab DESC, t.pid" if order_by == "lift"
@@ -115,7 +115,7 @@ def find_partner_cards(card_name: str, scope: str = "edh",
     if not deck_src:
         return f"scope が不正: {scope}（edh/constructed/pauper/vintage/precon）"
     # 分母の表（card_scope_deck_counts・scope_deck_counts）の鍵。commander は edh の別名なので
-    # 表には edh だけを入れてある（2026-09-14・#819）。
+    # 表には edh だけを入れてある。
     scope_key = "edh" if scope == "commander" else scope
     if scope in ("edh", "commander"):
         pair_sql = (
@@ -128,7 +128,7 @@ def find_partner_cards(card_name: str, scope: str = "edh",
             "  WHERE b.card_name = ANY(%(names)s)")
         resolve = "SELECT x.pid, sum(x.cnt) AS n_ab FROM (" + pair_sql + ") x GROUP BY x.pid"
     else:
-        # 2026-08-22: MTGO 公式を source に追加（mtgtop8 側は MTGO 転載行を被覆期間で除外済み＝二重なし）
+        # MTGO 公式を source に追加（mtgtop8 側は MTGO 転載行を被覆期間で除外済み＝二重なし）
         # 相方名 → カード表。正式名でも表の名前でも当たるようにする。
         # 衝突は実測ゼロ（唯一の一致は SP//dr が自分自身に当たる自己一致）。
         pair_sql = (
@@ -140,19 +140,19 @@ def find_partner_cards(card_name: str, scope: str = "edh",
         resolve = (
             "SELECT cc.id AS pid, sum(x.cnt) AS n_ab FROM (" + pair_sql + ") x"
             " JOIN mtg_cards_v2 cc"
-            # 2026-09-05: split_part(card_name) → 列 name_en_front（全行で同値・実測 0 差）。関数を掛けた式は
+            # split_part(card_name) → 列 name_en_front（全行で同値・実測 0 差）。関数を掛けた式は
             # 索引に無く OR で前半の索引も死んで 32,730×1,821 の全比較（VM 5.9 秒・公開サーバーは 10 秒で timeout）だった。
             # name_en_front に索引（mtg_cards_v2_name_en_front_idx・VM と公開サーバーの両方に張る）→ BitmapOr で 0.6 秒。
             "  ON (cc.card_name = x.pname OR cc.name_en_front = x.pname)"
             " GROUP BY cc.id")
-    # 2026-09-14（#819）: 分母を夜間ジョブの表から引く。以前は呼ばれるたびに
+    # 分母を夜間ジョブの表から引く。以前は呼ばれるたびに
     # pool（deck_list の source 絞り込み・constructed は 33 万行）を作り、そこへ
     # deck_cards（1,376 万行）を JOIN して da と nb を数え直していた。実測ではこれが
     # constructed で全体の 48%・edh で 31% を占めていた（残りは共起の集計）。
     # 表は card_scope_deck_counts（scope, card_id → n_decks）と scope_deck_counts。
     # 数え方は同じ（board を区別せず・土地も含み・二重計上も除かない）＝答えは変わらない。
     # 表が無い/その scope の行が無いときは pct と lift が NULL になる（下の CASE WHEN da.n > 0）
-    # ＝夜間ジョブが回れば埋まる。2026-09-15 まで greatest(da.n, 1) で 1 を代入していたため、
+    # ＝夜間ジョブが回れば埋まる。以前は greatest(da.n, 1) で 1 を代入していたため、
     # 分母が未集計のカードで 1200% のような値を返しうる状態だった（コメントと実装のずれ）。
     sql = (
         "WITH da AS (SELECT COALESCE(max(d.n_decks), 0) AS n FROM card_scope_deck_counts d"
@@ -161,10 +161,10 @@ def find_partner_cards(card_name: str, scope: str = "edh",
         " npool AS (SELECT COALESCE(max(n_decks), 0) AS n FROM scope_deck_counts"
         "           WHERE scope = %(scope)s),"
         " agg AS (" + resolve + "),"
-        # 候補を先に絞ってから mtg_cards_v2 と突き合わせる（2026-09-14）。以前は agg の全行
+        # 候補を先に絞ってから mtg_cards_v2 と突き合わせる。以前は agg の全行
         # （《太陽の指輪/Sol Ring》で 12,651 行）を JOIN してから並べて上位を取っていた＝
         # 3 枚返すのに 12,651 枚の type_line を引いていた。実測 371MB・箱では 10 秒 timeout。
-        # 先に絞ると 75MB・答えは一字一句同じ（docs/me/db_diagnostics_20260914_partners_cold.md）。
+        # 先に絞ると 75MB・答えは一字一句同じ。
         " top AS (SELECT cand.pid, cand.n_ab FROM"
         "           (SELECT agg.pid, agg.n_ab FROM agg WHERE agg.n_ab >= %(min_ab)s"
         "            ORDER BY agg.n_ab DESC, agg.pid LIMIT %(cand_limit)s) cand"
@@ -173,7 +173,7 @@ def find_partner_cards(card_name: str, scope: str = "edh",
         " nb AS (SELECT d.card_id, d.n_decks AS n FROM card_scope_deck_counts d"
         "        WHERE d.scope = %(scope)s AND d.card_id IN (SELECT pid FROM top))"
         " SELECT c.card_name, c.name_display, t.n_ab,"
-        # 2026-09-15: 分母が無いときは 1 で割らず NULL にする。greatest(da.n, 1) だと
+        # 分母が無いときは 1 で割らず NULL にする。greatest(da.n, 1) だと
         # 「このカード入りのデッキ数が未集計」なのに n_ab をそのまま百分率にして
         # 1200% のような値を返しうる（掟「不在は NULL・番兵禁止」・下の out で ? と書く）。
         "        CASE WHEN da.n > 0 THEN round(100.0 * t.n_ab / da.n, 1) END AS pct,"

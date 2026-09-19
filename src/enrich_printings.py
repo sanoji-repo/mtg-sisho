@@ -63,9 +63,9 @@ def main():
     sets: dict[str, set] = {}          # name -> set codes
     ja_img: dict[str, tuple] = {}      # name -> (released_at, url)
     n_lines = 0
-    # 2026-08-21: 行単位の読みをやめて ijson のストリームにする。8/11 以降の便は
+    # 行単位の読みをやめて ijson のストリームにする。新しい便は
     # JSONL.gz を「改行なしの JSON 配列」に包み直すため、旧実装（1 行 1 カード前提の
-    # for line in f）は 2.9GB を一行として丸読みし OOM Killed になった（8/21 実測）。
+    # for line in f）は 2.9GB を一行として丸読みし OOM Killed になった（実測）。
     # ijson.items(f, "item") は配列形式でも 1 行 1 カードを [ ] で包んだ形式でも同じに
     # 動き、メモリは O(1)（extract_japanese と同じ流儀）。
     import ijson

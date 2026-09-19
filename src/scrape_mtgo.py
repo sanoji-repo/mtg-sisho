@@ -155,7 +155,7 @@ def resolve_format(info: dict, data: dict) -> bool:
 
 def list_month(year: int, month: int) -> list[str]:
     names: list[str] = []
-    for attempt in range(3):                # 中身の無い 200 が稀に返る（2026-08-22 実測・8/23 cron で 2 連続）→ 間を空けて取り直す
+    for attempt in range(3):                # 中身の無い 200 が稀に返る（実測・cron で 2 連続したことがある）→ 間を空けて取り直す
         html = fetch(f"{BASE_URL}/decklists/{year}/{month:02d}")
         names = sorted(set(re.findall(r'href="/decklist/([^"]+)"', html or "")))
         if names:
@@ -183,7 +183,7 @@ def load_alias(conn) -> None:
     """mtgo_name_alias（MTGO 表示名→紙の正式名・2026-08-22 新設）を読み込む。
     実例: om1「Through the Omenpaths」= MTGO 限定のスパイダーマン別名（Kavaero, Mind-Bitten → Superior Spider-Man）。
     Scryfall では printed_name に別名・name に紙の名前が入る。表の再生成は docs/ai/WORKLOG 8/22 の手順。"""
-    with read_cursor(conn) as cur:      # 読んだら閉じる（HTTP の間ロックを握らない・2026-09-18）
+    with read_cursor(conn) as cur:      # 読んだら閉じる（HTTP の間ロックを握らない）
         cur.execute("SELECT mtgo_name, card_name FROM mtgo_name_alias")
         _ALIAS.update({a: b for a, b in cur.fetchall()})
 
@@ -284,11 +284,11 @@ def save_event(conn, info: dict, event_name: str, event_date: str | None,
     with conn.cursor() as cur:
         for d in decks:
             unique_name = f"mtgo_{info['site_name']}_{d['deck_key']}"
-            # 設計判断: この取り込みはプレイヤー名を持たない（2026-08-31）。deck_list に
+            # 設計判断: この取り込みはプレイヤー名を持たない。deck_list に
             # player_name 列は無く、名前を隔離する players 表は開発側だけに置く。
             # ただし deck_name には出所側のキー（loginplayeventcourseid・無ければ
             # loginid）が重複判定のために残る＝「名前を持たない」であって「出所側の
-            # 識別子が一切無い」ではない（2026-09-18 に明示）。
+            # 識別子が一切無い」ではない。
             cur.execute("""
                 INSERT INTO deck_list
                     (deck_name, set_code, source, tournament_name, tournament_date,
@@ -338,7 +338,7 @@ def run(months, limit: int | None, dry_run: bool, include_limited: bool,
         print(f"[{y}-{m:02d}] 大会ページ {len(names)} 件（取得済み URL {len(done)}）", flush=True)
         if not names:
             # 一覧が取れない月は「失敗」として呼び出し元に返す（cron 便は行列の行を残して翌日やり直す）。
-            # 2026-08-23 の cron で空の 200 が 2 連続→ 0 件で正常終了→ 行が消えた事故の再発防止
+            # 空の 200 が 2 連続→ 0 件で正常終了→ 行が消えた事故の再発防止
             empty_months.append(f"{y}-{m:02d}")
             continue
         for site in names:

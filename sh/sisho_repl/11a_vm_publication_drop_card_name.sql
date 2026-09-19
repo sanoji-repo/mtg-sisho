@@ -1,4 +1,4 @@
--- 11a_vm_publication_drop_card_name.sql — 開発側（VM）側・第一段: publication の列指定から card_name を外す（R3-3・2026-08-31 承認）
+-- 11a_vm_publication_drop_card_name.sql — 開発側（VM）側・第一段: publication の列指定から card_name を外す
 -- card_name は面の列（name_en_front / name_en_back）から作る生成列にする（P1・D2）。生成列は publication に載せられないので先に外す。
 -- 順番: この 11a → 公開サーバーで REFRESH PUBLICATION (copy_data=false) → 公開サーバーで 12_box_card_name_generated.sql → VM で 11b。
 -- 走らせ方: docker exec -i pg18-primary psql -U devuser -d rag_dev -v ON_ERROR_STOP=1 -f - < sh/sisho_repl/11a_vm_publication_drop_card_name.sql

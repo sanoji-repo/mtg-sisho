@@ -6,7 +6,7 @@ mcp_server からは旧名でも届く＝tests 互換）。DB には触らない
 import json
 import os
 
-# ─── レート制限（2026-09-02 承認「レート制限から」＝配布（接続 URL を一般に開く）前の門）───
+# ─── レート制限（接続 URL を一般に開く前の受付）───
 # 入口は Funnel → 127.0.0.1:8765 の uvicorn 直結で前段の代理は無い。client IP は uvicorn の proxy_headers
 # （X-Forwarded-For・127.0.0.1 からだけ信用）が解決済み＝tailnet からは 100.x・claude.ai からは Anthropic の
 # 出口 160.79.106.x（一人の会話でも 30 個ほどの IP を回る・7 日 3,525 POST の実測）。だから IP 別の枠は
@@ -14,7 +14,7 @@ import os
 # _db_slot（スロット 5）が別に抑える。実測の最大は IP 別 8/分・総量 22/分（クライアント 1 会話）。既定は IP 別 60/分・
 # 総量 300/分（環境変数 MCP_RATE_PER_IP_MIN／MCP_RATE_GLOBAL_MIN・0 で無効）。tailnet（100.64.0.0/10）と
 # 127.0.0.0/8 は数えない（自分の healthwatch・pingwatch）。超過は HTTP 429＋Retry-After＋JSON-RPC の error
-# （クライアントに日本語で理由が届く）。秘密のパス以外への探り（8/30 に GCP の IP から 404 を 12 連発）も同じ枠で数える。
+# （クライアントに日本語で理由が届く）。秘密のパス以外への探り（GCP の IP から 404 を 12 連発）も同じ枠で数える。
 # 窓は滑走（直近 60 秒の時刻を deque で持つ）・拒否した呼び出しは数えない（Retry-After を正直に保つ）。
 import collections as _collections
 import ipaddress as _ipaddress

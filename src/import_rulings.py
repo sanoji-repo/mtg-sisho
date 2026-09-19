@@ -37,7 +37,7 @@ import sys
 import ijson
 import psycopg2
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/（2026-09-05 Step 3・旧: 作者の開発環境の絶対パス）
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/
 from db_config import DB_CONFIG
 
 CARDS_BULK = '/mnt/new_hdd/all_cards_scryfall.json'

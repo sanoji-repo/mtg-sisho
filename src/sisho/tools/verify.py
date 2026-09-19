@@ -7,7 +7,7 @@ from sisho.names import face_display
 from sisho.toollog import _log_tool
 
 
-# ─── 答案検査（2026-08-22 夕・設計判断「選択肢 1」）────────────────────────
+# ─── 答案検査 ────────────────────────
 # 書式ベンチの残穴は「道具の返り値に出ないカードをクライアントが記憶で挙げて自分で訳す」型
 # （Sonnet medium 10 問で 11 件・Opus low 200 問で 7 答案）。返り値側の同伴（_ja）では
 # 届かないので、答案そのものを DB に当てる口を置く。クライアントが最後に一回呼べば届く。
@@ -25,7 +25,7 @@ def _names() -> dict:
     import time
     if time.time() - _NAME_CACHE["ts"] < 3600 and "ja" in _NAME_CACHE:
         return _NAME_CACHE
-    # 2026-08-31（R3-4）: 面の列で組む。8/31 まで裏面の英語名に表面の日本語名を割り当てていた（《厚かましい借り手/Petty Theft》型の誤接合）。
+    # 面の列で組む。以前は裏面の英語名に表面の日本語名を割り当てていた（《厚かましい借り手/Petty Theft》型の誤接合）。
     #   en_ja: 英語（正式名／表面名／裏面名）→ 同じ粒度の日本語（無ければ None）
     #   ja_full: 日本語（空白抜き）→ 日本語（そのまま）  ja_en: 日本語 → 同じ粒度の英語
     #   裏面名は本物のカード名と同じことがある（prepare 20 枚）→ 裏面は setdefault＝本物のカードが勝つ
@@ -35,7 +35,7 @@ def _names() -> dict:
     for en, ja, dg, enf, enb, jaf, jab, mc, cmc, otext in rows:
         if dg:
             digital.update(x for x in (en, enf, enb) if x)
-        # 2026-09-12: マナ・コストの照合用（正式名と表面名の両方から引ける）。軽減条項＝自分のコストが下がる文だけ
+        # マナ・コストの照合用（正式名と表面名の両方から引ける）。軽減条項＝自分のコストが下がる文だけ
         rec = (mc or "", cmc, _reduction_clause(otext or ""))
         cost[en] = rec
         if enf:
@@ -50,7 +50,7 @@ def _names() -> dict:
                 ja_en.setdefault(j, e)
     # 裸の英語名検出用: 日本語名があり、5 文字以上か空白入り（短い一般語を避ける）
     en_bare = sorted((e for e, j in en_ja.items() if j and (len(e) >= 5 or " " in e)), key=len, reverse=True)
-    # 報告専用（書き換えはしない）なので短い名前も拾う。2026-09-15 に 4 → 2 へ下げた:
+    # 報告専用（書き換えはしない）なので短い名前も拾う。閾値を 4 から 2 へ下げた:
     # 実測で「稲妻を 4 枚、島を 8 枚」型の答案が拾え、技術文書での誤ヒットは 0 件だった。
     ja_bare = sorted((j for j in ja_full.values() if len(j) >= 2 and j not in _JA_STOP), key=len, reverse=True)
     _NAME_CACHE.update({"ts": time.time(), "ja": ja_full, "en": en_ja, "ja_en": ja_en, "en_bare": en_bare, "ja_bare": ja_bare, "digital": digital, "cost": cost})
@@ -95,7 +95,7 @@ def _mana_check(fixed: str, cost: dict) -> list[str]:
             if sep in left:
                 left = left[left.rfind(sep) + 1:]
         right = fixed[m.end():m.end() + 70]
-        # 2026-09-15: 右窓も改行で切る（左窓は最初から切っていた）。実戦で出た誤検知 10 件のうち
+        # 右窓も改行で切る（左窓は最初から切っていた）。実戦で出た誤検知 10 件のうち
         # 9 件がこれ——箇条書きの直後の行の数字を最終行のカードが拾う／カーブ表（「1 マナ: 《A》」の
         # 次の行が「2 マナ: 《B》」）で前の行のカードが次の行のラベルと照合される、の 2 型。
         # 行が変われば別の主張、が日本語の書き方の実態に合う。
@@ -104,7 +104,7 @@ def _mana_check(fixed: str, cost: dict) -> list[str]:
                 right = right[:right.find(sep)]
         # 次のカード名の手前で切る。このとき「N マナの《B》」型は、日本語の語順として
         # 数字が助詞「の」で**後ろの名前に係る**＝B の主張なので、手前の A の窓から外す
-        # （2026-09-15 の追加。右窓を改行で切っただけでは、同じ行で読点がつながる
+        # （追加分。右窓を改行で切っただけでは、同じ行で読点がつながる
         # 「《A》は悪くないが、6 マナの《B》のほうが強い」で A が 6 マナと報告されていた。
         # 一つの数字が A と B の両方に配られ、A 側だけが食い違いになる形）。
         i = right.find("《")
@@ -116,7 +116,7 @@ def _mana_check(fixed: str, cost: dict) -> list[str]:
         rng = {int(b): (int(a), int(b)) for a, b in
                re.findall(r"(\d+)\s*(?:から|〜|~|–|-|ー)\s*(\d+)\s*マナ", window)}
         # 「N マナを加える／生み出す」は生み出す量、「N マナ分」は別の数量＝コストの主張ではない
-        # （2026-09-15・別モデルのレビュー: 《金粉の水蓮/Gilded Lotus》は 3 マナを加える。が
+        # （別モデルのレビュー: 《金粉の水蓮/Gilded Lotus》は 3 マナを加える。が
         # CMC 5 に対する食い違いとして誤報されていた）。数字ごとに直後の語で判定する。
         claims = []
         for mm in re.finditer(r"(\d+)\s*マナ", window):
@@ -148,7 +148,7 @@ def _mana_check(fixed: str, cost: dict) -> list[str]:
                 if val == mc.replace(" ", ""):
                     ok += 1
                 elif soft:
-                    # 2026-09-15: 記号側にも軽減の判定を効かせる（マナ側にはあったのに抜けていた）。
+                    # 記号側にも軽減の判定を効かせる（マナ側にはあったのに抜けていた）。
                     # 実戦では軽減量を波括弧で書いた「コストが {2} 少なくなる」をコスト主張と読み、
                     # 同じ答案に「軽減条項があるので判定しない」という注意も並んで出ていた。
                     notes.append(f"  - 《{m.group(1)}/{en}》: DB は {mc}・答案は {val}"
@@ -187,7 +187,7 @@ def verify_answer(text: str) -> str:
     _log_tool("verify_answer", {"len": len(text)})
     N = _names()
     ja_full, en_ja, ja_en = N["ja"], N["en"], N["ja_en"]
-    # 二重・三重の囲み《《X》》は照合の**前に**畳む（2026-09-05 Step 5 修正 1）。
+    # 二重・三重の囲み《《X》》は照合の**前に**畳む。
     # 以前は末尾でだけ畳んでいたため、抽出の正規表現 [^》]+ が開き括弧を中身に含めて
     # 《稲妻 を拾い、(1)「未確認 1 件」と誤報し (2) 修正版も《稲妻》止まりで完成形に上がらなかった。
     # 抽出側の [^《》]+ と合わせて二重（三重以上も）の囲みを掟の内側に戻す。
@@ -257,11 +257,11 @@ def verify_answer(text: str) -> str:
         e = en_after.get(b)
         if e and e in en_ja:
             cands.append(en_ja[e] or _noja(e))
-        # 閾値 0.35（2026-09-15 に 0.25 から上げた）。実測: 「カード名」→「カー砦」0.286 という
+        # 閾値 0.35（0.25 から上げた）。実測: 「カード名」→「カー砦」0.286 という
         # ひな形への誤候補が出ていた一方、正当な誤字は「氷巻きの偵察」→「水巻きの偵察」0.400・
         # 「太陽の指輪」→「太陽の指環」0.500 で、その間に線が引ける。候補が消えても
         # 「未確認」の報告自体は残る＝答案側は search_mtg_cards で引ける（取り逃しは無害）。
-        # 2026-09-15: 候補の照会は 1 件ずつ similarity 走査を掛けるので、未確認が多い答案では
+        # 候補の照会は 1 件ずつ similarity 走査を掛けるので、未確認が多い答案では
         # 直列に積み上がる（20 件なら 20 回）。verify は答えを出す前に必ず通す道具なので、
         # 送信全体を待たせないよう先頭 5 件までに絞る（残りは名前の列挙だけで十分直せる）。
         if len(unknown) >= 5:
@@ -284,7 +284,7 @@ def verify_answer(text: str) -> str:
             out.append(pattern.sub(repl, s[pos:m.start()])); out.append(m.group(0)); pos = m.end()
         out.append(pattern.sub(repl, s[pos:]))
         return "".join(out)
-    # (3) 裸のカード名（日本語・英語とも）は **報告だけ**。書き換えない（2026-09-15）。
+    # (3) 裸のカード名（日本語・英語とも）は **報告だけ**。書き換えない。
     #
     # 経緯: もとは「4 文字以上でストップリストに無い」日本語名 31,011 語を無条件に置換していた。
     # カード名と同形の一般語が漢字 4〜5 字だけで 1,169 語あり、「決定的瞬間」「環境科学者」が
@@ -332,7 +332,7 @@ def verify_answer(text: str) -> str:
     if n_collapse:
         lines.append(f"二重の囲み《《…》》を {n_collapse} 箇所 1 重に畳んでから照合した（畳んだ上で完成形に直す）。")
     lines.append(f"機械修正 {n_fix} 箇所（《英語名》・《日本語名》→ 完成形《日本語名/英語名》。《》に入っていない裸の名前は直さず上で知らせるだけ）。")
-    # 2026-09-12: 数値の幻覚ガード（claude.ai のドラフト補助で 3 マナを 2 マナと言った事故）。修正版の文字列は変えない
+    # 数値の幻覚ガード（claude.ai のドラフト補助で 3 マナを 2 マナと言った事故）。修正版の文字列は変えない
     lines += _mana_check(fixed, N.get("cost", {}))
     lines.append("---- 修正版（未確認ゼロならこのまま使う） ----")
     lines.append(fixed)

@@ -110,7 +110,7 @@ def test_verify_card_without_japanese_stays_english():
     assert _fixed("Helm of Obedience is good.") == "Helm of Obedience is good."
     assert _fixed("Volcanic Island を置く。") == "Volcanic Island を置く。", (
         "日本語版なしの名前は保護域＝中の Island を拾わない")
-    # 2026-09-15: 裸の名前は書き換えず報告だけ（保護域の外にある分は一覧に出る）
+    # 裸の名前は書き換えず報告だけ（保護域の外にある分は一覧に出る）
     assert _fixed("Volcanic Island と Island。") == "Volcanic Island と Island。"
     assert "「Island」" in v("Volcanic Island と Island。"), "保護域の外の裸名は報告する"
     assert "「Island」" not in v("Volcanic Island を置く。"), (
@@ -215,7 +215,7 @@ if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
 
-# ─── マナ・コストの照合（2026-09-12・claude.ai のドラフト補助で 3 マナを 2 マナと言った事故を止める検査）────
+# ─── マナ・コストの照合（claude.ai のドラフト補助で 3 マナを 2 マナと言った事故を止める検査）────
 
 def _head(text):
     return v(text).split(MARK, 1)[0]
@@ -265,7 +265,7 @@ def test_mana_claim_attributes_to_nearest_name():
     assert "食い違い" not in head and "2 件一致" in head
 
 
-# ─── 誤検知の修理（2026-09-15・別セッションのクイックドラフト実戦で 7 パターンが挙がった）────
+# ─── 誤検知の修理（別セッションのクイックドラフト実戦で 7 パターンが挙がった）────
 # どれも「本文の数字は正しいのに照合の紐付けだけが誤る」型＝答案側が直しようのない誤報なので、
 # 掟「誤発動＝有害・取り逃し＝無害」に従って誤発動をゼロにする側へ倒す。
 
@@ -368,7 +368,7 @@ def test_mana_before_name_binds_to_the_following_card():
     assert "食い違い 1 件" in _head(f"{A}は 6 マナで重い。")
 
 
-# ─── CODEX のレビューで挙がった誤発動（2026-09-15・別モデルの目が拾った）────────────
+# ─── 外部レビューで挙がった誤発動 ────────────
 # どれも「答案の文字列を壊す」側の誤発動＝掟の非対称でいちばん重い側。
 
 def test_bare_name_is_never_substituted_into_a_longer_word():

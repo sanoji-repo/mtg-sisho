@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# nightly_scrape.sh — 夜間スクレイプの一本道ランナー（2026-07-22 設計）
+# nightly_scrape.sh — 夜間スクレイプの一本道ランナー
 # ============================================================================
 # 設計思想: 実行の継続性を AI の覚醒に依存させない。
-#   7/21〜22 の実測: run_in_background の子は外的要因で消えると後処理が浮く。
+#   実測: run_in_background の子は外的要因で消えると後処理が浮く。
 #   さらにサブエージェントの heartbeat 監視は「外から再開させないと動かない」
-#   ため、深夜無人だと正常完了ですら後処理に進めない（7/22 朝に実証）。
+#   ため、深夜無人だと正常完了ですら後処理に進めない（実証済み）。
 #   → 判断が要らない並び（スクレイプ→後処理→検証）は 1 本のシェルに縫い込み、
 #     OS のプロセス実行だけで完遂させる。通知は最後に 1 回で足りる。
 #
 # 芯となる規則:
 #   - 後処理は成否に関わらず必ず実行（; であって && でない）。
 #     fix_deck_links は card_id NULL のみ充填・recompute は全再構築＝どちらも
-#     冪等なので、部分取得で死んだ夜でも安全に走れる（7/21 異常終了の教訓）。
+#     冪等なので、部分取得で死んだ夜でも安全に走れる（異常終了で踏んだ教訓）。
 #   - ランナー自体の二重起動は flock で防止。
 #   - recompute は並行ランナー間で共有ロックにより直列化
 #     （card_format_strength / edh_card_strength の TRUNCATE 衝突回避）。
@@ -22,12 +22,12 @@
 #   job の形式:
 #     mtgtop8:<FORMAT>:<meta>     例 mtgtop8:MO:339
 #     moxfield:<brackets>:<per>   例 moxfield:2,3,4,5:300
-#     mtgo:<YYYY-MM|cur>:<formats|all>  例 mtgo:cur:all（今月分・全構築形式・2026-08-22 新設）
+#     mtgo:<YYYY-MM|cur>:<formats|all>  例 mtgo:cur:all（今月分・全構築形式）
 #   例（並行 2 便・レーンごとに別プロセスで起動する）:
 #     nohup sh/nightly_scrape.sh mtgtop8:ST:341 mtgtop8:PI:340 &
 #     nohup sh/nightly_scrape.sh moxfield:2,3,4,5:300 &
 #
-# 2026 年の meta コード（実測 2026-07-22）:
+# 2026 年の meta コード（実測）:
 #   ST=341 PI=340 MO=339 LE=338 VI=337 PAU=342 （EDH=343 はスキップ方針）
 #   スクレイパーは取得済みイベントを自動スキップ＝同じコマンドを毎晩打っても
 #   新規イベントだけ取りに行く（差分運用がコマンド不変で成立する）。
@@ -71,7 +71,7 @@ for job in "$@"; do
       rc=$? ;;
     mtgo)
       # mtgo:<YYYY-MM|cur>:<formats または all>  例 mtgo:cur:all ／ mtgo:2026-07:standard,modern
-      # 取得済み URL は自動スキップ＝毎晩同じ指定で差分だけ取る（2026-08-22 新設）
+      # 取得済み URL は自動スキップ＝毎晩同じ指定で差分だけ取る（新設）
       m="$a"; [ "$m" = "cur" ] && m=$(date +%Y-%m)
       fopt=""; [ -n "$b" ] && [ "$b" != "all" ] && fopt="--formats $b"
       timeout 3h "$PY" src/scrape_mtgo.py --month "$m" $fopt \
