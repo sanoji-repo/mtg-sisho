@@ -62,8 +62,7 @@ log "3) player_name を落とす・readonly_ai を用意・ANALYZE"
 PSQL -d "$NEW" <<SQL || die "後処理 SQL 失敗"
 ALTER TABLE deck_list DROP COLUMN IF EXISTS player_name;
 -- 公開サーバーには出所側の識別子も置かない。
---   * Moxfield 行: 提供元の条件は「ユーザー名が出なければ可」だが、URL からデッキページ（作者名つき）へ
---     飛べるので、URL とデッキ ID ごと置かない。
+--   * Moxfield 行: URL からデッキページ（作者名つき）へ飛べるので、URL とデッキ ID ごと置かない。
 --   * MTGO 行: deck_name の末尾にある参加者キーを落とす。MTGO の公開デッキリストページ（プレイヤー名つき）と
 --     突き合わせれば個人に辿り着けるため。末尾を落とすと同じイベントのデッキが同名になるので一意制約を外す。
 ALTER TABLE deck_list ALTER COLUMN deck_name DROP NOT NULL;  -- deck_name は NOT NULL（dump 由来）・公開サーバーだけ外す（実測で踏んだ罠）

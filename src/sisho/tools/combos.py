@@ -31,7 +31,7 @@ def _spellbook_post(payload: dict) -> dict:
     import urllib.request
     req = urllib.request.Request(_SPELLBOOK_URL, data=json.dumps(payload).encode("utf-8"),
                                  headers={"content-type": "application/json", "accept": "application/json",
-                                          "user-agent": "mtg-sisho-mcp/1.0 (+https://github.com/)"}, method="POST")
+                                          "user-agent": "mtg-sisho-mcp/1.0 (+https://github.com/sanoji-repo/mtg-sisho)"}, method="POST")
     with urllib.request.urlopen(req, timeout=_SPELLBOOK_TIMEOUT) as r:
         return json.loads(r.read().decode("utf-8"))
 

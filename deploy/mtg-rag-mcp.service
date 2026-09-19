@@ -1,6 +1,6 @@
 # mtg-rag-mcp.service — MCP サーバ（streamable-http :8765）の systemd user unit
 # =========================================================================
-# 置き場所: ~/.config/systemd/user/mtg-rag-mcp.service（claude ユーザー）
+# 置き場所: ~/.config/systemd/user/mtg-rag-mcp.service（実行するユーザーのホーム）
 # 前提:     sudo loginctl enable-linger claude 済み（ログイン無しでも起動する）
 #
 # インストール（claude 権限のみで可・sudo 不要）:

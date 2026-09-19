@@ -12,7 +12,7 @@ smoke-test で確認してから本走に進むこと。
 
 礼儀正しいスクレイピング:
   - リクエスト間隔: 2秒（先方指定の 1req/sec の自主的に半分）
-  - User-Agent は ~/.moxfield_ua から読む（chmod 600・リポジトリ外・
+  - User-Agent は MOXFIELD_UA_FILE が指すファイル（既定 ~/.moxfield_ua）から読む（chmod 600・リポジトリ外・
     ログ/print/例外メッセージに値を絶対に出さない）
   - 中断・再開対応（既存 source_url はスキップ）
 
@@ -83,7 +83,7 @@ DECK_ALL_PATH = "/v2/decks/all"
 CARD_SEARCH_PATH = "/v2/cards/search"
 
 REQUEST_INTERVAL = 2.0  # 秒（先方指定 1req/sec の自主的に半分）
-UA_FILE = os.path.expanduser("~/.moxfield_ua")
+UA_FILE = os.path.expanduser(os.environ.get("MOXFIELD_UA_FILE", "~/.moxfield_ua"))
 SOURCE = "moxfield_edh"
 
 BOARD_MAP = {
@@ -102,7 +102,7 @@ _last_request_at = 0.0
 
 
 def load_user_agent() -> str:
-    """~/.moxfield_ua から UA を読む。値は絶対にログ・例外メッセージに出さない。"""
+    """UA ファイルから User-Agent を読む。値は絶対にログ・例外メッセージに出さない。"""
     if not os.path.exists(UA_FILE):
         raise SystemExit(f"UA ファイルが無い: {UA_FILE}（値は表示しません）")
     with open(UA_FILE, "r") as f:

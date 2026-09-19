@@ -2,7 +2,7 @@
 -- （VM 側 03 の後に流す。稼働中の公開サーバーに後から表を足すときの手順＝新しい公開サーバーは dump に含まれるので不要）
 --
 -- 走らせ方:
---   1) VM から:  scp sh/sisho_repl/04_box_add_limited_card_stats.sql sisho:/tmp/ && ssh sisho chmod 644 /tmp/04_box_add_limited_card_stats.sql
+--   1) VM から:  scp sh/sisho_repl/04_box_add_limited_card_stats.sql <公開サーバー>:/tmp/ && ssh <公開サーバー> chmod 644 /tmp/04_box_add_limited_card_stats.sql
 --                （scp は 600 で置くので postgres が読めない → 644 に）
 --   2) 公開サーバーで:     sudo -u postgres psql -d rag_sisho -v ON_ERROR_STOP=1 -f /tmp/04_box_add_limited_card_stats.sql
 -- 確認（公開サーバー）: SELECT srrelid::regclass, srsubstate FROM pg_subscription_rel ORDER BY 1;   -- 13 行・全部 r

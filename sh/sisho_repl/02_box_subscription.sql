@@ -3,7 +3,7 @@
 --
 -- 走らせ方（公開サーバーで・postgres として）。パスワードは接続文字列に入れず、公開サーバーの postgres の ~/.pgpass に置く
 -- （pg_subscription に秘密が残らない・値は VM の ~/.config/mtg-rag/sisho_repl.env の SISHO_REPL_PW）:
---   1) VM から:  scp sh/sisho_repl/02_box_subscription.sql sisho:/tmp/
+--   1) VM から:  scp sh/sisho_repl/02_box_subscription.sql <公開サーバー>:/tmp/
 --   2) 公開サーバーで:     echo "<開発側の tailnet アドレス>:5435:rag_dev:sisho_repl:<SISHO_REPL_PW>" | sudo -u postgres tee -a /var/lib/postgresql/.pgpass >/dev/null
 --                sudo -u postgres chmod 600 /var/lib/postgresql/.pgpass
 --   3) 公開サーバーで:     sudo -u postgres psql -d rag_sisho -v ON_ERROR_STOP=1 \
@@ -14,7 +14,7 @@
 -- 注意: TRUNCATE で公開サーバーの 12 表は一度空になり、初回コピー（約 0.9GB・HDD）で埋まるまで MCP の返り値は欠ける（公開口は未配布＝設計者だけ）。
 --       sslmode=disable は Tailscale（WireGuard）が経路を暗号化しているため。VM の PG は ssl=off。
 
--- 1) Moxfield 行は公開サーバーに URL もデッキ ID も置かない（提供元から「ユーザー名が出なければ可」との了承を得ている。こちらの説明は「no URL or deck ID」）。
+-- 1) Moxfield 行は公開サーバーに URL もデッキ ID も置かない（プレイヤー名・URL・デッキ ID を出さない運用で提供元の確認を得ている）。
 --    購読側の apply は session_replication_role=replica で普通のトリガは鳴らない → ENABLE ALWAYS（初回コピーの COPY でも鳴る）。
 --    公開サーバーの deck_list.deck_name は dump 由来で NOT NULL（VM と同じ）→ NULL を入れるので公開サーバーだけ制約を外す（初回コピーで踏んだ罠）。
 ALTER TABLE public.deck_list ALTER COLUMN deck_name DROP NOT NULL;
