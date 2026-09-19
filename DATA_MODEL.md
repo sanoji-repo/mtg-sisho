@@ -5,7 +5,7 @@ Sisho が読む PostgreSQL（18）のテーブル。列と型は実 DB の `info
 
 MCP の `query_mtg_database` はこれらを読み取り専用の役割（`readonly_ai`）で読む。
 名前が二つあるカード（両面・出来事・分割 850 枚）は **面ごとの列**（`name_en_front/back`・`name_ja_front/back`）を正本とし、結合名 `card_name`／`japanese_name`／`name_display` は DB が自動で作る生成列（2026-08-31）。
-プレイヤー名は開発側の `players` 表（`deck_list.player_id` で参照）に隔離し、公開側の DB には名前も ID も置かない（2026-08-31・`deck_list.player_name` 列は廃止）。
+プレイヤー名は開発側の `players` 表（`deck_list.player_id` で参照）に隔離し、公開側のデータベースには名前も ID も置きません（`deck_list.player_name` 列は廃止）。出所側の識別子も同じ扱いで、Moxfield 由来の行は URL とデッキ名ごと置かず、MTGO 由来の行は `deck_name` の末尾に付く参加者キーを公開側へ渡るときに落としています（`sh/sisho_repl/24_box_scrub_mtgo_key.sql`）。開発側では重複判定の鍵として元の形のまま持っています。
 
 ## 件数（2026-09-07 時点・README から移した）
 
@@ -159,7 +159,7 @@ MCP の `query_mtg_database` はこれらを読み取り専用の役割（`reado
 | `deck_list.tournament_name` / `tournament_date` / `placement` / `tournament_event_id` | text / date / integer / integer | 大会名・日付・順位・出所側のイベント ID（重複判定の鍵） |
 | `deck_list.archetype` / `bracket` | text / integer | アーキタイプ名（MTGTop8）・Moxfield のブラケット |
 | `deck_list.source_url` / `created_at` | text / timestamp | 取得元 URL・取得時刻（UTC） |
-| `deck_list.deck_name` / `set_code` | text / text | 構築済み製品の名前とセット |
+| `deck_list.deck_name` / `set_code` | text / text | デッキの見出しとセット。中身は出所ごとに違います（MTGO はイベント名・MTGTop8 はアーキタイプ名・構築済み製品は製品名）。Moxfield 由来は公開側では NULL |
 | `deck_cards.deck_id` / `card_name` / `count` / `board` | integer / text / integer / text | デッキ・カード名（出所の表記のまま）・枚数・`main` `side` `commander` |
 | `deck_cards.card_id` | integer | `mtg_cards_v2.id`。正規化マッチで後から埋める（`fix_deck_links.py`・未解決は NULL） |
 

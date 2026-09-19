@@ -61,9 +61,15 @@ log "   復元 $(( $(date +%s)-t0 ))s"
 log "3) player_name を落とす・readonly_ai を用意・ANALYZE"
 PSQL -d "$NEW" <<SQL || die "後処理 SQL 失敗"
 ALTER TABLE deck_list DROP COLUMN IF EXISTS player_name;
--- 2026-08-30: Moxfield の条件「ユーザー名が出ない」（提供元の返信）＝URL からデッキページ（作者名つき）へ飛べるので URL とデッキ ID も公開サーバーには置かない
+-- 公開サーバーには出所側の識別子も置かない。
+--   * Moxfield 行: 提供元の条件は「ユーザー名が出なければ可」だが、URL からデッキページ（作者名つき）へ
+--     飛べるので、URL とデッキ ID ごと置かない。
+--   * MTGO 行: deck_name の末尾にある参加者キーを落とす。MTGO の公開デッキリストページ（プレイヤー名つき）と
+--     突き合わせれば個人に辿り着けるため。末尾を落とすと同じイベントのデッキが同名になるので一意制約を外す。
 ALTER TABLE deck_list ALTER COLUMN deck_name DROP NOT NULL;  -- deck_name は NOT NULL（dump 由来）・公開サーバーだけ外す（実測で踏んだ罠）
+ALTER TABLE deck_list DROP CONSTRAINT IF EXISTS deck_list_deck_name_key;
 UPDATE deck_list SET source_url = NULL, deck_name = NULL WHERE source = 'moxfield_edh' AND (source_url IS NOT NULL OR deck_name IS NOT NULL);
+UPDATE deck_list SET deck_name = regexp_replace(deck_name, '_[0-9]+\$', '') WHERE source LIKE 'mtgo%' AND deck_name ~ '_[0-9]+\$';
 DO \$\$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='readonly_ai') THEN
     CREATE ROLE readonly_ai LOGIN PASSWORD '$DB_PASS_ROAI';
@@ -91,6 +97,7 @@ DISP=$(PSQL -d "$NEW" -c "SELECT name_display FROM mtg_cards_v2 WHERE card_name=
 SIM=$(PSQL -d "$NEW" -c "SELECT card_name FROM mtg_cards_v2 WHERE similarity(card_name,'Stifel')>0.3 ORDER BY similarity(card_name,'Stifel') DESC LIMIT 1"); [ "$SIM" = "Stifle" ] || die "pg_trgm similarity が変: $SIM"
 PN=$(PSQL -d "$NEW" -c "SELECT count(*) FROM information_schema.columns WHERE table_name='deck_list' AND column_name='player_name'"); [ "$PN" = "0" ] || die "player_name が残っている"
 MU=$(PSQL -d "$NEW" -c "SELECT count(*) FROM deck_list WHERE source='moxfield_edh' AND (source_url IS NOT NULL OR deck_name IS NOT NULL)"); [ "$MU" = "0" ] || die "Moxfield の URL/デッキ ID が残っている: $MU 行"
+GU=$(PSQL -d "$NEW" -c "SELECT count(*) FROM deck_list WHERE source LIKE 'mtgo%' AND deck_name ~ '_[0-9]+\$'"); [ "$GU" = "0" ] || die "MTGO の参加者キーが deck_name に残っている: $GU 行"
 log "   OK: cards=$N_CARDS rules=$N_RULES decks=$N_DECKS display=$DISP similarity=$SIM"
 
 log "5) 差し替え $DB ← $NEW（旧は $OLD へ）"

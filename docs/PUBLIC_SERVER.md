@@ -106,6 +106,7 @@ sudo -u postgres env DB_PASS_ROAI=<.env と同じ値> PGUSER=postgres PGHOST=/va
 - 表を足すときは「開発側で GRANT＋`ALTER PUBLICATION sisho_pub ADD TABLE …（列指定）` → 公開サーバーに同じ列の表を作って `readonly_ai` に GRANT → 公開サーバーで REFRESH PUBLICATION」（`03_vm_add_limited_card_stats.sql`／`04_box_add_limited_card_stats.sql` が実例・2026-08-31）。01 と `make_public_dump.sh` の TABLES にも同じ表を足しておく（01 は作り直しの正本・dump は新しい公開サーバーの初期化）。表は public に置く（別スキーマだと既定 ACL・dump・名前解決の例外が増える＝8/31 に `lab17.card_stats` を public へ統合した理由）。
 - 公開サーバーが長く落ちて開発側のスロットが `lost` になったら、公開サーバーで `DROP SUBSCRIPTION sisho_sub` → 02 をやり直す。
 - §4 の復元を走らせるときは先に `DROP SUBSCRIPTION sisho_sub`（`restore_public_dump.sh` が検査して止まる）。
+- **公開サーバーへ渡すときに洗う物が二つある**（`02_box_subscription.sql` のトリガ。稼働中の公開サーバーに後から入れるなら `24_box_scrub_mtgo_key.sql`）。Moxfield 由来の行は URL とデッキ名を NULL にし、MTGO 由来の行は `deck_name` の末尾に付く出所側の参加者キーを落とす。後者のために公開サーバーでは `deck_name` の一意制約を外してある（論理レプリケーションは主キー `id` で当てるので購読は壊れない）。開発側は重複判定の鍵として元の形のまま持つ。
 
 ### 5. MCP を常駐させる
 

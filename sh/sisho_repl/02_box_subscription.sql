@@ -18,18 +18,24 @@
 --    購読側の apply は session_replication_role=replica で普通のトリガは鳴らない → ENABLE ALWAYS（初回コピーの COPY でも鳴る）。
 --    公開サーバーの deck_list.deck_name は dump 由来で NOT NULL（VM と同じ）→ NULL を入れるので公開サーバーだけ制約を外す（初回コピーで踏んだ罠）。
 ALTER TABLE public.deck_list ALTER COLUMN deck_name DROP NOT NULL;
-CREATE OR REPLACE FUNCTION public.sisho_scrub_moxfield() RETURNS trigger LANGUAGE plpgsql AS $$
+--    MTGO 行は末尾を落とすと同じイベントのデッキが同名になるので、公開サーバーでは deck_name の
+--    一意制約も外す（論理レプリケーションは主キー id で当てるので購読は壊れない）。
+ALTER TABLE public.deck_list DROP CONSTRAINT IF EXISTS deck_list_deck_name_key;
+CREATE OR REPLACE FUNCTION public.sisho_scrub_public() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.source = 'moxfield_edh' THEN
     NEW.source_url := NULL;
-    NEW.deck_name := NULL;
+    NEW.deck_name  := NULL;
+  ELSIF NEW.source LIKE 'mtgo%' AND NEW.deck_name IS NOT NULL THEN
+    NEW.deck_name  := regexp_replace(NEW.deck_name, '_[0-9]+$', '');
   END IF;
   RETURN NEW;
 END $$;
 DROP TRIGGER IF EXISTS sisho_scrub_moxfield ON public.deck_list;
-CREATE TRIGGER sisho_scrub_moxfield BEFORE INSERT OR UPDATE ON public.deck_list
-  FOR EACH ROW EXECUTE FUNCTION public.sisho_scrub_moxfield();
-ALTER TABLE public.deck_list ENABLE ALWAYS TRIGGER sisho_scrub_moxfield;
+DROP TRIGGER IF EXISTS sisho_scrub_public   ON public.deck_list;
+CREATE TRIGGER sisho_scrub_public BEFORE INSERT OR UPDATE ON public.deck_list
+  FOR EACH ROW EXECUTE FUNCTION public.sisho_scrub_public();
+ALTER TABLE public.deck_list ENABLE ALWAYS TRIGGER sisho_scrub_public;
 
 -- 2) 空にしてから初回コピー（dump の中身は捨て、VM の今と一致させる）。FK 4 本があるので 12 表を一文で。
 TRUNCATE public.mtg_cards_v2, public.mtg_cards_v2_nonlegal, public.mtg_rules, public.card_rulings,
