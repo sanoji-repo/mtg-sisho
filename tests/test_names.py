@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""名前の解決（sisho/names.py）の試験（Step 6 作業 1・2026-09-05）。
+"""名前の解決（sisho/names.py）の試験。
 
 「面の名前 → 正式名」の解決は 1 箇所（sisho.names.resolve_face_name）に置き、
 相方検索（partners）と裁定検索（rules）の両方がそれを呼ぶ。ここで縫うのは

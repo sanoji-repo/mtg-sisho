@@ -1,5 +1,4 @@
-"""sql.py — 自由 SQL の口 query_mtg_database とスキーマの窓 describe_mtg_tables
-（2026-09-05 Step 3 で mcp_server.py から切り出し）。
+"""sql.py — 自由 SQL の口 query_mtg_database とスキーマの窓 describe_mtg_tables。
 
 登録（server.tool）は mcp_server.py 側。道具が 2 本あるので説明は道具ごとに
 QUERY_MTG_DATABASE_DESCRIPTION・DESCRIBE_MTG_TABLES_DESCRIPTION と名前を分ける。
@@ -74,13 +73,13 @@ def query_mtg_database(sql: str, max_rows: int = 30) -> str:
 def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str], list[tuple], str]:
     """結果の文字列列のうち値が DB のカード名（正式名 or 表の名前）に当たる列の右隣に `<列>_ja` を添える。
 
-    2026-08-22 書式ベンチの教訓: Sonnet は SQL で card_name だけ取ると自分で訳す（10 問中 11 件の創作訳・
+    書式ベンチの教訓: クライアントは SQL で card_name だけ取ると自分で訳す（10 問中 11 件の創作訳・
     DB には正式名あり）。instructions の「翻訳するな」は効かないので、道具の返り値に japanese_name を
     同伴させて訳す隙を構造で塞ぐ（設計の掟: LLM の出力は信用せず構造で塞ぐ）。
     列名で推測せず値で判定（card_name_a / pname / 別名付き列でも効く）。
     日本語版なしは「日本語版なし」と明示（NULL と未一致を区別する）。
 
-    2026-09-05（Step 5 修正 3）: 入口の「列名が *_display で終わる列が一つでもあれば全停止」を撤去した。
+    入口の「列名が *_display で終わる列が一つでもあれば全停止」を撤去した。
     クライアントが `SELECT count(*) AS foo_display` のように無関係な列名を付けた瞬間、結果中のカード名列への
     同伴が丸ごと消えていた（実測）＝構造で塞いだはずの穴が名前の付け方で開く。
     判定は列名でなく値・行ごとに置き換える:

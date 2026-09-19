@@ -47,7 +47,7 @@ def add_japanese_columns(conn):
 def extract_printed_text(card: dict) -> tuple[str | None, str | None]:
     """日本語名・日本語テキストを抽出（両面カード対応）。
 
-    printed_name の面フォールバック（2026-08-21 修理・8/20 に発見）:
+    printed_name の面フォールバック:
     両面・分割カードの日本語印刷はトップレベル printed_name が無く、各面の
     printed_name にだけ日本語名が入る（実測 704 枚が「日本語テキストあり・
     日本語名なし」だった）。printed_text が既にやっている面フォールバックを
@@ -81,11 +81,11 @@ def extract_printed_text(card: dict) -> tuple[str | None, str | None]:
 
 
 def apply_manual_names(conn) -> int:
-    """手動補正表 name_ja_manual を最後に当てる（2026-08-24・設計判断 (a)）。
+    """手動補正表 name_ja_manual を最後に当てる（設計判断 (a)）。
 
     背景: Scryfall の一部 ja 印刷は面の printed_name に英語名が入っている
     （MH3 の両面 4 枚を実測・上流も未修正）＝抽出では永久に NULL。さらに全量監査
-    （2026-08-25・MTGJSON 突き合わせ→mtgwiki 審判）で誤った値も 5 枚見つかった。
+    （MTGJSON 突き合わせ→mtgwiki 審判）で誤った値も 5 枚見つかった。
     表は公式ソースで裏取りした少数精鋭（source_url 必須）なので、**表にある行は
     常に表が勝つ**（NULL 埋めも誤り訂正も同じ一文・冪等＝値が違う行だけ UPDATE）。"""
     with conn.cursor() as cur:

@@ -1,4 +1,4 @@
-"""partners.py — 共起の道具 find_partner_cards（2026-09-05 Step 3 で mcp_server.py から切り出し）。
+"""partners.py — 共起の道具 find_partner_cards。
 
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
 """
@@ -8,18 +8,18 @@ from sisho.toollog import _log_tool
 
 
 def _name_variants(name: str) -> list[str]:
-    """両面・分割カードの名前ゆれを吸収する候補名を返す（2026-08-13）。
+    """両面・分割カードの名前ゆれを吸収する候補名を返す。
 
     棚ごとにキーの持ち方が違うのが根本原因:
       card_cooccurrence（mtgtop8 系・古い）     → 名前キー。中身は mtgtop8 が書く
                                                   「表の名前」（例 Brazen Borrower）
-      edh_card_cooccurrence_v2（7/30 新設）     → ID キー。カード表の正式名で引く
+      edh_card_cooccurrence_v2（後から新設）     → ID キー。カード表の正式名で引く
                                                   （例 Brazen Borrower // Petty Theft）
     道具の入口でこの差を吸収しないと、scope によって通る名前が逆になる
-    （実測 2026-08-13: 正式名は constructed で空振り・表の名前は edh で空振り）。
+    （実測: 正式名は constructed で空振り・表の名前は edh で空振り）。
     該当は card_name に ' // ' を持つ 810 枚。
 
-    2026-09-05（Step 6 作業 1）: 「面の名前 → 正式名」の DB 引きは sisho/names.py の
+    「面の名前 → 正式名」の DB 引きは sisho/names.py の
     resolve_face_name に寄せた（同じ規則が rules.py にも別実装であった＝片方だけ直す事故を防ぐ）。
     候補の集合はそのまま（実測の根拠は names.py の冒頭）。
     """
@@ -72,13 +72,13 @@ DESCRIPTION = (
 def find_partner_cards(card_name: str, scope: str = "edh",
                        limit: int = 15, exclude_lands: bool = False,
                        order_by: str = "count") -> str:
-    """共起ペアは片方向格納＝両面 UNION で引く（2026-08-11 実査）。
+    """共起ペアは片方向格納＝両面 UNION で引く（実査）。
 
-    名前は表記ゆれを吸収して引く（_name_variants・2026-08-13）。結果側の JOIN も
+    名前は表記ゆれを吸収して引く（_name_variants）。結果側の JOIN も
     同じ理由で表の名前を許す＝相方が両面カードのとき静かに落ちるのを防ぐ
     （実測: 相方名 215 種・7,958 ペアが落ちていた。うち 156 種は表の名前で救える）。
 
-    2026-08-25 分母導入（設計判断「パーセンテージ表記に賛成」）:
+    分母の導入（パーセンテージ表記にする）:
     - pct = n_ab / (このカード入りデッキ数)。分母は毎回 deck_cards から実測
       （edh_card_strength の play_decks は母集団の一致が未検証なので借りない）。
     - lift = pct / (相方カードの全体出現率)。1.0 ≈ 偶然同居（汎用カード）・高いほど専属シナジー。

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""edh_card_cooccurrence_v2 — EDH デッキの共起集計テーブル新設（2026-07-30）。
+"""edh_card_cooccurrence_v2 — EDH デッキの共起集計テーブル新設。
 
 旧 edh_card_cooccurrence（51万行・初期に一度焼かれたきりの化石）の二つの欠陥を
 修正する:

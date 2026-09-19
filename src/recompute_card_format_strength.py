@@ -1,14 +1,14 @@
 """
 Recompute per-format tournament strength from linked MTGTop8 deck data.
 
-v3（2026-07-14・EDH を物理分離）:
+v3（EDH を物理分離）:
   - **card_format_strength = 1v1 構築フォーマット（60枚・4積み）のみ**
     （Standard/Pioneer/Modern/Legacy/Vintage/Pauper・母数 984〜2,227 で同じ桁）。
   - **edh_card_strength = シングルトン系（Commander 系）を別テーブルに分離**。
-    同じ列構成＝合併したくなったら UNION で足せる（2026-07-14 設計判断）。
+    同じ列構成＝合併したくなったら UNION で足せる（設計判断）。
     分離の理由: デッキ構造（100枚シングルトン）が違い「採用」の意味論が別物・
     母数が一桁小さく（214）、率の横断比較に混ぜると MAX を支配して本線を汚染する
-    （eval id=65〜68 で実測・7/8 の「card_format_strength に EDH を混ぜない」
+    （評価で実測・「card_format_strength に EDH を混ぜない」
     ガードの正しさが実証された）。
   - format_deck_counts.total_decks = フォーマット別の総デッキ数（率の分母・
     構築も EDH も持つ＝分母は事実の記録で、分離は strength テーブル側で行う）。
@@ -16,9 +16,9 @@ v3（2026-07-14・EDH を物理分離）:
     横断フォールバックは card_format_strength（構築のみ）の率 MAX＝EDH は
     物理的に不在なので WHERE 除外に頼らない。EDH 指定クエリだけが
     edh_card_strength を参照する。
-  - TRUNCATE は lock_timeout 付き（2026-07-13 ロック渋滞事件の教訓）。
+  - TRUNCATE は lock_timeout 付き（ロック渋滞事件の教訓）。
 
-v4（2026-07-22・Moxfield 多人数 Commander を追加・承認）:
+v4（Moxfield 多人数 Commander を追加）:
   - **edh_card_strength は「Duel Commander」と「Commander」（多人数）の2つの
     format_name を同居させる**（テーブルは分けない・GROUP BY dc.card_id,
     dl.format_name が既に per-format_name で行を割っているため、テーブルを

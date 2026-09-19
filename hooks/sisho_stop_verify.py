@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""sisho_stop_verify.py — Claude Code の Stop フック: 答案のカード名を DB と突き合わせ、駄目なら書き直させる（2026-08-23）。
+"""sisho_stop_verify.py — Claude Code の Stop フック: 答案のカード名を DB と突き合わせ、駄目なら書き直させる。
 
 何をするか:
   Claude が応答を終えようとした瞬間に呼ばれ、最後の assistant 本文を transcript から取り出し、
@@ -68,7 +68,7 @@ def _last_assistant(path: str):
 
 
 def last_assistant_text(path: str, wait_s: float = 4.0) -> str:
-    """Stop フックは最終本文が transcript に書かれる前に呼ばれることがある（2026-08-23 実測・数秒の競合）。
+    """Stop フックは最終本文が transcript に書かれる前に呼ばれることがある（実測・数秒の競合）。
     最後の assistant が tool_use だけ／無い間は少し待って読み直す（上限 wait_s）。"""
     import time
     deadline = time.time() + wait_s

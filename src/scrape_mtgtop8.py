@@ -238,11 +238,11 @@ _DDL = """
 def verify_schema(conn):
     """deck_list に必要な列と索引が在るか確かめる（足りなければ止める）。
 
-    2026-09-18 まではここで毎回 ALTER TABLE ADD COLUMN IF NOT EXISTS と
+    以前はここで毎回 ALTER TABLE ADD COLUMN IF NOT EXISTS と
     CREATE INDEX IF NOT EXISTS を打っていた。列が既に在っても DDL は対象表の
     ACCESS EXCLUSIVE を要求するので、別の取り込みが読みのトランザクションを開けたまま
     HTTP を叩いている間ずっと待つ。ロック待ちは先着順なので、待っている DDL の後ろに
-    来た INSERT や SELECT まで並ぶ（2026-09-18 実測: 取り込みを 3 本並行で動かすと
+    来た INSERT や SELECT まで並ぶ（実測: 取り込みを 3 本並行で動かすと
     一晩の待ち合計が 77.6 分）。列を作るのは移行の仕事なので、通常運転では在るか
     確かめるだけにする。作ってよいときだけ --migrate を付ける。
     """

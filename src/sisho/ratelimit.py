@@ -1,4 +1,4 @@
-"""ratelimit.py — HTTP の入口のレート制限（2026-09-05 Step 2 で mcp_server.py から切り出し）。
+"""ratelimit.py — HTTP の入口のレート制限。
 
 公開名は RateLimiter／RateLimitASGI（切り出し前の名前は _RateLimiter／_RateLimitASGI で、
 mcp_server からは旧名でも届く＝tests 互換）。DB には触らない。

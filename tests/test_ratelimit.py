@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""レート制限（_RateLimiter／_RateLimitASGI）の試験（2026-09-02・配布前の門）。
+"""レート制限（_RateLimiter／_RateLimitASGI）の試験（配布前の門）。
 
 走らせ方: pytest tests/test_ratelimit.py -v
 DB には触らない（時計を差し替えた純粋な試験）。誤発動ゼロ＝枠の内側は必ず通す、が背骨。

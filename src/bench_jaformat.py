@@ -1,4 +1,4 @@
-"""bench_jaformat.py — 日本語の問いに《日本語名》で答えたかのベンチ（2026-08-22）。
+"""bench_jaformat.py — 日本語の問いに《日本語名》で答えたかのベンチ。
 
 目的: MCP の instructions（カード名は利用者の言語・《》で囲む・英語は初出に一度）だけで、クライアントが
 日本語の問いに《日本語名》で答えるかを、モデル × effort の常設編成（Sonnet medium／Sonnet xhigh／Opus low）

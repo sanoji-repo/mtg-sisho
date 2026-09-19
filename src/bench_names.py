@@ -1,4 +1,4 @@
-"""bench_names.py — 名前忠実度ベンチ（モデル × effort × MCP 有無 の格子・2026-08-21）。
+"""bench_names.py — 名前忠実度ベンチ（モデル × effort × MCP 有無 の格子）。
 
 目的: 利用者に「この MCP はどのモデル・どの effort で使うと何%」を数字で書くため、
 同じ問題集を `claude -p`（headless）で回して機械採点する。外部課金なし（Claude の枠）。

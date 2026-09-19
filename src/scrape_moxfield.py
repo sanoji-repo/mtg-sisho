@@ -2,7 +2,7 @@
 scrape_moxfield.py — Moxfield 公開デッキスクレイパー（多人数 EDH 向け）
 ====================================================================
 Moxfield は private API（無文書・無保証・予告なく変更されうる）。
-2026-07-21 に Moxfield の運営担当者から
+Moxfield の運営担当者から
 専用 User-Agent を条件付きで発行された（非営利・1req/sec厳守・UA秘密保持）。
 
 このスクリプトの根拠は Moxfield 公式ドキュメントではなく、
@@ -26,7 +26,7 @@ smoke-test で確認してから本走に進むこと。
   deck_list  （既存・source='moxfield_edh' で追加）
   deck_cards （既存・同上、board は main/side/commander）
 
-design note（実測で確定した点・2026-07-21 追加検分）:
+design note（実測で確定した点）:
   - fmt='commander' で確認済み（Duel Commander とは別）。sortType='views' も実測で
     降順ソート確認済み。
   - **bracket 情報は /v2/decks/search の DeckDatum にだけ載る（/v2/decks/all の
@@ -35,7 +35,7 @@ design note（実測で確定した点・2026-07-21 追加検分）:
     引数で渡す（フル取得結果からは復元できない）。
   - **bracket は 1〜5 の5段階が実在**（WotC公式は1〜4=Exhibition/Core/Upgraded/
     Optimized。5 は Moxfield 独自の cEDH 拡張とみられる＝実測で bracket=5 かつ
-    hubNames=["Competitive"] のデッキを複数確認）。grading_conventions.md R13補足a
+    hubNames=["Competitive"] のデッキを複数確認）。採点規約
     の「ブラケット文言」は公式1〜4 前提の設計＝5 を含めるかは公式の外なので**設計者
     裁定待ち**（既定は方針に従い5段階とも均等に取得・後で SQL 側で bracket<=4
     に絞ることもできる設計＝実データは残す）。
@@ -44,10 +44,10 @@ design note（実測で確定した点・2026-07-21 追加検分）:
     client 側でバケット分けするしかない**。
   - 「完成されたデッキ」の判定は search 結果の `isLegal` フィールド（true のみ採用）
     を使う。デッキが Commander の singleton legal 建築（100枚・禁止カード無し等）
-    を満たすかの構造化フラグ＝R9 の「crisp な属性は厳格に」の一族。
+    を満たすかの構造化フラグ＝「crisp な属性は厳格に」の一族。
   - tournament_name/tournament_date/placement は Moxfield に対応概念が無い
     ため NULL のまま（不在は NULL・番兵にしない）。デッキ投稿者の名前は
-    取り込まない（2026-08-31 の設計判断・DATA_MODEL.md を参照）。
+    取り込まない（DATA_MODEL.md を参照）。
   - archetype 列（MTGTop8 の大会公式アーキタイプ名）に相当する概念が無い
     ので NULL のまま。hub_names は捨てず raw JSON ログにだけ残す（列は作らない）。
   - **bracket は deck_list に新規列として保存**（verify_schema で在ることを確かめる・列を作るのは移行側。
@@ -60,7 +60,7 @@ design note（実測で確定した点・2026-07-21 追加検分）:
   # 取得状況確認
   python scrape_moxfield.py --status
 
-  # 本走（承認後）: bracket 1〜5 それぞれ MostView 上位から100件ずつ
+  # 本走: bracket 1〜5 それぞれ MostView 上位から100件ずつ
   python scrape_moxfield.py --sample-by-bracket --per-bracket 100 --brackets 1,2,3,4,5
 """
 
@@ -173,12 +173,12 @@ def search_cards(query: str) -> dict:
 # ─── DB 操作 ──────────────────────────────────────────────────
 
 def verify_schema(conn):
-    """deck_list に bracket 列が在るか確かめる（足りなければ止める・2026-09-18）。
+    """deck_list に bracket 列が在るか確かめる（足りなければ止める）。
 
-    2026-09-18 まではここで毎回 ALTER TABLE ADD COLUMN IF NOT EXISTS を打っていた。
+    以前はここで毎回 ALTER TABLE ADD COLUMN IF NOT EXISTS を打っていた。
     列が既に在っても DDL は対象表の ACCESS EXCLUSIVE を要求するので、他の取り込みが
     読みのトランザクションを開けたまま HTTP を叩いている間ずっと待ち、ロック待ちは
-    先着順なのでその後ろに INSERT や SELECT まで並ぶ（2026-09-18 実測: 一晩の待ち 77.6 分）。
+    先着順なのでその後ろに INSERT や SELECT まで並ぶ（実測: 一晩の待ち 77.6 分）。
     列を作るのは移行の仕事。作ってよいときだけ --migrate を付ける。
     """
     from db_config import migrate_requested, require_columns

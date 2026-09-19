@@ -1,10 +1,10 @@
 """
 scrape_mtgo.py — Magic Online 公式デッキリスト（mtgo.com/decklists）スクレイパー
 =====================================================================================
-2026-08-22 承認「完全に非商用になった今、渋る意味は無い。やろう」。
+非商用の利用にかぎる。
 
-権利の検査（2026-08-22 実施）:
-  - 運営は Daybreak Games。利用規約 2026-07-13 版に自動アクセス／スクレイプを
+権利の検査（実施）:
+  - 運営は Daybreak Games。利用規約（2026 年 7 月 13 日版）に自動アクセス／スクレイプを
     名指しで禁じる条項は無し（「bot」はウイルス等と並ぶ投稿・送信禁止物の文脈）。
     13(f) 商用利用禁止＝本プロジェクトは非商用（AWS 公開 API は同日退役）。
   - robots.txt は 404（不在）。間隔 2 秒・User-Agent 明示＝mtgtop8 と同じ礼儀。
@@ -86,7 +86,7 @@ _SESSION.headers.update(HEADERS)
 
 
 def fetch(url: str, retries: int = 3) -> str | None:
-    """応答時間が 1〜20 秒で揺れる（2026-08-22 実測）ので timeout は長め・再試行 3 回。
+    """応答時間が 1〜20 秒で揺れる（実測）ので timeout は長め・再試行 3 回。
     存在しない /decklist/… は 302 で /decklists へ飛ばされる＝『無し』扱い（追わない）。"""
     for attempt in range(retries):
         try:
@@ -109,7 +109,7 @@ def fetch(url: str, retries: int = 3) -> str | None:
 # ─── 解析 ───────────────────────────────────────────────────────────────
 
 def parse_site_name(site_name: str) -> dict | None:
-    """'standard-challenge-32-2026-08-2112852733' → 形式・種別・日付・ID"""
+    """'standard-challenge-32-<YYYY-MM-DD><ID>' → 形式・種別・日付・ID"""
     m = SITE_RE.match(site_name)
     if not m:
         return None
@@ -180,9 +180,9 @@ _ALIAS: dict[str, str] = {}
 
 
 def load_alias(conn) -> None:
-    """mtgo_name_alias（MTGO 表示名→紙の正式名・2026-08-22 新設）を読み込む。
+    """mtgo_name_alias（MTGO 表示名→紙の正式名）を読み込む。
     実例: om1「Through the Omenpaths」= MTGO 限定のスパイダーマン別名（Kavaero, Mind-Bitten → Superior Spider-Man）。
-    Scryfall では printed_name に別名・name に紙の名前が入る。表の再生成は docs/ai/WORKLOG 8/22 の手順。"""
+    Scryfall では printed_name に別名・name に紙の名前が入る。"""
     with read_cursor(conn) as cur:      # 読んだら閉じる（HTTP の間ロックを握らない）
         cur.execute("SELECT mtgo_name, card_name FROM mtgo_name_alias")
         _ALIAS.update({a: b for a, b in cur.fetchall()})

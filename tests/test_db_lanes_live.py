@@ -5,7 +5,7 @@ VM で走らせる live 試験:
    重いレーンに並び直して完走する（返り値 [(25000000,)]、所要 1 秒超、caplog に [lane] warning）。
    重いクエリは CPU だけで時間を稼ぐ直積（5000×5000・VM 実測 3.2 秒）にする。1 本の
    generate_series(1, 2 億) は関数スキャンが一時ファイルに落ちて devuser でも 10 秒を越え、
-   readonly_ai では temp_file_limit(256MB) に当たる（2026-09-07 実測）。
+   readonly_ai では temp_file_limit(256MB) に当たる（実測）。
 10. 軽いクエリ SELECT 1 → [(1,)]、[lane] warning なし。
 """
 import logging

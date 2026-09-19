@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""lookup_mtg_rule・get_card_rulings の振る舞い（Step 4・2026-09-05）。
+"""lookup_mtg_rule・get_card_rulings の振る舞い。
 
 総合ルールと公式裁定は追記されていく（版が上がる・裁定が増える）ので、
 黄金値は「この条番号が入る／入らない」「タグの形」「件数の上限」で縫い、
@@ -85,7 +85,7 @@ def test_rulings_exact_name():
 
 
 def test_rulings_face_name_resolves_to_official_name():
-    """面の名前（出来事の呪文側）で引いても、正式名の裁定に辿り着く（2026-08-31 R3-4）。
+    """面の名前（出来事の呪文側）で引いても、正式名の裁定に辿り着く。
 
     注意: この解決は partners.py の _name_variants ではなく、rules.py が
     name_en_front／name_en_back を直接引いてやっている（実装を見て確認・重複した経路）。

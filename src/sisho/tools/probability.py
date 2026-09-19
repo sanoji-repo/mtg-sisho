@@ -1,4 +1,4 @@
-"""probability.py — 確率計算の道具 mtg_probability（2026-09-05 Step 2 で mcp_server.py から切り出し）。
+"""probability.py — 確率計算の道具 mtg_probability。
 
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
 """

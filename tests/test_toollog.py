@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""道具ログの出口の行と計時の試験（Step 7・2026-09-06）。
+"""道具ログの出口の行と計時の試験。
 
 縫うのは 5 つ:
   1. 入口の行の形が変わっていないこと（既存の読み方＝2 列目が道具名を壊さない）。
@@ -262,7 +262,7 @@ def test_counters_do_not_mix_between_concurrent_coroutines():
     """集計器は contextvars＝同一スレッドで交互に進む二つのコルーチンでも混ざらない
     （asyncio の Task は生成時に context を複製する）。今日の道具は同期関数でスレッド分離だが、
     async 道具を足しても同じ器で数えられることの担保。threading.local だとこの試験は落ちる
-    （2026-09-06 Antigravity 監査・死んだコードを削って実際にコルーチンを走らせる形に）。"""
+    （外部レビューの指摘で、死んだコードを削って実際にコルーチンを走らせる形に）。"""
     import asyncio
 
     async def amany():

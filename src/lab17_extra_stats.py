@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""lab17_extra_stats.py — 17Lands Public Datasets（CC BY 4.0）の「落としていた列」を集計して入れる（2026-09-02）。
+"""lab17_extra_stats.py — 17Lands Public Datasets（CC BY 4.0）の「落としていた列」を集計して入れる。
 
 lab17_trial.py はカード × セットの表（limited_card_stats）だけを作り、game_data の main_colors／opp_colors／rank／on_play／
 num_turns／num_mulligans と draft_data の pick_maindeck_rate／event_match_wins 等を読み捨てていた。ドラフトの助言に
@@ -186,7 +186,7 @@ _TABLES = ("limited_color_stats", "limited_matchup_stats", "limited_format_stats
 
 
 def _verify_schema(conn, migrate: bool) -> None:
-    """通常運転では DDL を打たず、5 表が在ることだけ確かめる（2026-09-18）。
+    """通常運転では DDL を打たず、5 表が在ることだけ確かめる。
 
     CREATE TABLE IF NOT EXISTS も空振りでも対象表の ACCESS EXCLUSIVE を要求するので、
     読みの後ろに並ぶと玉突きになる。作るのは --migrate のときだけ・lock_timeout つき。

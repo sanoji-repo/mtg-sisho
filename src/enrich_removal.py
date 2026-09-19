@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 """enrich_removal.py — oracle から除去メカ・対象型を導出して mtg_cards_v2 に列として持つ。
 
-設計（2026-07-06）:
+設計:
   target_types text[]  … 正規化した対象型＋クエリ頻出 qualifier トークン
                           (creature/permanent/artifact/enchantment/land/planeswalker/
                            player/spell/any + creature_spell/noncreature_spell)
                           → 絞り込み・GIN・配列統計(most_common_elems)用。%creature% の
                           先頭ワイルドカード LIKE を避け、noncreature 偽陽性を殺す。
-  target jsonb         … フル句＋qualifier（例 "nonblack creature"）→ R2 条件付き判定と長い尾。
+  target jsonb         … フル句＋qualifier（例 "nonblack creature"）→ 条件付き判定と長い尾。
   removal_types text[] … メカ種別 destroy/exile/damage/minus/sacrifice/bounce → is_removal 相当・絞り込み。
   removal jsonb        … 詳細 {type,object,amount,stat,permanent,targeted} → 順位づけ・恒久性。
 不在は NULL（番兵禁止・data_handling 規約）。導出列なので reembed 不要。
@@ -29,9 +29,9 @@ def strip_reminder(t):
 def castable_oracle(oracle_text, card_faces_json):
     """役割列の導出に使うテキスト＝「手札から唱えられる面」だけの oracle。
     規則は face_cmcs/face_types と同一（mana_cost 非空の面のみ・全面空なら表面
-    フォールバック・2026-07-13 言語化を流用）。前提の明示（design-premise）:
+    フォールバック）。前提の明示（design-premise）:
     従来は全文（裏面込み）をパースしており、変身カードの唱えられない裏面にしか無い
-    destroy/exile が役割タグに混ざって機構ゲートを通していた（2026-07-15 指摘・
+    destroy/exile が役割タグに混ざって機構ゲートを通していた（指摘・
     Elesh Norn の destroy=裏面英雄譚 III 章のみ、で実証）。単面カードは従来どおり全文
     ＝導出結果も不変。全面 castable（split/adventure/MDFC）は ' // ' 連結＝oracle_text
     と同形＝これも不変。"""
@@ -157,7 +157,7 @@ def parse(oracle):
         return e
 
     def _is_targeted(verb):
-        """「up to one (other) target creature」も対象を取る（2026-07-17・Solitude 錨）"""
+        """「up to one (other) target creature」も対象を取る（Solitude 錨）"""
         return bool(re.search(
             verb + r' (?:another )?(?:up to \w+ )?(?:other )?target', tl))
 
@@ -169,11 +169,11 @@ def parse(oracle):
                                   targeted=_is_targeted("destroy"), permanent=True))
     m = re.search(r'exile (?:another )?(target|all|each|up to)', tl)
     if m:
-        # ブリンク（追放して戦場に戻す＝除去でない・R1で0）は permanent:false。
+        # ブリンク（追放して戦場に戻す＝除去でない・0 点）は permanent:false。
         # 「until end of turn / until the next」型に加えて「(then) return it/that card/
         # those cards/them to the battlefield」型を検知する。アンカー型の
         # 「When ~ leaves the battlefield, return the exiled card ...」は代名詞でなく
-        # "the exiled card" なのでここに掛からない＝恒久寄りのまま（R1 で 1〜2）。
+        # "the exiled card" なのでここに掛からない＝恒久寄りのまま（1〜2 点）。
         blink = re.search(r'return (it|that card|those cards|them) to the battlefield', tl)
         o1, oa, oph = obj("exile")
         if not ZONE_RE.search(oph):

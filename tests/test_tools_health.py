@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mtg_rag_health の振る舞い（Step 4・2026-09-05）。
+"""mtg_rag_health の振る舞い。
 
 行数は毎晩増えるので値では縫わず、「鍵が揃う」「数字が下限を割らない」で縫う。
 失敗経路（DB が落ちている）は monkeypatch で作るので DB 無しでも走る。
@@ -53,9 +53,9 @@ def test_health_deep_matches_shallow():
 
 @requires_db
 def test_health_reports_start_time_and_code_version():
-    """再起動や配備のたびに「今動いているのはいつのコードか」を返り値だけで言えること（#814）。
+    """再起動や配備のたびに「今動いているのはいつのコードか」を返り値だけで言えること。
 
-    2026-09-14 に追加。公開サーバーへは rsync で配ぶので .git が無く、VERSION が無ければ src の
+    後から追加。公開サーバーへは rsync で配ぶので .git が無く、VERSION が無ければ src の
     .py の最終更新を返す（値は日々変わるので形だけを縫う）。
     """
     d = json.loads(h(False))
@@ -72,9 +72,9 @@ def test_health_reports_start_time_and_code_version():
 def test_health_survives_missing_limited_table(monkeypatch):
     """17Lands の表が無い環境では draft_stat_sets=0 で、他の数字は返る。
 
-    2026-09-14: 行数の SQL を「deck_list を 1 回だけ走査する形」に変えたので、
+    行数の SQL を「deck_list を 1 回だけ走査する形」に変えたので、
     偽の _db が返す組も 5 つ組のまま（列の意味と順番は変えていない）。
-    2026-09-15: 本物の _db は lane を取るので偽物も **kwargs で受ける（受けないと
+    本物の _db は lane を取るので偽物も **kwargs で受ける（受けないと
     TypeError になり、下の「照会できなかった」側に落ちて意図と違う経路を縫ってしまう）。
     """
     def fake(sql, params, **kw):

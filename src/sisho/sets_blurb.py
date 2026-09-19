@@ -1,4 +1,4 @@
-"""sets_blurb.py — 道具の説明に埋める収録セットの一覧（2026-09-05 Step 3 で mcp_server.py から切り出し）。
+"""sets_blurb.py — 道具の説明に埋める収録セットの一覧。
 
 起動時に DB から 1 回だけ読む定数（_SETS_BLURB・_SETS_HEAD）。search_mtg_cards と
 query_mtg_database の description の両方が参照するので、道具のモジュールより手前に置く
@@ -8,9 +8,9 @@ query_mtg_database の description の両方が参照するので、道具のモ
 
 def _startup_sets_blurb() -> str:
     """道具の説明に載せる収録セットの一覧（起動時に DB から 1 回・失敗したら空）。
-    発端（2026-09-03 追試 A）: Sonnet が MSH／SOS（知識の切れ目の後のセット）を「MTG でない（Marvel Snap の話）」と
+    発端: あるモデルが MSH／SOS（知識の切れ目の後のセット）を「MTG でない（Marvel Snap の話）」と
     決めつけ、道具を一度も呼ばず記憶で答えた（30 問中 3・B でも 2）。説明文は claude.ai がクライアントに見せるので、ここに
-    一覧と「知らないセットでも必ず引く」を置く（instructions は届かない・8/22 裁定）。"""
+    一覧と「知らないセットでも必ず引く」を置く（instructions は届かないため）。"""
     try:
         import psycopg2
         from db_config import DB_CONFIG

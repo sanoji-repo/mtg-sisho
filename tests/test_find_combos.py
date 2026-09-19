@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""find_combos の試験（2026-09-04）。
+"""find_combos の試験。
 
 既定は偽の応答（ネットに出ない）。--live で Commander Spellbook を 1 回だけ実呼び。
 走らせ方: pytest tests/test_find_combos.py -v [--live]
@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import mcp_server as m
-import sisho.tools.combos as combos      # _spellbook_post の差し替え先（
+import sisho.tools.combos as combos      # _spellbook_post の差し替え先
                                          # find_combos がこのモジュールへ移った。mcp_server の
                                          # 再輸出 m._spellbook_post を差し替えても道具には届かない）
 from conftest import DB_AVAILABLE, requires_db
@@ -47,7 +47,7 @@ FAKE = {
 
 
 def test_find_combos_error_kinds():
-    """空・多すぎ・外部 API 不達で error_kind を分ける（Step 6 作業 3）。"""
+    """空・多すぎ・外部 API 不達で error_kind を分ける。"""
     from sisho import errors
     d = json.loads(f([]))
     assert d["error_kind"] == "empty_query" and "呼び直す" in d["error"], f"次に何を試すかを言う（{d}）"

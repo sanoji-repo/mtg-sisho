@@ -1,4 +1,4 @@
-"""cards.py — カード検索の道具 search_mtg_cards（2026-09-05 Step 3 で mcp_server.py から切り出し）。
+"""cards.py — カード検索の道具 search_mtg_cards。
 
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
 同伴の道具（17Lands 統計・収録セットの解決・色の組み合わせ表）もここに置く
@@ -45,7 +45,7 @@ _FORMAT_CUTOFF = 0.8
 def _valid_formats() -> list[str]:
     """legalities の鍵の一覧（プロセスに 1 回だけ引く）。引けなければ空。
 
-    2026-09-14: 全 32,730 行の jsonb を展開していた（VM 380ms）。公開サーバーでは 9/12 18:45 に
+    全 32,730 行の jsonb を展開していた（VM 380ms）。公開サーバーでは
     軽いレーンの 1 秒も重いレーンの 10 秒も超えて落ち、下の _check_format が「検査できなかった」と
     言わずに素通ししていた。鍵はカードごとに変わらないので**先頭 100 行で足りる**
     （実測: 100 行でも 23 鍵すべて揃う・1.3ms。欠けるのは competitivebrawl を持たない 1 枚だけ
@@ -121,7 +121,7 @@ DESCRIPTION = (
     "構築（スタンダード・モダン等）の問いでは入れない。セットが分からないリミテの問いは空のまま＝最新セットの分が付く。"
     + _SETS_BLURB)
 def _mark_draft_set(cards: list[dict], expansion: str) -> None:
-    """各カードに in_draft_set（そのセットに入っているか）を立てる（2026-09-16）。
+    """各カードに in_draft_set（そのセットに入っているか）を立てる。
 
     由来: ChatGPT での実地テストで、画像から読んだ曖昧な名前を「聖遺」のような部分文字列で
     引く使い方が出た。draft_set は **検索を絞らない**（17Lands 統計を添えるセットの指定）ので
@@ -139,9 +139,9 @@ def _mark_draft_set(cards: list[dict], expansion: str) -> None:
 def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, draft_set: str | None = None) -> str:
     """query: 検索語（空白区切りは AND）。format: legalities の鍵名。top_k: 1〜20。
 
-    2026-08-21 裁定「ルーター・絞り込みゲート・スコア補正部品の全撤廃」後の姿。旧実装は API(:8000) の
+    裁定「ルーター・絞り込みゲート・スコア補正部品の全撤廃」後の姿。旧実装は API(:8000) の
     ハイブリッド検索を叩いていたが、実運用でこの道具に来るのはほぼ名前引き
-    （8/11〜8/20 の 7 件中 6 件）で、ルーター経由 6〜86 秒の待ちだけが残っていた。
+    （実運用ログの 7 件中 6 件）で、ルーター経由 6〜86 秒の待ちだけが残っていた。
     素の一致検索＝決定的・LLM ゼロ・1 秒未満に置き換える。"""
     _log_tool("search_mtg_cards", {"query": query, "format": format, "top_k": top_k, "draft_set": draft_set})
     q = query.strip()
@@ -193,7 +193,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
 
     keep = _CARD_COLS
     def _row(r: tuple) -> dict:
-        """japanese_name だけは None でも落とさず明示する（2026-08-21 指摘:
+        """japanese_name だけは None でも落とさず明示する（指摘:
         クライアントが Helm of Obedience のような日本語版の無いカードに勝手な訳名を作った。
         「無い」を返り値で言わないと、クライアントは無言を「自分で訳してよい」と読む）。"""
         d = {k: v for k, v in zip(keep, r) if v is not None}
@@ -308,13 +308,13 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
 
 
 def _attach_limited_stats(cards: list[dict], sets: list[str] | None = None) -> dict[str, list[str]]:
-    """検索結果の各カードに、17Lands 集計（limited_card_stats）があればセット別に同伴する（2026-09-02）。
+    """検索結果の各カードに、17Lands 集計（limited_card_stats）があればセット別に同伴する。
 
     発端: クライアントが SOS のカードの GIH WR を聞かれ、mtg_cards_v2 と information_schema を手探りしたまま
     表に辿り着かなかった（instructions は claude.ai に届かない＝返り値に載っていないものは無いのと同じ）。
     行が無いカードにはキーを出さない（不在は無言でなく、クライアントが「無い」と読めるように limited_stats_note で線引き）。
     表が無い環境（旧 VM 等）では何もしない。
-    2026-09-03: sets（記号の一覧）に入るセットの行だけ同伴し、それ以外のセットは card_name→[記号] で返す（道しるべ用）。"""
+    sets（記号の一覧）に入るセットの行だけ同伴し、それ以外のセットは card_name→[記号] で返す（道しるべ用）。"""
     names = [c["card_name"] for c in cards if c.get("card_name")]
     if not names:
         return {}
@@ -352,7 +352,7 @@ _sets_cache: dict = {"t": 0.0, "rows": []}
 
 def _limited_sets() -> list[dict]:
     """limited_card_stats の収録セットを発売日の新しい順に（記号・名前・発売日）。Cube は除く。5 分キャッシュ。
-    注意: 発売日の最新が今のドラフト環境とは限らない（2026-09-03 実測: 最新は MSH だが Arena の Quick Draft は SOS）
+    注意: 発売日の最新が今のドラフト環境とは限らない（実測: 最新は MSH だが Arena の Quick Draft は SOS）
     ＝既定は最新 N（MCP_DRAFT_RECENT_SETS・既定 2）で取りこぼしを減らし、本命は呼び出し側の draft_set。"""
     import time
     if time.time() - _sets_cache["t"] < 300 and _sets_cache["rows"]:
@@ -409,8 +409,8 @@ def _archetype_lines(code: str) -> str:
 def _limited_archetypes(sets: list[str]) -> dict:
     """セットごとの色の組み合わせ別勝率（2 色・タッチ無し・limited_color_stats）を search の返り値に同伴する。
 
-    発端（2026-09-02）: 「アーキタイプ別勝率を参考にしながら、と言わないと SOS に無いアーキタイプ
-    （有効色）でデッキを作り出す」。返り値に載っていない表はクライアントが引かない前提（8/22 裁定）なので、
+    発端: 「アーキタイプ別勝率を参考にしながら、と言わないと SOS に無いアーキタイプ
+    （有効色）でデッキを作り出す」。返り値に載っていない表はクライアントが引かない前提なので、
     カードの統計を付けたセットについて 2 色の組み合わせをプレイ数順で丸ごと（10 行）載せる（勝率順だと
     母数 100 戦の組み合わせが上位に混ざって読み違える＝SOS で実測）。share_pct はセット内の割合＝成立しない
     組み合わせ（SOS の WU 0.04% 等）をクライアントが構造で見分けるための列。

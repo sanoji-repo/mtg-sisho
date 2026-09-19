@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-import_rules.py — MTG 総合ルール（Comprehensive Rules）の搬入（2026-07-31 新設）
+import_rules.py — MTG 総合ルール（Comprehensive Rules）の搬入（新設）
 ================================================================================
 目的: Agentic RAG の参照資料として、総合ルールの条文と用語集を DB に構造化して置く。
-発案「用語集とかルール文をエージェントが参照してよりよい答えを導きやすいように」。
+狙い: 用語集やルール文をエージェントが参照して、より正確に答えられるようにする。
 
 なぜ S3 のファイルでなく DB か:
   - 検索装置一式（FTS・pgvector・Data API）が既に Postgres に建っている
@@ -14,13 +14,13 @@ import_rules.py — MTG 総合ルール（Comprehensive Rules）の搬入（2026
 設計の前提（design-premise-ledger 流に明示）:
   - 原文は英語正本（オラクル本文も英語・条番号は日英共通）。text_ja は不在なら
     NULL（番兵禁止）＝日本語訳の公式 txt が見つかったら後から埋める
-  - 主用途は「安いモデルに正確な資料を持たせる」（7/30 段位表: 7B/Nova 級は
+  - 主用途は「安いモデルに正確な資料を持たせる」（小さいモデル（7B・Nova 級）は
     知識が薄い）。上位モデルを賢くする道具ではない
   - 冪等: 同じファイル・同じ版なら 2 走目は差分ゼロ（TRUNCATE→INSERT）
   - 原文の置き場は data/rules/（WotC 配布物＝リポジトリに含めない・.gitignore 済み。
     売り物に混ぜない棚は Moxfield データと同じ扱い）
 
-原文の構造（2026-06-19 版で実測）:
+原文の構造（版で実測）:
   - 冒頭〜"Credits"（1 回目）= 目次。本文はその直後の "1. Game Concepts" から
   - 条文は 1 行 1 条（"100.1. text..." / "100.1a text..."）。"Example: " 行は
     直前の条文の続きとして連結する
@@ -28,8 +28,8 @@ import_rules.py — MTG 総合ルール（Comprehensive Rules）の搬入（2026
     1 ブロック = 見出し語 1 行 + 定義行
 
 使い方:
-  /mnt/new_hdd/my_rag_env/bin/python src/import_rules.py \
-      --file data/rules/MagicCompRules_20260619.txt --version 2026-06-19
+  python src/import_rules.py \
+      --file data/rules/MagicCompRules_<版>.txt --version <版>
 """
 import argparse
 import os

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mtg_probability と SQL 関数 mtg_* の試験（2026-09-04）。
+"""mtg_probability と SQL 関数 mtg_* の試験。
 
 黄金値は math.comb の独立実装（LLM でも DB でもない第三の計算）。
 注意: mcp_server.mtg_probability は内部で PostgreSQL の mtg_* 関数を _db() で
@@ -88,7 +88,7 @@ def test_probability_color_sources():
 def test_probability_errors():
     assert "error" in call(kind="foo"), "不明な kind は error"
     assert "error" in call(kind="at_least", deck_size=60, copies=70), "範囲外は error"
-    # error_kind（Step 6 作業 3）: 「一覧に無い値」と「範囲外」を名前で分ける
+    # error_kind: 「一覧に無い値」と「範囲外」を名前で分ける
     from sisho import errors
     assert call(kind="foo")["error_kind"] == "unknown_option"
     assert call(kind="at_least", deck_size=60, copies=70)["error_kind"] == "out_of_range"

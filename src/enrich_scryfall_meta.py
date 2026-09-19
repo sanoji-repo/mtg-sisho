@@ -5,7 +5,7 @@ enrich_scryfall_meta.py — Scryfall の構造化メタデータを mtg_cards_v2
   - produced_mana (text[])   : マナ生成（マナクリーチャー判定用・手書きルール不要）
   - edhrec_rank   (integer)  : EDH 人気度ランク（小さいほど人気）
   - game_changer  (boolean)  : Commander ブラケットの高影響カードフラグ
-  - image_url     (text)     : カード画像の URL（2026-07-26 追加・デモの見栄え用）。
+  - image_url     (text)     : カード画像の URL（追加・デモの見栄え用）。
       **画像そのものは保存しない**——Scryfall CDN への完全 URL 文字列だけ持つ
       （表示はブラウザ→Scryfall の直リンク＝自前の帯域・保管コストゼロ。
       Scryfall が公式に許容する標準的な使い方）。URL は image_uris.normal を

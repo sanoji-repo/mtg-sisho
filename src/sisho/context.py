@@ -1,6 +1,6 @@
 """context.py — 要求ごとの文脈変数（contextvars）。
 
-gate と toollog/combos 間の循環参照を防ぐため分離（2026-09-07 小片 8）。
+gate と toollog/combos 間の循環参照を防ぐため分離。
 """
 import contextvars
 

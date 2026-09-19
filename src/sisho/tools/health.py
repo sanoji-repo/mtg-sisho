@@ -1,4 +1,4 @@
-"""health.py — 健全性確認の道具 mtg_rag_health（2026-09-05 Step 3 で mcp_server.py から切り出し）。
+"""health.py — 健全性確認の道具 mtg_rag_health。
 
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
 """
@@ -20,7 +20,7 @@ _ROOT = os.path.dirname(_SRC)                                                   
 def _code_stamp() -> str:
     """今動いているコードの版。VERSION があればその中身、無ければ src の .py の最終更新。
 
-    公開サーバーへは rsync で配ぶので .git が無く、版を示す物がファイルの日付しかない（2026-09-14 実測）。
+    公開サーバーへは rsync で配ぶので .git が無く、版を示す物がファイルの日付しかない（実測）。
     起動時に 1 回だけ数えて使い回す（health を呼ぶたびに walk しない）。
     """
     try:

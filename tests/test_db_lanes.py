@@ -9,7 +9,7 @@
 6. 予約スロット: 重いレーンが 4 スロット埋まっても軽いレーンは通る
 7. query_mtg_database は lane="heavy" で呼ぶ、describe_mtg_tables は heavy でない
 8. find_partner_cards 本体は lane="heavy" で呼ぶ
-9. 既定は重いレーン（2026-09-14 反転）
+9. 既定は重いレーン（反転）
 10. 軽いレーンを宣言してよい形かの静的検査（大きな表・全行展開・Seq Scan 確定は不可）
 """
 import ast
@@ -98,7 +98,7 @@ def fake_db_lanes(monkeypatch):
 def test_light_lane_slots_and_options(fake_db_lanes):
     """1. 軽いレーン（lane='light' を明示）: _HEAVY_SLOTS は減らず _DB_SLOTS だけ 1 減る。options に statement_timeout=1000。
 
-    2026-09-14: 既定を重いレーンへ反転したので、軽いレーンは明示したときだけ通る（宣言し忘れは安全側）。
+    既定を重いレーンへ反転したので、軽いレーンは明示したときだけ通る（宣言し忘れは安全側）。
     """
     slot_during = {}
 

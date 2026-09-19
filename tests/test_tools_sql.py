@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""query_mtg_database・describe_mtg_tables の振る舞い（Step 4・2026-09-05）。
+"""query_mtg_database・describe_mtg_tables の振る舞い。
 
 SELECT 以外の拒否・複文・先頭コメントのカードは tests/test_draft_set.py が縫っているので
 ここでは重ねない。ここで縫うのは **応答の抑制（行数・セル長）と日本語名の同伴、
@@ -67,9 +67,9 @@ def test_query_display_not_attached_twice():
 
 
 def test_query_display_survives_unrelated_display_column():
-    """無関係な列名（*_display）があっても同伴は止まらない（Step 5 修正 3）。
+    """無関係な列名（*_display）があっても同伴は止まらない。
 
-    Step 4 まで: 入口が「列名が *_display で終わる列が一つでもあれば全停止」だったため、
+    以前は: 入口が「列名が *_display で終わる列が一つでもあれば全停止」だったため、
     クライアントが `AS foo_display` と名付けた瞬間に完成形の同伴が丸ごと消えていた
     （構造で塞いだ穴が、クライアントの名前の付け方で開く）。
     """
@@ -162,9 +162,9 @@ def test_describe_identifier_is_sanitized():
 
 
 def test_describe_rejects_invalid_identifier_instead_of_silently_dropping():
-    """使えない文字は黙って削らず断る（Step 6 作業 2）。
+    """使えない文字は黙って削らず断る。
 
-    Step 5 まで `deck-list` は `decklist` に化けて「テーブルなし: deck-list」＝
+    以前は `deck-list` が `decklist` に化けて「テーブルなし: deck-list」＝
     「そんな表は無い」と嘘をついていた（本当は表名の書き方の問題）。
     """
     r = dt("deck-list")

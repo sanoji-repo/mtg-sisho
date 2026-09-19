@@ -1,4 +1,4 @@
-"""names.py — カード名の解決を 1 箇所に置く（2026-09-05 Step 6 作業 1）。
+"""names.py — カード名の解決を 1 箇所に置く。
 
 DESIGN 12（名前が複数あるものは面ごとの列で持つ）の帰結として、
 「渡された名前 → DB の正式名（card_name）」の解決規則が 2 箇所に別実装で存在していた:
@@ -9,10 +9,10 @@ DESIGN 12（名前が複数あるものは面ごとの列で持つ）の帰結�
       `SELECT card_name … WHERE name_en_front = %s OR name_en_back = %s
        ORDER BY (name_en_front = %s) DESC LIMIT 1`
 
-やっていることは同じ「面の名前 → 正式名」で、片方だけ直す事故が起きうる（Step 4 報告 4-2）。
+やっていることは同じ「面の名前 → 正式名」で、片方だけ直す事故が起きうる。
 両者が呼ぶ 1 つの関数をここに置く。**返り値（相方検索・裁定検索の答え）は変えない**。
 
-実測で確かめた 2 つの実装の意味差（2026-09-05・rag_dev）:
+実測で確かめた 2 つの実装の意味差（rag_dev）:
   - `name_en_front` も `name_en_back` も DB 内で重複なし（実測 0 件）＝1 つの名前に当たる行は最大 2 行
     （表で当たる行 1 つ・裏で当たる行 1 つ）。
   - 単面カードは `card_name = name_en_front`（`name_en_back IS NULL AND card_name <> name_en_front` は 0 件）。

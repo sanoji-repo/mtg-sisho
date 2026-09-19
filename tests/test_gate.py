@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""test_gate.py — 門と札の試験（2026-09-07 小片 8）。
+"""test_gate.py — 門と札の試験。
 
 DB は不要。時計を差し替え、偽の ASGI アプリケーションで検証する。
 """
@@ -612,7 +612,7 @@ def test_bin_fuda_cli(tmp_path):
 
 
 def test_gate_asgi_probes_are_rate_limited(tmp_path):
-    """14. 探り（無い札・知らないパス・閉じた旧パス・発行ページ）は IP の枠で数える（2026-09-07 指摘＝旧 RateLimitASGI の振る舞いの復元）。
+    """14. 探り（無い札・知らないパス・閉じた旧パス・発行ページ）は IP の枠で数える（指摘＝旧 RateLimitASGI の振る舞いの復元）。
     札付きの正しい呼び出しは IP の枠を消費しない（claude.ai の出口 IP は共有）。除外 IP の探りは数えない。"""
     fuda_file = str(tmp_path / "fuda.tsv")
     store = FudaStore(fuda_file)

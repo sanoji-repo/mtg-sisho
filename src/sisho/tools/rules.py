@@ -1,5 +1,4 @@
-"""rules.py — 総合ルールと公式裁定の道具 lookup_mtg_rule・get_card_rulings
-（2026-09-05 Step 3 で mcp_server.py から切り出し）。
+"""rules.py — 総合ルールと公式裁定の道具 lookup_mtg_rule・get_card_rulings。
 
 登録（server.tool）は mcp_server.py 側。道具が 2 本あるので説明は道具ごとに
 LOOKUP_MTG_RULE_DESCRIPTION・GET_CARD_RULINGS_DESCRIPTION と名前を分ける。

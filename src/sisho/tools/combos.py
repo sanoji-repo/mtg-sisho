@@ -1,4 +1,4 @@
-"""combos.py — コンボ検索の道具 find_combos（2026-09-05 Step 3 で mcp_server.py から切り出し）。
+"""combos.py — コンボ検索の道具 find_combos。
 
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
 外部 API（Commander Spellbook）を叩く唯一の道具＝試験は _spellbook_post を

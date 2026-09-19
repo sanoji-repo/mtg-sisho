@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""lab17_trial.py — 17Lands Public Datasets（CC BY 4.0）1 セット分の試算（2026-08-30）。
+"""lab17_trial.py — 17Lands Public Datasets（CC BY 4.0）1 セット分の試算。
 
 方針（docs/DATA_SOURCES.md の 17Lands の節）: 横長の生データ（612 万行 × 646 列）を DB に持たず、gz を流し読みして
 **カードごとの集計だけ**を作る。目的は (1) 17lands が出している数字（GIH WR・ALSA・ATA）を自分で再現できるか、

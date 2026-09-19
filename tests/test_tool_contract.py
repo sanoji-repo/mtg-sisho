@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""道具の契約試験（Step 2・2026-09-05）。
+"""道具の契約試験。
 
 分割（src/sisho/ へのパッケージ化）で **道具名・description・引数の署名・docstring が
 一字でもずれたら落ちる** ための機械の目。DESIGN の掟「MCP の返り値（と description）は
@@ -125,7 +125,7 @@ def test_no_extra_tools():
 
 
 @pytest.mark.parametrize("attr", [
-    # tests が mcp_server 越しに触る名前（Step 2 でモジュールを分けても同じ名前で届くこと）
+    # tests が mcp_server 越しに触る名前（モジュールを分けても同じ名前で届くこと）
     "_RateLimiter", "_RateLimitASGI", "_db", "_db_slot", "_db_readonly", "_log_tool",
     "mtg_probability", "verify_answer", "find_combos", "_spellbook_post",
     "query_mtg_database", "search_mtg_cards", "_limited_sets", "_resolve_draft_set",

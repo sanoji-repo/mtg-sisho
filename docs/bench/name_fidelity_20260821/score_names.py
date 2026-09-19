@@ -1,4 +1,4 @@
-"""名前忠実度の煙試験・採点（2026-08-21）。
+"""名前忠実度の煙試験・採点。
 条件 off=Claude(Sonnet) 単体・on=同＋mtg-rag MCP。正解は DB の japanese_name（NULL=日本語版なし）。
 判定: correct / wrong（捏造・別名）/ unknown（不明と答えた）/ noja_wrong（日本語版ありなのに「なし」）/ parse_fail。
 """

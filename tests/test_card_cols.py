@@ -20,7 +20,7 @@ def test_card_cols_joined_string():
 
 
 def test_card_cols_count_and_uniqueness():
-    """2. len(cards._CARD_COLS) == 17 で重複が無いこと（2026-09-16 に set_codes を追加）。"""
+    """2. len(cards._CARD_COLS) == 17 で重複が無いこと（set_codes を追加した）。"""
     assert len(cards._CARD_COLS) == 17
     assert len(set(cards._CARD_COLS)) == 17
 

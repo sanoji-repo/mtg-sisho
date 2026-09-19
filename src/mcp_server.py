@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""mcp_server.py — MTG RAG のシンプル MCP（2026-08-21・設計判断「全部撤廃」版）。
+"""mcp_server.py — MTG RAG のシンプル MCP。
 
-2026-08-21 設計判断: ルーター・絞り込みゲート・スコア補正部品（mtg_hybrid_search_v2 のパイプライン一式）を
-撤廃し、MCP を DB 直結だけの最小構成にする。根拠は 8/11〜8/20 の実運用ログ
+設計判断: ルーター・絞り込みゲート・スコア補正部品（mtg_hybrid_search_v2 のパイプライン一式）を
+撤廃し、MCP を DB 直結だけの最小構成にする。根拠は実運用ログ
 （93 呼び出し中 SQL 53 / search 7・search の中身もルーター ollama 待ち 6〜86 秒 vs
 直行 65ms・クライアントは自前の ILIKE＋人気順でスコア補正部品の仕事を代替済み）。利用者側に LLM（Claude）
 が既にいる世界では、クエリ意図の解釈も曖昧文の束ねもクライアントの仕事＝サーバは
@@ -12,7 +12,7 @@
 - 全道具がローカル PostgreSQL 直結。API サーバ（:8000）依存は撤去済み。
 - search_mtg_cards は素の一致検索（名前優先→本文 AND・EDHREC 人気順）。
   LLM もルーターも呼ばない＝決定的・応答は 1 秒未満。
-- 門と札（2026-09-07）: 接続 URL は発行ページ（/issue）のボタン一つで札（token_urlsafe）を
+- 門と札: 接続 URL は発行ページ（/issue）のボタン一つで札（token_urlsafe）を
   発行し、/mcp/<札> で待ち受ける。GateASGI が札ごとのレート制限（60/分・find_combos 10/分）
   を課し、未知の札は 404（not found）で存在を漏らさない。旧パスは legacy 札として当面生かす。
 - mcp SDK は /home/claude/pylibs（boto3 と同じ流儀）。
@@ -192,7 +192,7 @@ def _uvicorn_kwargs(port: int, log_level: str) -> dict:
 
     uvicorn の既定のアクセスログは要求行＝パス＝札の全文を書く。
     門の [gate] と道具ログで観測は足りる。
-    内部レビュー A-1・2026-09-07。
+    内部レビューの指摘による。
     """
     return {
         "host": "127.0.0.1",

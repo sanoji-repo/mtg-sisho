@@ -1,14 +1,13 @@
-"""toollog.py — 道具の呼び出し履歴と計時（2026-09-05 Step 2 で mcp_server.py から切り出し・
-2026-09-06 Step 7 で出口の行と DB の計時を追加）。
+"""toollog.py — 道具の呼び出し履歴と計時。出口の行と DB の計時も残す。
 
-出力先は環境変数 MCP_TOOL_LOG（既定はリポジトリ直下の logs/mcp_tools.log・2026-09-05 Step 3 で
-作者の開発環境の絶対パス /mnt/mtg_rag/logs/mcp_tools.log から置き換え。公開サーバーは .env で明示している）。
+出力先は環境変数 MCP_TOOL_LOG（既定はリポジトリ直下の logs/mcp_tools.log。
+以前は作者の環境の絶対パスだった。公開サーバーは .env で明示している）。
 
 行は 2 種類（どちらもタブ区切り・1 列目は必ず時刻）:
 
-  入口（道具の本体が先頭で書く・Step 2 から不変）
+  入口（道具の本体が先頭で書く）
     MM-DD HH:MM:SS \t <道具名> \t <引数の JSON（先頭 TOOL_LOG_MAX 字）>
-  出口（Step 7・包み observed() が書く）
+  出口
     MM-DD HH:MM:SS \t end \t <道具名> \t <outcome> \t <所要秒> \t <DB 呼び出し回数> \t <DB 累計秒>
 
 出口では引数を繰り返さない（入口の行と時刻・名前・順序で対応づける）。2 列目が道具名か
@@ -93,7 +92,7 @@ def _append_row(*fields: str) -> None:
 
 
 def _log_tool(name: str, args: dict) -> None:
-    """道具の呼び出し履歴（2026-08-11・「彼はどう MCP を使ったか」に query_log だけでは
+    """道具の呼び出し履歴（「彼はどう MCP を使ったか」に query_log だけでは
     答えられなかった観測穴の修理）。search 以外はローカル DB 直結で足跡が無かった。"""
     try:
         arg_s = json.dumps(args, ensure_ascii=False)[:TOOL_LOG_MAX]
@@ -105,7 +104,7 @@ def _log_tool(name: str, args: dict) -> None:
 
 def _log_tool_end(name: str, outcome: str, elapsed: float,
                   db_calls: int, db_seconds: float) -> None:
-    """道具の出口の 1 行（2026-09-06 Step 7）。引数は繰り返さない（入口の行にある）。"""
+    """道具の出口の 1 行。引数は繰り返さない（入口の行にある）。"""
     try:
         fuda = CURRENT_FUDA.get() or ""
         row = ("end", name, outcome, f"{elapsed:.3f}", str(db_calls), f"{db_seconds:.3f}", fuda)
@@ -115,7 +114,7 @@ def _log_tool_end(name: str, outcome: str, elapsed: float,
 
 
 def observed(fn):
-    """道具を計時して出口の行を残す薄い包み（2026-09-06 Step 7）。
+    """道具を計時して出口の行を残す薄い包み。
 
     返り値・例外は素通し＝道具の契約は一切変えない。名前・docstring・注釈は
     functools.wraps で引き継ぎ、inspect.signature は __wrapped__ を辿って**元の署名**を返す

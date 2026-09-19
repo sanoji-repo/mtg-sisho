@@ -1,4 +1,4 @@
-"""verify.py — 答案検査の道具 verify_answer（2026-09-05 Step 2 で mcp_server.py から切り出し）。
+"""verify.py — 答案検査の道具 verify_answer。
 
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
 """
@@ -74,7 +74,7 @@ def _reduction_clause(oracle: str) -> str:
 
 def _mana_check(fixed: str, cost: dict) -> list[str]:
     """答案の完成形《日本語名/英語名》の近く（同じ文・前 30 字〜後 70 字）にある「N マナ」「{…}」を DB と照合。
-    返り値は行の列（食い違い・注意・一致数）。主張が無ければ空＝何も足さない（毎回の税にしない・2026-09-12）。
+    返り値は行の列（食い違い・注意・一致数）。主張が無ければ空＝何も足さない（毎回の税にしない）。
     判定しない物: X を含むコスト・分割（A // B）・面の名前しか分からないカード。軽減条項のあるカードや
     「軽減・実質・安く・減」を含む文は食い違いにせず、条項の原文を添えて判断を答案側に戻す。"""
     import re
@@ -204,14 +204,14 @@ def verify_answer(text: str) -> str:
     def _disp(ja, en):
         return face_display(en, ja)
     def _pair(ja, en):
-        """同じ粒度の対から完成形を作る。正式名「A // B」なら表面の対《表ja/表en》（8/22 の掟）・面の名前ならその面の対。"""
+        """同じ粒度の対から完成形を作る。正式名「A // B」なら表面の対《表ja/表en》（名前の掟）・面の名前ならその面の対。"""
         if " // " in en and ja and " // " in ja:
             return _disp(ja.split(" // ")[0], en.split(" // ")[0])
         return _disp(ja, en.split(" // ")[0] if " // " in en else en)
     def _noja(en):
         return face_display(en, None, en in N.get("digital", ()))
     def _sub_bracket(s, inner, repl):
-        """《 inner 》を repl に置き換える。囲みの内側の空白を許す（2026-09-15）。
+        """《 inner 》を repl に置き換える。囲みの内側の空白を許す。
 
         中身は strip して照合しているので、《 Lightning Bolt 》のように空白があると
         str.replace が一致せず、**数えたのに直っていない**状態になっていた

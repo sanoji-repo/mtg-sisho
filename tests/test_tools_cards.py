@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""search_mtg_cards の振る舞い（Step 4・2026-09-05）。
+"""search_mtg_cards の振る舞い。
 
 契約試験（tests/test_tool_contract.py）が縫うのは「名前・説明・署名」まで。
 ここは**返り値の中身**を縫う＝この先の配置替えで道具の答えが静かに変わったら落ちる網。
@@ -107,7 +107,7 @@ def test_search_two_faced_card_faces():
 
 
 def test_search_empty_and_no_hit():
-    """空の検索語と一致ゼロは、error＋error_kind の JSON で返る（Step 6 作業 3 で素の文字列から統一）。"""
+    """空の検索語と一致ゼロは、error＋error_kind の JSON で返る。"""
     d = json.loads(f("   ", None, 5))
     assert d["error_kind"] == "empty_query" and d["error"].startswith("検索語が空です"), d
     assert "query" in d["error"] and "呼び直す" in d["error"], f"次に何を試すかを言う（{d['error']}）"
@@ -175,8 +175,8 @@ def test_search_limited_stats_elsewhere():
 def test_search_valid_formats_covers_arena_formats():
     """legalities の鍵の一覧を実測で採り、Arena の形式の集合と突き合わせる。
 
-    2026-09-05 実測: explorer だけ legalities に鍵が無く、ARENA_FORMATS に入ったままだった。
-    2026-09-14 に集合から外した（_check_format が先に弾くので cards.py の ARENA_FORMATS の
+    実測: explorer だけ legalities に鍵が無く、ARENA_FORMATS に入ったままだった。
+    後に集合から外した（_check_format が先に弾くので cards.py の ARENA_FORMATS の
     枝には到達しない＝死んだ語）。鍵が増える分には落とさず、ARENA_FORMATS に legalities へ
     無い語が足されたら落ちる置き方にする。
     """
@@ -189,7 +189,7 @@ def test_search_valid_formats_covers_arena_formats():
 
 
 def test_search_unknown_format_unique_candidate_is_corrected():
-    """打ち間違いの format は、候補が一意なら直して検索し、直したことを返り値に必ず書く（Step 5 修正 4）。"""
+    """打ち間違いの format は、候補が一意なら直して検索し、直したことを返り値に必ず書く。"""
     d = _j("Lightning Bolt", "modrn", 3)
     assert d["cards"][0]["card_name"] == "Lightning Bolt", "modern として検索できている"
     note = d["format_note"]
@@ -232,9 +232,9 @@ def test_search_format_check_is_skipped_when_list_unavailable(monkeypatch):
     """鍵の一覧が引けない環境でも検索は落とさない（素通り）。ただし黙っては通さない。
 
     元の意図（引けない環境で新しい失敗を作らない）はそのまま＝err は None・読み替えもしない。
-    2026-09-14 に変えたのは「黙って」の部分だけ: 検査できなかったことを返り値の note に書く。
+    変えたのは「黙って」の部分だけ: 検査できなかったことを返り値の note に書く。
     黙って通していたせいで、綴り違いの format が legalities->>'…' に渡って全部 NULL になり、
-    「鍵が無い」のか「合法なカードが無い」のかクライアントに区別がつかなかった（9/12 18:45 に公開サーバーで発生）。
+    「鍵が無い」のか「合法なカードが無い」のかクライアントに区別がつかなかった（公開サーバーで発生）。
     """
     monkeypatch.setitem(cards._FORMATS_CACHE, "keys", [])
     monkeypatch.setattr(cards, "_db", lambda sql, params, lane=None: (_ for _ in ()).throw(RuntimeError("boom"))
@@ -270,7 +270,7 @@ if __name__ == "__main__":
 def test_draft_set_marks_which_cards_are_in_that_set():
     """draft_set を渡したら、どのカードがそのセットに入っているかを返り値に書く。
 
-    由来（2026-09-16・ChatGPT での実地テスト）: 画像から読んだ名前が曖昧なとき、
+    由来（ChatGPT での実地テスト）: 画像から読んだ名前が曖昧なとき、
     ChatGPT は「聖遺」のような部分文字列で引いていた。draft_set='LCI' は
     **検索を絞らない**（17Lands 統計を添えるセットの指定）ので、別セットのカードが
     EDHREC 人気順で並び、唯一の LCI 収録カードは 5 番目に沈んでいた。しかも返り値に
