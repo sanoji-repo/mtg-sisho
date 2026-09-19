@@ -85,9 +85,16 @@ _SESSION = requests.Session()
 _SESSION.headers.update(HEADERS)
 
 
+LAST_FETCH_FAILURE: str | None = None   # 直前の fetch が None を返した理由: "http"（302/404＝無い）／"net"（通信エラー＝後で再試行）
+
+
 def fetch(url: str, retries: int = 3) -> str | None:
     """応答時間が 1〜20 秒で揺れる（実測）ので timeout は長め・再試行 3 回。
-    存在しない /decklist/… は 302 で /decklists へ飛ばされる＝『無し』扱い（追わない）。"""
+    存在しない /decklist/… は 302 で /decklists へ飛ばされる＝『無し』扱い（追わない）。
+    None の理由は LAST_FETCH_FAILURE に残す（通信エラーを「ページが無い」と取り違えて
+    月の行を完了扱いにした実例: 2015-11 で Connection reset ×3 → 一覧なし扱い）。"""
+    global LAST_FETCH_FAILURE
+    LAST_FETCH_FAILURE = None
     for attempt in range(retries):
         try:
             resp = _SESSION.get(url, timeout=60, allow_redirects=False)
@@ -95,6 +102,9 @@ def fetch(url: str, retries: int = 3) -> str | None:
             if resp.status_code == 200:
                 return resp.text
             print(f"  HTTP {resp.status_code}（{attempt+1}/{retries}）: {url}", flush=True)
+            # 「確実に無い」と「サーバ側の一時的な不調」を分ける。一緒にすると 500/429 の月まで
+            # 『ページが無い』と読んで完了扱いにし、行列から消してしまう（再試行されない）。
+            LAST_FETCH_FAILURE = "http" if resp.status_code in (404, 301, 302, 303, 307, 308) else "net"
             if resp.status_code == 404:
                 return None
             # 302 は「存在しない URL」でも「一時的な失敗」でも返る（同じ URL が 200/302 を
@@ -102,6 +112,7 @@ def fetch(url: str, retries: int = 3) -> str | None:
             time.sleep(REQUEST_INTERVAL * (attempt + 2))
         except requests.RequestException as e:
             print(f"  通信エラー（{attempt+1}/{retries}）: {e}", flush=True)
+            LAST_FETCH_FAILURE = "net"
             time.sleep(REQUEST_INTERVAL * (attempt + 2))
     return None
 
@@ -153,15 +164,36 @@ def resolve_format(info: dict, data: dict) -> bool:
     return True
 
 
-def list_month(year: int, month: int) -> list[str]:
+def list_month(year: int, month: int) -> list[str] | None:
+    """月の大会ページ名一覧。[] = 一覧が空（要再試行）・None = その月のページ自体が無い（完了扱い）。"""
     names: list[str] = []
-    for attempt in range(3):                # 中身の無い 200 が稀に返る（実測・cron で 2 連続したことがある）→ 間を空けて取り直す
-        html = fetch(f"{BASE_URL}/decklists/{year}/{month:02d}")
+    # 同じ URL でも「骨組みだけ（リンク 0・data-current-month が今月）」が返る月がある。ヘッダは no-cache で
+    # CDN でなく mtgo.com 側の作り。こちらが叩いた後、数秒〜数分で本物に変わる（実測）。冷えた古い月は
+    # 初回から本物。→ URL の形を変えつつ、間隔を 10→30→60→120 秒と伸ばして最大 5 回（最悪 3.7 分）。
+    # それでも空なら [] を返し、呼び出し元が行を末尾へ回す。
+    base = f"{BASE_URL}/decklists/{year}/{month:02d}"
+    variants = [base, base + "/", base + "/", lambda: f"{base}/?r={int(time.time())}", lambda: f"{base}?r={int(time.time())}"]
+    waits = [10, 30, 60, 120]
+    for attempt, v in enumerate(variants):
+        url = v() if callable(v) else v
+        html = fetch(url)
+        if html is None:
+            if LAST_FETCH_FAILURE == "net":     # 通信エラー＝「無い」ではない → 空を返して後で再試行させる
+                print(f"  一覧取得できず（{year}-{month:02d}・通信エラー・後で再試行）", flush=True)
+                return []
+            # 302/404＝その月のページ自体が無い（アーカイブの外）→ 変形を試しても無駄
+            print(f"  一覧なし（{year}-{month:02d}・ページが無い）", flush=True)
+            return None
         names = sorted(set(re.findall(r'href="/decklist/([^"]+)"', html or "")))
         if names:
+            if attempt:
+                print(f"  一覧 {year}-{month:02d}: {attempt+1} 回目（{url[len(BASE_URL):]}）で {len(names)} 件", flush=True)
             break
-        print(f"  一覧が空（{year}-{month:02d}）・取り直し（{attempt+1}/3）", flush=True)
-        time.sleep(REQUEST_INTERVAL * (attempt + 2) * 5)
+        if attempt < len(waits):
+            print(f"  一覧が空（{year}-{month:02d}）・{waits[attempt]} 秒後に取り直し（{attempt+1}/{len(variants)}）", flush=True)
+            time.sleep(max(REQUEST_INTERVAL, waits[attempt]))
+        else:
+            print(f"  一覧が空（{year}-{month:02d}）・{len(variants)} 回とも空", flush=True)
     return names
 
 
@@ -335,10 +367,13 @@ def run(months, limit: int | None, dry_run: bool, include_limited: bool,
     empty_months: list[str] = []
     for y, m in months:
         names = list_month(y, m)
+        if names is None:                   # ページが無い月（アーカイブの外）は失敗でなく完了扱い（行列が回り続けない）
+            print(f"[{y}-{m:02d}] ページ無し（アーカイブ外）・完了扱い", flush=True)
+            continue
         print(f"[{y}-{m:02d}] 大会ページ {len(names)} 件（取得済み URL {len(done)}）", flush=True)
         if not names:
             # 一覧が取れない月は「失敗」として呼び出し元に返す（cron 便は行列の行を残して翌日やり直す）。
-            # 空の 200 が 2 連続→ 0 件で正常終了→ 行が消えた事故の再発防止
+            # の cron で空の 200 が 2 連続→ 0 件で正常終了→ 行が消えた事故の再発防止
             empty_months.append(f"{y}-{m:02d}")
             continue
         for site in names:

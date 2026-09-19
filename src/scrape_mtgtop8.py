@@ -124,6 +124,11 @@ def get_deck_ids(event_id: int) -> tuple[str, str | None, list[tuple[int, str]]]
     # 大会日を取得（"465 players - 30/12/24" 形式・MTGTop8開設以降のため 20xx 固定で安全）
     event_date = None
     date_m = re.search(r'\d+\s+players?\s*-\s*(\d{2})/(\d{2})/(\d{2})', html)
+    if not date_m:
+        # 参加者数が出ないイベント（小規模大会など）は "players" 行が無い。
+        # その場合は "Source" より前に現れる最初の日付を拾う（後ろには引用元の日付が混ざる）。
+        head = html.split('Source', 1)[0]
+        date_m = re.search(r'(\d{2})/(\d{2})/(\d{2})\b', head)
     if date_m:
         dd, mm, yy = date_m.groups()
         event_date = f"20{yy}-{mm}-{dd}"
@@ -238,7 +243,7 @@ _DDL = """
 def verify_schema(conn):
     """deck_list に必要な列と索引が在るか確かめる（足りなければ止める）。
 
-    以前はここで毎回 ALTER TABLE ADD COLUMN IF NOT EXISTS と
+    まではここで毎回 ALTER TABLE ADD COLUMN IF NOT EXISTS と
     CREATE INDEX IF NOT EXISTS を打っていた。列が既に在っても DDL は対象表の
     ACCESS EXCLUSIVE を要求するので、別の取り込みが読みのトランザクションを開けたまま
     HTTP を叩いている間ずっと待つ。ロック待ちは先着順なので、待っている DDL の後ろに
@@ -337,8 +342,13 @@ def scrape(format_code: str, meta: int, year: int):
     total_decks  = 0
     total_cards  = 0
 
+    n_skip_mtgo = 0
     for event_id in tqdm(new_events, desc="イベント処理"):
         event_name, event_date, deck_infos = get_deck_ids(event_id)
+        # MTGO の大会は MTGO 公式の取り込みを正とし、こちら側の転載は数えない（二重計上を避ける）
+        if event_name.startswith("MTGO ") or event_name == "MTGO League":
+            n_skip_mtgo += 1
+            continue
         if not deck_infos:
             continue
 
@@ -358,7 +368,7 @@ def scrape(format_code: str, meta: int, year: int):
                 total_cards += len(cards)
 
     conn.close()
-    print(f"\n完了: {total_decks} デッキ / {total_cards} カード行を取り込みました")
+    print(f"\n完了: {total_decks} デッキ / {total_cards} カード行を取り込みました（MTGO 転載スキップ {n_skip_mtgo} イベント）")
 
 
 # ─── 状況確認 ─────────────────────────────────────────────────

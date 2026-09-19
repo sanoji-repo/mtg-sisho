@@ -118,7 +118,7 @@ def test_verify_card_without_japanese_stays_english():
 
 
 def test_verify_protects_italics_and_parentheses():
-    """*斜体*（アーキタイプ名）の中と（）の中は触らない——書き換えでも報告でも。"""
+    """*斜体*（アーキタイプ名）の中との中は触らない——書き換えでも報告でも。"""
     # 《》の中は従来どおり完成形へ直す。保護域の中の同じ語は巻き添えにしない。
     assert _fixed("（太陽の指輪）と《Lightning Bolt》。") == "（太陽の指輪）と《稲妻/Lightning Bolt》。"
     assert "「太陽の指輪」" not in v("（太陽の指輪）と《Lightning Bolt》。"), "括弧の中は報告もしない"
