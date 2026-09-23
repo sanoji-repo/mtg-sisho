@@ -37,9 +37,9 @@ def test_face_display_preview_with_japanese():
 
 def test_preview_notes_text(monkeypatch):
     monkeypatch.setattr(preview, "_db", lambda sql, params, lane=None: [
-        ("Ob Nixilis, the Ascended", "frc", "Reality Fracture Commander", "2026-10-02", "commander")])
+        ("Ob Nixilis, the Ascended", "frc", "Reality Fracture Commander", __import__("datetime").date(2099, 10, 2), "commander")])
     n = preview.preview_notes(["Ob Nixilis, the Ascended"])["Ob Nixilis, the Ascended"]
-    assert "発売前" in n and "2026-10-02 発売" in n and "今はどのフォーマットでも使えない" in n
+    assert "発売前" in n and "2099-10-02 発売" in n and "今はどのフォーマットでも使えない" in n
     assert "スタンダード・パイオニア・モダンでは使えない" in n
 
 

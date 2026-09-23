@@ -141,3 +141,78 @@ def test_hand_errors():
     assert call(kind="hand", deck_size=40, groups=[])["error_kind"] == "empty_query"
     assert call(kind="hand", deck_size=40, groups=[{"count": 30, "min": 1, "max": 3}, {"count": 20, "min": 0, "max": 2}])["error_kind"] == "out_of_range"
     assert call(kind="hand", deck_size=40, groups=[{"count": 17, "min": 4, "max": 2}])["error_kind"] == "out_of_range"
+
+
+# ─── 公開関数の安全と入力の読み違いを縫う ───
+
+@requires_db
+def test_no_sql_text_function_left():
+    """生の条件式（text）を受け取る公開関数が残っていないこと。"""
+    rows = m._db("SELECT p.proname FROM pg_proc p WHERE p.proname LIKE 'mtg%%'"
+                 " AND 'text'::regtype = ANY(p.proargtypes::regtype[])", ())
+    assert rows == [], f"text を受け取る mtg 関数: {rows}"
+
+
+@requires_db
+@pytest.mark.parametrize("sql,params", [
+    ("SELECT mtg_castable(1000000, %s, %s, %s, %s, 1, true)", ([], [], [[0]], [0])),        # deck が上限超え
+    ("SELECT mtg_castable(40, %s, %s, %s, %s, 30, true)", ([17], [1], [[1]], [1])),          # turn が上限超え
+    ("SELECT mtg_castable(40, %s, %s, %s, %s, 2, true)", ([17, 3], [1], [[1]], [1])),        # 配列の長さ不一致
+    ("SELECT mtg_castable(40, %s, %s, %s, %s, 2, true)", ([-1], [1], [[1]], [1])),           # 負の枚数
+    ("SELECT mtg_castable(40, %s, %s, %s, %s, 2, true)", ([30, 20], [1, 0], [[1]], [1])),    # 合計がデッキ超え
+    ("SELECT mtg_castable(500, %s, %s, %s, %s, 20, false)", ([60] * 8, [1, 2, 4, 8, 16, 32, 3, 5], [[1] * 6], [6])),  # 数え上げ超え
+    ("SELECT mtg_hand_prob(500, %s, %s, %s, 20, true)", ([40] * 6, [0] * 6, [40] * 6)),    # hand の数え上げ超え
+    ("SELECT mtg_hand_prob(40, %s, %s, %s, 0, true)", ([17], [4], [2])),                    # min > max
+])
+def test_sql_guards_return_null(sql, params):
+    """SQL 関数を直接呼んでも上限の外は計算せず NULL（入口の Python を迂回されても膨らまない）。"""
+    assert m._db(sql, params)[0][0] is None
+
+
+@requires_db
+def test_spell_without_mana_cost_is_error():
+    """マナ・コストを持たないカードを 0 マナ（100%）と答えない。"""
+    r = call(kind="castable", deck_size=60, lands=[{"name": "Forest", "count": 20}], spell="Living End", turn=1)
+    assert r["error_kind"] == "out_of_range" and "マナ・コストを持たない" in r["error"]
+
+
+@pytest.mark.parametrize("bad", ["garbage", "{1}{G}trailing", "{BAD/P}", "", "{G}{Q}"])
+def test_parse_cost_rejects_garbage(bad):
+    """記号以外の文字・不明な記号を黙って捨てない。"""
+    with pytest.raises(ValueError):
+        manabase.parse_cost(bad)
+
+
+def test_parse_cost_zero_and_phyrexian():
+    assert manabase.parse_cost("{0}")[:3] == ([], 0, [])
+    assert manabase.parse_cost("{G/U/P}{1}")[:2] == ([], 1)
+
+
+def test_mask_duplicate_letters():
+    """同じ色を 2 回書いてもビットが繰り上がらない（G+G が C にならない）。"""
+    assert manabase._mask(["G", "G"]) == manabase.BIT["G"]
+
+
+@requires_db
+def test_produces_duplicate_still_green():
+    r = call(kind="castable", deck_size=40, turn=2, mana_cost="{G}",
+             lands=[{"name": "Forest", "count": 17, "produces": ["G", "G"]}])
+    b = call(kind="by_turn", deck_size=40, copies=17, turn=2)
+    assert abs(r["probability"] - b["probability"]) < 1e-4
+
+
+@requires_db
+def test_hand_work_limit_at_entrance():
+    """hand にも入口の計算量上限がある。"""
+    r = call(kind="hand", deck_size=500, turn=20, groups=[{"label": f"g{i}", "count": 40, "min": 0, "max": 40} for i in range(6)])
+    assert r["error_kind"] == "out_of_range" and "計算量" in r["error"]
+
+
+def test_preview_after_release_says_pending(monkeypatch):
+    """発売日を過ぎても legalities が切り替わっていない行は『発売前』と言わない。"""
+    from datetime import date as _d
+    from sisho import preview
+    monkeypatch.setattr(preview, "_db", lambda sql, params, lane=None: [
+        ("X", "fra", "Reality Fracture", _d(2000, 1, 1), "expansion")])
+    n = preview.preview_notes(["X"])["X"]
+    assert "発売前" not in n and "反映待ち" in n

@@ -23,12 +23,20 @@ MAX_WORK = 300_000     # 数え上げる組み合わせの概算（全ターン�
 
 
 def _mask(letters) -> int:
-    return sum(BIT[c] for c in letters if c in BIT)
+    m = 0
+    for c in set(letters):          # ビットの OR（同じ色を 2 回書かれても別の色へ繰り上がらない）
+        m |= BIT.get(c, 0)
+    return m
 
 
 def parse_cost(cost: str):
     """マナ・コスト → (色の記号のマスクの列, 汎用マナ, 単色混成のマスクの列, 注記)。対象外の記号は ValueError。"""
     pips, twobrid, notes, generic = [], [], [], 0
+    rest = _SYM.sub("", cost or "").strip()
+    if rest:   # 記号以外の文字が残っていたら黙って捨てない（"garbage"・"{1}{G}trailing" 等）
+        raise ValueError(f"マナ・コストとして読めない文字がある（{rest!r}）。{{1}}{{G}} の形で渡す")
+    if not _SYM.findall(cost or ""):
+        raise ValueError("マナ・コストの記号が 1 つも無い（0 マナなら {0} と書く）")
     for s in _SYM.findall(cost or ""):
         s = s.upper()
         if s.isdigit():
@@ -39,7 +47,7 @@ def parse_cost(cost: str):
             pips.append(BIT[s])
         elif s == "S":
             raise ValueError("氷雪マナ {S} は対象外（氷雪の土地かどうかを判定しない）")
-        elif s.endswith("/P"):
+        elif s.endswith("/P") and all(c in "WUBRG" for c in s[:-2].split("/")) and 1 <= len(s[:-2].split("/")) <= 2:
             notes.append(f"{{{s}}} はライフで払う前提で土地を数えない")
         elif "/" in s:
             a, b = s.split("/", 1)
@@ -79,7 +87,7 @@ def _lookup(name: str):
 def _candidates(name: str) -> list[str]:
     rows = _db("SELECT name_display FROM mtg_cards_v2 WHERE card_name %% %s OR japanese_name %% %s"
                " ORDER BY greatest(similarity(card_name, %s), similarity(coalesce(japanese_name, ''), %s)) DESC LIMIT 3",
-               (name, name, name, name))   # 重い線（similarity の並べ替えは索引に乗らない・test_db_lanes の 10）
+               (name, name, name, name))   # 重い線（similarity の並べ替えは索引に乗らないため）
     return [r[0] for r in rows]
 
 
@@ -139,6 +147,13 @@ def _resolve_spell(spell, mana_cost):
     if face is not None and faces and len(faces) > face:
         cost = faces[face].get("mana_cost") or ""
         disp = r[1] if face == 0 else f"{r[1]} の裏面 {faces[face].get('name')}"
+        if not cost:
+            return None, None, errors.err_json(
+                errors.OUT_OF_RANGE, f"{disp} は通常のマナ・コストを持たない（変身後の面など）＝土地で唱える確率は定義できない")
+    elif not cost:
+        # マナ・コストが無いカード（待機だけで唱える物など）を 0 マナとして扱わない（{0} とは別物）
+        return None, None, errors.err_json(
+            errors.OUT_OF_RANGE, f"{r[1]} は通常のマナ・コストを持たない＝通常の方法では唱えられないので、この道具の対象外")
     elif " // " in cost:
         return None, None, errors.err_json(errors.OUT_OF_RANGE, f"{r[1]} は面ごとにコストが違う。唱える面の名前で呼び直す（例: 表面か裏面の名前）")
     else:
@@ -241,6 +256,9 @@ def hand(deck_size, groups, turn, on_play, mulligans) -> str:
         return errors.err_json(errors.OUT_OF_RANGE, f"束の合計 {sum(counts)} 枚が deck_size {deck_size} を超えている（束は重ならないこと）")
     if not (0 <= turn <= 20):
         return errors.err_json(errors.OUT_OF_RANGE, "hand の turn は 0（初手だけ）〜20")
+    seen_h = min(7 - mulligans + (max(turn - (1 if on_play else 0), 0) if turn > 0 else 0), deck_size)
+    if prod(max(min(b, c, seen_h) - a, 0) + 1 for c, a, b in zip(counts, lo, hi)) > MAX_WORK:
+        return errors.err_json(errors.OUT_OF_RANGE, f"計算量の上限を超える（束 {len(counts)} 個の範囲が広すぎる）。min〜max を狭めるか束を減らす")
     try:
         rows = _db("SELECT mtg_hand_prob(%s, %s, %s, %s, %s, %s, %s)",
                    (deck_size, counts, lo, hi, turn, on_play, mulligans), lane=LANE_LIGHT)

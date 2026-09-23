@@ -17,7 +17,7 @@ _PROB_KINDS = ("at_least", "by_turn", "land_drops", "combo_by_turn", "castable",
 
 
 DESCRIPTION = (
-    "【確率の計算はこれ。自分で計算しない】デッキの確率を超幾何分布で厳密に計算する（DB の SQL 関数・決定的・1 ミリ秒未満）。"
+    "【確率の計算はこれ。自分で計算しない】デッキの確率を超幾何分布で厳密に計算する（DB の SQL 関数・決定的・castable と hand 以外は 1 ミリ秒未満・castable と hand は入力により数十〜数百ミリ秒）。"
     "kind: at_least=N 枚のデッキから D 枚引いて K 枚入りのカードが m 枚以上／by_turn=turn ターン目までに K 枚入りのカードを m 枚以上"
     "（見る枚数=初手 7−マリガン＋引き・先手は turn−1 回・後手は turn 回）／land_drops=turn ターン目まで毎ターン土地を置ける"
     "（見たカードに土地が turn 枚以上）／combo_by_turn=turn ターン目までに A（copies）と B（copies_b）を両方 1 枚以上。"

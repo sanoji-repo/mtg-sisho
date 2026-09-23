@@ -7,6 +7,8 @@
 判定は行の状態から（日付や印を持たない）: digital でなく vintage が not_legal ＝ 先行収録の入口
 （sync_oracle_cards.py --preview-days）しか通らない状態。発売日に Scryfall が legal へ切り替えれば外れる。
 """
+from datetime import date
+
 from sisho.db import _db, LANE_LIGHT
 
 PREVIEW_SQL = "NOT c.digital AND c.legalities->>'vintage' = 'not_legal'"
@@ -36,8 +38,14 @@ def preview_notes(card_names: list[str]) -> dict[str, str]:
         " FROM mtg_cards_v2 c LEFT JOIN mtg_sets s ON s.set_code = c.set_code"
         f" WHERE c.card_name = ANY(%s) AND {PREVIEW_SQL}", (list(card_names),), lane=LANE_LIGHT)
     out = {}
+    today = date.today()
     for name, code, set_name, rel, set_type in rows:
         when = f"{rel} 発売" if rel else "発売日未確認"
+        if rel is not None and rel <= today:
+            # 発売日を過ぎたのに Scryfall の legalities がまだ切り替わっていない（上流の反映待ち）
+            out[name] = (f"{set_name or code} のカード（{when}・発売日を過ぎたが、この DB の legalities は Scryfall の反映待ち）。"
+                         f"使えるフォーマット: {_legality(code, set_type)}。採用率・共起・17Lands の数字はまだ無い")
+            continue
         out[name] = (f"発売前のカード（{set_name or code}・{when}）。今はどのフォーマットでも使えない"
                      f"（legalities は発売日に切り替わる）。発売後に使えるフォーマット: {_legality(code, set_type)}。"
                      "仮組みの相談には使ってよいが、採用率・共起・17Lands の数字はまだ無い")
