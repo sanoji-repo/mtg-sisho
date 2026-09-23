@@ -49,7 +49,7 @@ KINDS: dict[str, str] = {
     SQL_REJECTED: "入口の鞘が SQL を拒否した（複文・SELECT/WITH 以外）",
     BUSY: "DB のスロット取りが順番待ちの上限を超えた＝混雑（失敗ではない・待って呼び直す）",
     UPSTREAM_UNREACHABLE: "外部 API に届かない（この道具だけの障害・他の道具は影響なし）",
-    RATE_LIMITED: "外部 API を守るための札ごとの枠（指定秒数待って呼び直す）",
+    RATE_LIMITED: "外部 API を守るための接続用の鍵ごとの枠（指定秒数待って呼び直す）",
     DB_ERROR: "DB からの例外（生の例外文を先頭 200〜400 字そのまま載せる）",
     SCHEMA_REJECTED: "SDK の引数検証で弾かれた＝道具の本体に届いていない（引数の名前と型を説明どおりに）",
 }

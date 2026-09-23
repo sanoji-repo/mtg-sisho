@@ -3,15 +3,15 @@
 取りこぼさないため）。
 
 DB に入っている各棚の版と、世の中の最新版を突き合わせて報告する。**報せるだけ**——
-取り込みは自動でやらない（LLM 出力と同じで、外から来るデータは人が GO を出してから
-検証つきで入れる）。夜間 cron の末尾に足して WORKLOG 的に流すのが想定運用。
+取り込みは自動でやらない（LLM 出力と同じで、外から来るデータは人が確かめてから
+検証つきで入れる）。夜間 cron の末尾に足してログに流すのが想定運用。
 
 見るもの:
   1. Scryfall bulk（oracle_cards）の updated_at  vs  ローカル bulk ファイルの mtime
-     → legalities（禁止改定）と oracle テキストの鮮度。反映便は update_oracle.py。
+     → legalities（禁止改定）と oracle テキストの鮮度。反映の手順は update_oracle.py。
   2. mtg_rules.source_version  vs  WotC 総合ルールページの最終更新（best-effort・
      取れなければ「手動確認」と出す）→ エキスパンションごとの CR 改定。
-  3. card_rulings.source_version → 裁定の取得日（古くなったら import_rulings.py 再走）。
+  3. card_rulings.source_version → 裁定の取得日（古くなったら import_rulings.py を実行し直す）。
 
 終了コード: 0=全部新鮮 / 1=要更新あり / 2=判定不能あり（ネットワーク等）
 """
@@ -36,7 +36,7 @@ def report(name: str, local: str, remote: str, ok: bool | None, hint: str) -> No
     print(f"[{mark}] {name}: DB/ローカル={local} / 最新={remote}")
     if ok is False:
         STALE.append(name)
-        print(f"        → 反映便: {hint}")
+        print(f"        → 反映の手順: {hint}")
     elif ok is None:
         UNKNOWN.append(name)
         print(f"        → {hint}")
@@ -87,12 +87,12 @@ def main() -> int:
            "不明（WotC ページは手動確認）",
            None if age <= 90 else False,
            f"取得から {age} 日。新セット発売時は CR 改定あり"
-           "＝ magic.wizards.com/rules を確認して import 便を再走")
+           "＝ magic.wizards.com/rules を確認して取り込みを走らせ直す")
 
     age_r = (today - rulings_ver).days
     report("公式裁定（card_rulings）", rulings_ver.isoformat(), "-",
            True if age_r <= 45 else False,
-           f"取得から {age_r} 日。src/import_rulings.py 再走で追いつく")
+           f"取得から {age_r} 日。src/import_rulings.py を実行し直せば追いつく")
 
     print()
     if STALE:

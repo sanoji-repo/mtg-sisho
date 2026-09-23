@@ -9,9 +9,9 @@ num_turns／num_mulligans と draft_data の pick_maindeck_rate／event_match_wi
   limited_color_stats     セット × デッキの色（main_colors）× splash 有無: games, wins, wr
   limited_matchup_stats   セット × 自分の色 × 相手の色（opp_colors）: games, wins, wr
   limited_format_stats    セット × ランク帯: games, wins, on_play_games, on_play_wins, turns_sum, mulligans_sum（先手勝率・平均ターン・マリガン率は SQL で割る）
-  limited_card_rank_stats セット × ランク帯 × 札: gih_games, gih_wins, gp_games, gp_wins（ランク帯別の GIH WR・母数が痩せるので games 列を見る）
-  limited_card_pick_stats セット × 札: picks, maindeck_rate（取った札がメインに入った率の平均）, sideboard_in_rate, event_wins_sum, event_losses_sum
-                          （取った人のドラフト成績の合計＝「この札を取った人は平均何勝したか」）
+  limited_card_rank_stats セット × ランク帯 × カード: gih_games, gih_wins, gp_games, gp_wins（ランク帯別の GIH WR・母数が痩せるので games 列を見る）
+  limited_card_pick_stats セット × カード: picks, maindeck_rate（取ったカードがメインに入った率の平均）, sideboard_in_rate, event_wins_sum, event_losses_sum
+                          （取った人のドラフト成績の合計＝「このカードを取った人は平均何勝したか」）
 rank は帯だけに揃える（bronze…mythic・小文字・古いセットの 'Platinum-4-0-0-0' は先頭の帯・欠けは 'none'）。wr は生成列（wins/games）。
 db_card_name は limited_card_stats（同セット・同 card_name）から写す。
 
@@ -72,7 +72,7 @@ def game_extra(path: str, chunksize: int = 20000) -> dict[str, pd.DataFrame]:
             c = fmt_acc.setdefault(r, [0] * 6)
             for k, v in enumerate(s.to_numpy()):
                 c[k] += int(v)
-        # ランク帯 × 札
+        # ランク帯 × カード
         OH = ch[oh].to_numpy() > 0; DR = ch[dr].to_numpy() > 0; DK = ch[dk].to_numpy() > 0
         GIH = OH | DR
         for r in np.unique(rank):
@@ -211,7 +211,7 @@ def main() -> int:
     ap.add_argument("--set", required=True); ap.add_argument("--event", default="PremierDraft")
     ap.add_argument("--dir", default=L17_DIR); ap.add_argument("--no-db", action="store_true")
     ap.add_argument("--migrate", action="store_true",
-                    help="5 表を作る（通常運転では DDL を打たない・2026-09-18）")
+                    help="5 表を作る（通常運転では DDL を打たない）")
     a = ap.parse_args()
     exp, ev = a.set, a.event
     gpath = os.path.join(a.dir, f"game_data_public.{exp}.{ev}.csv.gz")

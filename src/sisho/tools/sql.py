@@ -22,7 +22,7 @@ QUERY_MTG_DATABASE_DESCRIPTION = ("【名前の掟】カード名は返り値の
     "【専用ツールで表せない集計は Web に行かずここで SQL】読み取り専用 SQL（PostgreSQL・SELECT/WITH のみ・1 文・10 秒・最大 50 行）。条件違いの比較（色別・セット別・ランク帯別など）は同じ表を何度も引かず GROUP BY／CASE で 1 文にまとめる（往復 1 回が速い）。"
     "主な棚: mtg_cards_v2（card_name, japanese_name, name_display, type_line, mana_cost, oracle_text, legalities, edhrec_rank）／"
     "mtg_rules／card_rulings／card_format_strength・edh_card_strength（採用率）／card_cooccurrence・edh_card_cooccurrence_v2（共起）／"
-    "mtg_sets（セット発売日・set_type・エキスパンション紀元の突き合わせ用・2026-08-25）／"
+    "mtg_sets（セット発売日・set_type・エキスパンション紀元の突き合わせ用）／"
     "deck_list・deck_cards（実デッキ・プレイヤー名は players 表に隔離＝非公開・deck_list は player_id）。列名は describe_mtg_tables で確認（推測しない）。"
     "結果のカード名列の右隣に <列>_display（完成形）を自動同伴＝それをそのまま書く。【players 表（プレイヤー名）は内部専用＝権利上の理由で公開版のデータには含まれない】"
     "【SQL の 1 行目の掟】必ず `-- 目的` のコメントを 1 行目に書く（例: `-- #SOS 3 パック目の比較`）。"
@@ -155,14 +155,14 @@ _TABLE_NOTES = {
         "card_name（『表 // 裏』）・japanese_name（両面揃った時だけ結合、揃わなければ NULL）・name_display（表面の完成形）は面から自動で作る生成列＝書けない。"
         "裏面（出来事・変身後・分割の片方）で引くときは name_en_back／name_ja_back。name_ja_src_front/back は日本語名の出所（scryfall／manual／rule_a／whisper／legacy／wotc_gallery）。"
         "digital=true は Arena 専用のカード（アルケミー・A- リバランス・Jumpstart: Historic Horizons 等・"
-        "2026-08-31 に 860 枚を合流）＝紙には存在しない。紙のカードの照会は WHERE NOT digital を付ける。"
+        "860 枚ほど）＝紙には存在しない。紙のカードの照会は WHERE NOT digital を付ける。"
         "name_display の「（日本語名未収録）」は Arena に日本語版はあるがこの DB がまだ持っていない印（「（日本語版なし）」とは別）。"
         "「（日本語名は未収録・発売前）」は発売前に先行収録したカード（NOT digital AND legalities->>'vintage' = 'not_legal'）＝"
         "今はどのフォーマットでも使えない。発売日と set_type は mtg_sets を set_code で結合して見る。統率者セット（set_type='commander'）の新カードは"
         "発売後もスタンダード・パイオニア・モダンでは使えない（統率者・レガシー・ヴィンテージ）。name_ja_src が wotc_gallery の日本語名は公式ギャラリー由来（発売前の仮・Scryfall の日本語版が入ると置き換わる）。"),
     "limited_color_stats": (
         "17Lands（集計元 Premier Draft・Bo1 ドラフト一般の物差し＝Quick Draft の問いにも使う）のセット × デッキの色組み合わせ（main_colors・例 'WU'）× splash（タッチ有無）の勝率。"
-        "列: games, wins, wr。「どの色の組み合わせが勝っているか」はこの表（多色カードの平均ではない・2026-09-02）。"
+        "列: games, wins, wr。「どの色の組み合わせが勝っているか」はこの表（多色カードの平均ではない）。"
         "母数 games を必ず添える。出典「17Lands」。"),
     "limited_matchup_stats": (
         "17Lands のセット × 自分の色（main_colors）× 相手の色（opp_colors）の勝率（相性表）。列: games, wins, wr。"

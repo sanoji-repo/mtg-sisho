@@ -434,7 +434,7 @@ if __name__ == "__main__":
     parser.add_argument("--status", action="store_true",
                         help="取得状況確認")
     parser.add_argument("--migrate", action="store_true",
-                        help="足りない列や索引を作る（通常運転では DDL を打たない・2026-09-18）")
+                        help="足りない列や索引を作る（通常運転では DDL を打たない）")
     args = parser.parse_args()
 
     if args.status:

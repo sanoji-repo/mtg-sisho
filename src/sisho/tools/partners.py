@@ -60,13 +60,13 @@ DESCRIPTION = (
     "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
     "【カードを軸にデッキを組む・相方を探すときは必ずこれを先に呼ぶ。そのカードの「現行の家」（実際に一緒に使われているカード）が分かる唯一の道具で、Web にもモデルの記憶にも無い情報】"
     "指定カードと同じデッキに入りやすいカード（共起）を実デッキ集計から返す。"
-    "Phase 2 のデッキ壁打ち用。scope: 'edh'（統率者・既定）/ 'constructed'"
+    "scope: 'edh'（統率者・既定）/ 'constructed'"
     "（mtgtop8＋MTGO 公式の 60 枚構築）/ 'pauper' / 'vintage' / 'precon'（公式構築済み製品）。"
     "exclude_lands=True で土地を除く（汎用フェッチ等が上位を占めがちなため）。"
     "返り値は同居率 pct と lift（偶然同居の期待値比）付き。order_by='lift' で"
-    "汎用カードを沈めて専属シナジー順に並べ替え（既定は同居数順・2026-08-25）。"
+    "汎用カードを沈めて専属シナジー順に並べ替え（既定は同居数順）。"
     "カード名は英語の正式名でも表面の名前でもよい（両面・分割カードの表記ゆれは"
-    "道具側で吸収する・2026-08-13）。"
+    "道具側で吸収する）。"
     "データは実デッキの集計（Moxfield / mtgtop8 / MTGO 公式）。プレイヤー名・"
     "デッキ URL・デッキ ID は返さない（集計と匿名の内容のみ）。")
 def find_partner_cards(card_name: str, scope: str = "edh",
@@ -163,7 +163,7 @@ def find_partner_cards(card_name: str, scope: str = "edh",
         " agg AS (" + resolve + "),"
         # 候補を先に絞ってから mtg_cards_v2 と突き合わせる。以前は agg の全行
         # （《太陽の指輪/Sol Ring》で 12,651 行）を JOIN してから並べて上位を取っていた＝
-        # 3 枚返すのに 12,651 枚の type_line を引いていた。実測 371MB・箱では 10 秒 timeout。
+        # 3 枚返すのに 12,651 枚の type_line を引いていた。実測 371MB・公開サーバーでは 10 秒 timeout。
         # 先に絞ると 75MB・答えは一字一句同じ。
         " top AS (SELECT cand.pid, cand.n_ab FROM"
         "           (SELECT agg.pid, agg.n_ab FROM agg WHERE agg.n_ab >= %(min_ab)s"

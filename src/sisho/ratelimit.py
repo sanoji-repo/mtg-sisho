@@ -10,7 +10,7 @@ import os
 # 入口は Funnel → 127.0.0.1:8765 の uvicorn 直結で前段の代理は無い。client IP は uvicorn の proxy_headers
 # （X-Forwarded-For・127.0.0.1 からだけ信用）が解決済み＝tailnet からは 100.x・claude.ai からは Anthropic の
 # 出口 160.79.106.x（一人の会話でも 30 個ほどの IP を回る・7 日 3,525 POST の実測）。だから IP 別の枠は
-# 「一人当たり」ではなく「直叩きの脚本 1 本を抑える」粗い門で、公開サーバーを守る本命は総量の枠。同時実行は
+# 「一人当たり」ではなく「直叩きの脚本 1 本を抑える」粗い受付で、公開サーバーを守る本命は総量の枠。同時実行は
 # _db_slot（スロット 5）が別に抑える。実測の最大は IP 別 8/分・総量 22/分（クライアント 1 会話）。既定は IP 別 60/分・
 # 総量 300/分（環境変数 MCP_RATE_PER_IP_MIN／MCP_RATE_GLOBAL_MIN・0 で無効）。tailnet（100.64.0.0/10）と
 # 127.0.0.0/8 は数えない（自分の healthwatch・pingwatch）。超過は HTTP 429＋Retry-After＋JSON-RPC の error
@@ -76,7 +76,7 @@ class RateLimiter:
         per_limit = per if per is not None else self.per_ip
         if per_limit and len(dq) >= per_limit:
             retry = max(1, int(dq[0] + self.window - now) + 1)
-            why = f"札 {per_limit}/分" if ip.startswith("fuda:") else f"IP 別 {per_limit}/分"
+            why = f"接続用の鍵 {per_limit}/分" if ip.startswith("fuda:") else f"IP 別 {per_limit}/分"
             self._deny(ip, why, now)
             return False, retry
         if self.global_ and len(self.total) >= self.global_:

@@ -153,7 +153,7 @@ def main() -> int:
     ap.add_argument("--dir", default=L17_DIR); ap.add_argument("--no-db", action="store_true")
     ap.add_argument("--min-games", type=int, default=500)
     ap.add_argument("--migrate", action="store_true",
-                    help="表と列を作る（通常運転では DDL を打たない・2026-09-18）")
+                    help="表と列を作る（通常運転では DDL を打たない）")
     ap.add_argument("--out", default=None, help="報告の書き出し先（既定は logs/17lands_trial_<日付>.md）")
     a = ap.parse_args()
     gpath = f"{a.dir}/game_data_public.{a.set}.{a.event}.csv.gz"
@@ -257,10 +257,10 @@ def main() -> int:
 ## GIH WR 上位 20（手札に来たゲーム {a.min_games} 以上）
 {tbl(top, ['card_name','gih_games','gih_wr','oh_wr','gd_wr','gp_wr','alsa','ata'])}
 
-## ALSA が小さい順 20（早く消える札・見えたパック 200 以上）
+## ALSA が小さい順 20（早く消えるカード・見えたパック 200 以上）
 {tbl(early, ['card_name','seen_packs','alsa','ata','gih_wr'])}
 
-## 名前が mtg_cards_v2 に無い札（{len(unmatched)}）
+## 名前が mtg_cards_v2 に無いカード（{len(unmatched)}）
 {', '.join(unmatched) if unmatched else '（なし）'}
 
 ## 突き合わせの手順（17lands のサイトの数字と）

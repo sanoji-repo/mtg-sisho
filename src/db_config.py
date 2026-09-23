@@ -227,7 +227,7 @@ def require_columns(conn, table, columns, ddl, migrate=False, label=None):
         raise SystemExit(
             f"{table} に必要な列がありません: {', '.join(missing)}"
             f"\n  列を作るのは移行の仕事です。作ってよければ --migrate を付けて再実行してください"
-            f"（{label or '起動時の DDL'} を毎回打つのは 2026-09-18 にやめました）。"
+            f"（{label or '起動時の DDL'} は通常の実行では打たない）。"
         )
     with ddl_cursor(conn) as cur:
         cur.execute(ddl)

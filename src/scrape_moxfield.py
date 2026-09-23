@@ -432,13 +432,13 @@ def main():
                          help="smoke-test で試す fmt 候補（カンマ区切り）")
     parser.add_argument("--status", action="store_true", help="取得状況を表示")
     parser.add_argument("--migrate", action="store_true",
-                        help="足りない列や索引を作る（通常運転では DDL を打たない・2026-09-18）")
-    parser.add_argument("--fmt", default="commander", help="本走で使う fmt 値")
+                        help="足りない列や索引を作る（通常運転では DDL を打たない）")
+    parser.add_argument("--fmt", default="commander", help="取得に使う fmt 値")
     parser.add_argument("--commander", default=None,
                          help="統率者名で絞る場合（--commander-card-id を先に解決すること）")
     parser.add_argument("--commander-card-id", default=None,
                          help="Moxfield 内部の commanderCardId（--commander の名前解決結果）")
-    parser.add_argument("--limit", type=int, default=100, help="本走の取得上限（デッキ数）")
+    parser.add_argument("--limit", type=int, default=100, help="取得の上限（デッキ数）")
     parser.add_argument("--sample-by-bracket", action="store_true",
                          help="bracket ごとに MostView 上位 N 件を均等収集するモード")
     parser.add_argument("--brackets", default="1,2,3,4,5",

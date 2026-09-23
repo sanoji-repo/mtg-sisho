@@ -85,9 +85,9 @@ server = MCPServer(
         "《睡蓮の原野/Lotus Field》）を**そのままコピーして**使う（自分で《》や訳名を組み立てない）。"
         "japanese_name が null のカードは name_display が「英語名（日本語版なし）」で返るので、それをそのまま書く。"
         "両面・出来事・分割カードの**裏面**（出来事の呪文側・変身後・分割の片方）を指すときは、返り値の faces[].display か face_display（その面の完成形《裏の日本語名/裏の英語名》）を使う。"
-        "name_display は表面の完成形なので、表の日本語名と裏の英語名を組み合わせない（2026-08-31）。"
+        "name_display は表面の完成形なので、表の日本語名と裏の英語名を組み合わせない。"
         "デッキのアーキタイプ名（例: ロータス・コンボ、ラクドス・ミッドレンジ）は斜体（*…*）で書き、"
-        "カード名の《》と見分けがつくようにする（試行中・2026-08-22）。\n"
+        "カード名の《》と見分けがつくようにする。\n"
         "【送信前の検査（必須）】日本語でカード名を含む答えを書き上げたら、送信する前に必ず verify_answer に全文を渡す。"
         "返ってきた「未確認の名前」があれば、そのカードを search_mtg_cards で引いて正式名に直す（自分の記憶の訳名は使わない）。"
         "未確認ゼロなら返ってきた修正版をそのまま答えにする。略称・省略は 2 回目以降でも禁止（冗長でよい）。\n"
@@ -129,7 +129,7 @@ get_card_rulings = server.tool(
     name="get_card_rulings",
     description=_tool_rules.GET_CARD_RULINGS_DESCRIPTION)(observed(_tool_rules.get_card_rulings))
 
-# 共起（実デッキ集計・Phase 2 のデッキ壁打ち用）= sisho/tools/partners.py
+# 共起（実デッキ集計）= sisho/tools/partners.py
 find_partner_cards = server.tool(
     name="find_partner_cards",
     description=_tool_partners.DESCRIPTION)(observed(_tool_partners.find_partner_cards))
