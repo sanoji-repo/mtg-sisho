@@ -8,7 +8,7 @@ Moxfield の運営担当者から
 このスクリプトの根拠は Moxfield 公式ドキュメントではなく、
 コミュニティによる非公式リバースエンジニアリング（spoved/moxfield.cr 等）を
 出発点にした live 検分（--smoke-test）。fmt の実際の文字列や応答形は
-smoke-test で確認してから本走に進むこと。
+smoke-test で確認してから本番の取得に進むこと。
 
 礼儀正しいスクレイピング:
   - リクエスト間隔: 2秒（先方指定の 1req/sec の自主的に半分）
@@ -33,12 +33,8 @@ design note（実測で確定した点）:
     フル取得には bracket/isLegal フィールドが存在しない＝生JSON実測で確認済み）**。
     そのため候補選定は search 段階で bracket を確定させ、フル取得後の save_deck に
     引数で渡す（フル取得結果からは復元できない）。
-  - **bracket は 1〜5 の5段階が実在**（WotC公式は1〜4=Exhibition/Core/Upgraded/
-    Optimized。5 は Moxfield 独自の cEDH 拡張とみられる＝実測で bracket=5 かつ
-    hubNames=["Competitive"] のデッキを複数確認）。採点規約
-    の「ブラケット文言」は公式1〜4 前提の設計＝5 を含めるかは公式の外なので**設計者
-    裁定待ち**（既定は方針に従い5段階とも均等に取得・後で SQL 側で bracket<=4
-    に絞ることもできる設計＝実データは残す）。
+  - **bracket は 1〜5 の 5 段階**（5 段階が現行の公式・
+    1〜4 だったのは導入の最初期だけ）。5 段階とも均等に取得して残す。
   - bracket は検索クエリのパラメータとしては機能しない（bracket=1 を渡しても
     無視されて全件返る＝実測確認済み）。**取得側でのフィルタは不可能・結果を
     client 側でバケット分けするしかない**。
@@ -60,7 +56,7 @@ design note（実測で確定した点）:
   # 取得状況確認
   python scrape_moxfield.py --status
 
-  # 本走: bracket 1〜5 それぞれ MostView 上位から100件ずつ
+  # 本番の取得: bracket 1〜5 それぞれ MostView 上位から100件ずつ
   python scrape_moxfield.py --sample-by-bracket --per-bracket 100 --brackets 1,2,3,4,5
 """
 
@@ -324,7 +320,7 @@ def status():
 # ─── bracket サンプリング ─────────────────────────────────────
 
 def sample_by_bracket(fmt: str, brackets: list[int], per_bracket: int,
-                       sort_type: str = "views", max_pages: int = 300) -> dict[int, list[dict]]:
+                       sort_type: str = "views", max_pages: int = 100) -> dict[int, list[dict]]:
     """MostView 順に search をページングし、bracket ごとに isLegal=True の
     デッキを per_bracket 件集める（bracket は search パラメータでは絞れない
     ＝実測確認済み・client 側でバケット分けするしかない）。
@@ -449,7 +445,7 @@ def main():
                          help="収集する bracket（カンマ区切り・既定は実測で確認した1〜5全部）")
     parser.add_argument("--per-bracket", type=int, default=100, help="bracket 1つあたりの目標件数")
     parser.add_argument("--sort", default="views", help="sortType（既定 views=MostView）")
-    parser.add_argument("--max-pages", type=int, default=300,
+    parser.add_argument("--max-pages", type=int, default=100,
                          help="bracket 候補探索の安全上限（search ページ数）")
     args = parser.parse_args()
 

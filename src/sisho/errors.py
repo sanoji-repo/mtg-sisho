@@ -14,7 +14,7 @@
 （search_mtg_cards・mtg_probability・find_combos）だけ。返り値がテキストの道具
 （lookup_mtg_rule・get_card_rulings・find_partner_cards・query_mtg_database・
 describe_mtg_tables・verify_answer・mtg_rag_health）は**返り値の形を変えない**ので名前は載せていない
-（クライアントの読み方が変わる＝別の裁定が要る）。ただし棚卸しの上ではテキストの道具の error にも
+（クライアントの読み方が変わるので、載せるなら別に設計を見直す）。ただし棚卸しの上ではテキストの道具の error にも
 下の名前を割り当ててある＝将来テキスト側にも載せるときに語彙を作り直さないため。
 """
 
@@ -32,8 +32,9 @@ SQL_REJECTED = "sql_rejected"                   # 入口の鞘が SQL を拒否�
 # ─── 想定外・外の世界 ───
 BUSY = "busy"                                   # DB のスロット取りが順番待ちを超えた（失敗でなく混雑）
 UPSTREAM_UNREACHABLE = "upstream_unreachable"   # 外部 API（Commander Spellbook）に届かない
-RATE_LIMITED = "rate_limited"                   # 外部 API を守るための札ごとの枠
+RATE_LIMITED = "rate_limited"                   # 外部 API を守るための接続用の鍵ごとの枠
 DB_ERROR = "db_error"                           # DB からの例外（生の例外文を素通しする）
+SCHEMA_REJECTED = "schema_rejected"             # SDK の引数検証で弾かれた（道具の本体に届いていない・sisho/backstage.py が記録）
 
 #: 名前 → 意味（報告と試験のための一覧。ここに無い名前を返り値に載せない）
 KINDS: dict[str, str] = {
@@ -50,6 +51,7 @@ KINDS: dict[str, str] = {
     UPSTREAM_UNREACHABLE: "外部 API に届かない（この道具だけの障害・他の道具は影響なし）",
     RATE_LIMITED: "外部 API を守るための札ごとの枠（指定秒数待って呼び直す）",
     DB_ERROR: "DB からの例外（生の例外文を先頭 200〜400 字そのまま載せる）",
+    SCHEMA_REJECTED: "SDK の引数検証で弾かれた＝道具の本体に届いていない（引数の名前と型を説明どおりに）",
 }
 
 
@@ -71,6 +73,10 @@ TEXT_PREFIXES: tuple[tuple[str, str], ...] = (
     ("スキーマ名に使えない", INVALID_IDENTIFIER),  # describe
     ("order_by が不正", UNKNOWN_OPTION),        # find_partner_cards
     ("scope が不正", UNKNOWN_OPTION),           # find_partner_cards
+    ("set が不正", UNKNOWN_OPTION),             # draft_pack_stats
+    ("入力が空:", EMPTY_QUERY),                 # draft_pack_stats
+    ("セットの指定が必要", EMPTY_QUERY),          # draft_pack_stats（必須の引数が無い）
+    ("件数が範囲外:", OUT_OF_RANGE),            # draft_pack_stats
 )
 
 #: 道具ログの出口の行に書く outcome のうち、error_kind でないもの（error_kind の語彙＝KINDS を

@@ -4,7 +4,7 @@
 """
 import json
 
-from sisho import errors
+from sisho import errors, manabase
 from sisho.db import LANE_LIGHT, _db
 from sisho.toollog import _log_tool
 
@@ -13,7 +13,7 @@ from sisho.toollog import _log_tool
 # 計算の本体は DB の SQL 関数（sql/prob_functions.sql・超幾何・IMMUTABLE）。ここは名前付き引数で受けて同じ関数を呼び、
 # 数字と式と入力の復唱を返す薄い入口。LLM に算術をさせない・自由なコード実行は置かない（公開サーバーは 2 コア・公開口）。
 # データと結合したいときは query_mtg_database から関数を直接呼ぶ（例: SELECT mtg_land_drops(60, 24, 4, true)）。
-_PROB_KINDS = ("at_least", "by_turn", "land_drops", "combo_by_turn")
+_PROB_KINDS = ("at_least", "by_turn", "land_drops", "combo_by_turn", "castable", "hand")
 
 
 DESCRIPTION = (
@@ -25,16 +25,35 @@ DESCRIPTION = (
     "draws（at_least の引く枚数）・turn・on_play（先手 true／後手 false）・at_least（m・既定 1）・mulligans（既定 0）。"
     "返り値の probability を percent と一緒にそのまま書き、formula と cards_seen を添えると読者が検算できる。"
     "色マナ源の問い（例: 2 ターン目に青 2 つ）は by_turn で copies=その色のソース枚数・at_least=必要数。"
-    "答えに『前提: 先手／後手・マリガン n 回』を必ず添える。")
+    "答えに『前提: 先手／後手・マリガン n 回』を必ず添える。"
+    "castable=turn ターン目までに土地だけで呪文を唱えられる確率（土地の枚数と色を同時に・2 色土地の割り当てまで厳密。"
+    "色ごとに by_turn を出して掛け合わせるのは誤り）。lands=[{name, count, produces?}]（土地の名前で渡せば出る色は DB が判定・"
+    "フェッチランド等は produces で指定）と spell（呪文の名前）か mana_cost（例 {1}{G}{G}）。返り値の by_turn で 1〜turn ターン目の推移。"
+    "hand=見たカードが呼ぶ側の決めた条件に入る確率（キープ率など）。groups=[{label, count, min, max}]（束は重ならないこと）・turn=0 で初手だけ。")
 
 
 def mtg_probability(kind: str, deck_size: int = 60, copies: int = 4, copies_b: int = 0, draws: int = 7,
-                    turn: int = 1, on_play: bool = True, at_least: int = 1, mulligans: int = 0) -> str:
+                    turn: int = 1, on_play: bool = True, at_least: int = 1, mulligans: int = 0,
+                    lands: list[dict] | None = None, spell: str | None = None, mana_cost: str | None = None,
+                    groups: list[dict] | None = None) -> str:
     _log_tool("mtg_probability", {"kind": kind, "deck_size": deck_size, "copies": copies, "copies_b": copies_b,
-                                  "draws": draws, "turn": turn, "on_play": on_play, "at_least": at_least, "mulligans": mulligans})
+                                  "draws": draws, "turn": turn, "on_play": on_play, "at_least": at_least, "mulligans": mulligans,
+                                  **({"lands": lands, "spell": spell, "mana_cost": mana_cost} if kind == "castable" else {}),
+                                  **({"groups": groups} if kind == "hand" else {})})
     if kind not in _PROB_KINDS:
         return errors.err_json(errors.UNKNOWN_OPTION,
                                f"kind は {', '.join(_PROB_KINDS)} のどれか（受け取った値: {kind!r}）")
+    # マナ基盤の 2 種（計算は sql/prob_functions_mana.sql）
+    if kind in ("castable", "hand"):
+        bad = []
+        if not (1 <= deck_size <= 500): bad.append("deck_size は 1〜500")
+        if not (0 <= mulligans <= 6): bad.append("mulligans は 0〜6")
+        if kind == "castable" and not (1 <= turn <= 20): bad.append("castable の turn は 1〜20")
+        if bad:
+            return errors.err_json(errors.OUT_OF_RANGE, "引数の範囲外: " + "・".join(bad))
+        if kind == "castable":
+            return manabase.castable(deck_size, lands, spell, mana_cost, turn, on_play, mulligans)
+        return manabase.hand(deck_size, groups, turn, on_play, mulligans)
     bad = []
     if not (1 <= deck_size <= 500): bad.append("deck_size は 1〜500")
     if not (0 <= copies <= deck_size): bad.append("copies は 0〜deck_size")

@@ -3,8 +3,8 @@
 
 設計判断: ルーター・絞り込みゲート・スコア補正部品（mtg_hybrid_search_v2 のパイプライン一式）を
 撤廃し、MCP を DB 直結だけの最小構成にする。根拠は実運用ログ
-（93 呼び出し中 SQL 53 / search 7・search の中身もルーター ollama 待ち 6〜86 秒 vs
-直行 65ms・クライアントは自前の ILIKE＋人気順でスコア補正部品の仕事を代替済み）。利用者側に LLM（Claude）
+（93 呼び出し中 SQL 53 / search 7・search の中身もルーター（ローカル LLM）待ち 6〜86 秒 vs
+直行 65ms・クライアントは自前の ILIKE＋人気順でスコア補正部品の仕事を代替済み）。利用者側に LLM
 が既にいる世界では、クエリ意図の解釈も曖昧文の束ねもクライアントの仕事＝サーバは
 検証済みの事実層を速く正確に返すことに徹する。
 
@@ -12,13 +12,12 @@
 - 全道具がローカル PostgreSQL 直結。API サーバ（:8000）依存は撤去済み。
 - search_mtg_cards は素の一致検索（名前優先→本文 AND・EDHREC 人気順）。
   LLM もルーターも呼ばない＝決定的・応答は 1 秒未満。
-- 門と札: 接続 URL は発行ページ（/issue）のボタン一つで札（token_urlsafe）を
-  発行し、/mcp/<札> で待ち受ける。GateASGI が札ごとのレート制限（60/分・find_combos 10/分）
-  を課し、未知の札は 404（not found）で存在を漏らさない。旧パスは legacy 札として当面生かす。
-- mcp SDK は /home/claude/pylibs（boto3 と同じ流儀）。
+- 受付と接続用の鍵: 接続 URL は発行ページ（/issue）のボタン一つで鍵（token_urlsafe）を
+  発行し、/mcp/<鍵> で待ち受ける。GateASGI が鍵ごとのレート制限（60/分・find_combos 10/分）
+  を課し、未知の鍵は 404（not found）で存在を漏らさない。旧パスは legacy の鍵として当面生かす。
+- 依存（mcp SDK 等）は requirements.txt。
 
-起動: PYTHONPATH=/home/claude/pylibs \
-      /mnt/new_hdd/my_rag_env/bin/python <リポジトリ>/src/mcp_server.py
+起動: python src/mcp_server.py http <port>（stdio で使うときは引数なし）
 """
 import os
 
@@ -32,6 +31,7 @@ from sisho.sets_blurb import _SETS_BLURB, _SETS_HEAD, _startup_sets_blurb   # no
 from sisho.toollog import TOOL_LOG, TOOL_LOG_MAX, _log_tool, observed   # noqa: F401（_log_tool は再輸出のみ）
 from sisho.tools import cards as _tool_cards
 from sisho.tools import combos as _tool_combos
+from sisho.tools import draft as _tool_draft
 from sisho.tools import health as _tool_health
 from sisho.tools import partners as _tool_partners
 from sisho.tools import probability as _tool_probability
@@ -134,7 +134,12 @@ find_partner_cards = server.tool(
     name="find_partner_cards",
     description=_tool_partners.DESCRIPTION)(observed(_tool_partners.find_partner_cards))
 
-# 自由 SQL の口（発案）= sisho/tools/sql.py
+# ドラフトのパックをまとめて引く = sisho/tools/draft.py
+draft_pack_stats = server.tool(
+    name="draft_pack_stats",
+    description=_tool_draft.DESCRIPTION)(observed(_tool_draft.draft_pack_stats))
+
+# 自由 SQL の口 = sisho/tools/sql.py
 query_mtg_database = server.tool(
     name="query_mtg_database",
     description=_tool_sql.QUERY_MTG_DATABASE_DESCRIPTION)(observed(_tool_sql.query_mtg_database))
@@ -182,7 +187,7 @@ _NAME_CACHE = _tool_verify._NAME_CACHE
 _JA_STOP = _tool_verify._JA_STOP
 
 
-# レート制限（配布前の門）は sisho/ratelimit.py へ切り出した。
+# レート制限は sisho/ratelimit.py へ切り出した。
 # 旧名 _RateLimiter／_RateLimitASGI で届くように冒頭で別名輸入している（切り出し先の公開名は
 # RateLimiter／RateLimitASGI）。設計の経緯と実測値はそちらの注記に丸ごと移してある。
 
@@ -190,8 +195,8 @@ _JA_STOP = _tool_verify._JA_STOP
 def _uvicorn_kwargs(port: int, log_level: str) -> dict:
     """uvicorn.run に渡す引数（試験用に関数へ切り出し）。
 
-    uvicorn の既定のアクセスログは要求行＝パス＝札の全文を書く。
-    門の [gate] と道具ログで観測は足りる。
+    uvicorn の既定のアクセスログは要求行＝パス＝接続用の鍵の全文を書く。
+    受付の [gate] ログと道具ログで観測は足りる。
     内部レビューの指摘による。
     """
     return {
@@ -209,12 +214,12 @@ if __name__ == "__main__":
         # リモート版（一時公開試験）: 127.0.0.1 に束縛し、外への口は
         # Cloudflare 即席トンネルが持つ。DNS rebinding 防御はトンネルの Host 名
         # （毎回ランダム）が allowed_hosts に書けないため、この一時試験に限り無効化。
-        # 恒久のリモート版（工程表 3 番）では allowed_hosts を固定ドメインで縫うこと。
+        # 恒久のリモート版では allowed_hosts を固定ドメインで縫うこと。
         from mcp.server.transport_security import TransportSecuritySettings
         port = int(sys.argv[2]) if len(sys.argv) > 2 else 8765
         # 待ち受けパス: Funnel のホスト名は CT ログで公開される
         # ので、秘密は URL のパスに持たせる。既定 /mcp・本番は unit の EnvironmentFile
-        # （~/.config/mtg-rag/mcp.env・claude 専用ホーム）から MCP_HTTP_PATH を注入。
+        # （~/.config/mtg-rag/mcp.env 等）から MCP_HTTP_PATH を注入。
         http_path = os.environ.get("MCP_HTTP_PATH", "/mcp")
         # stateless（公開サーバーで採用）: claude.ai のコネクタは道具呼び出しをセッション ID
         # 無しで送ってくることがあり、既定（stateful）だと「Bad Request: Missing session ID」で
@@ -231,8 +236,13 @@ if __name__ == "__main__":
         # systemd の TimeoutStopSec=15 に掛かり SIGKILL → 'timeout' 失敗 → OnFailure（Discord＋ビープ）が鳴った。
         # claude.ai のコネクタが SSE を掴んだままにするので、待っても閉じない。SDK の run() は uvicorn.Config に
         # graceful の上限を渡さないため、ここで uvicorn を直接組む。道具は 1 秒未満で返るので 3 秒あれば取りこぼさない）
-        # 門と札の外皮（sisho/gate.py を参照）。
-        # 札ごとのレート制限・発行ページ（/issue）・旧パス互換を GateASGI が束ねる。
+        # 舞台裏の幕（sisho/backstage.py）。SDK の引数検証が作る生の例外文
+        # （pydantic の型コードとドキュメント URL）を客に見せず、その回を道具ログに残す。
+        # 道具の contract（必須引数の宣言）には触れないので、外から見える schema は不変。
+        from sisho.backstage import BackstageASGI
+        app = BackstageASGI(app)
+        # 受付と接続用の鍵の外皮（sisho/gate.py を参照）。
+        # 鍵ごとのレート制限・発行ページ（/issue）・旧パス互換を GateASGI が束ねる。
         from sisho.gate import GateASGI
         app = GateASGI.from_env(app, inner_path=http_path)
         kw = _uvicorn_kwargs(port, server.settings.log_level.lower())

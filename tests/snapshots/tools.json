@@ -8,6 +8,7 @@
   "lookup_mtg_rule",
   "get_card_rulings",
   "find_partner_cards",
+  "draft_pack_stats",
   "query_mtg_database",
   "verify_answer",
   "describe_mtg_tables",
@@ -40,6 +41,44 @@
     "type": "object"
    },
    "signature": "(table_name: str | None = None) -> str",
+   "title": null
+  },
+  "draft_pack_stats": {
+   "annotations": null,
+   "description": "ドラフトのパックなど、名前が分かっている複数のカード（1〜20 件）の 17Lands 統計を1 回でまとめて引く。カードごとに search_mtg_cards を呼ばずに済む。cards に名前を並べ（日本語名・英語名どちらでも）、set にセット記号を渡す（必須）。返るのは表形式で、gih_wr（手札に来たゲームの勝率）・alsa（最後に見えたピック番号の平均・小さいほど早く消える）・ata（取られたピック番号の平均）・gih_games（母数）ほか。完全一致しなかった名前は別の欄に『未確認』として返る＝そのまま答えに書かない。カード名は返り値の name_display を一字も変えずに使う。セット横断の集計や他の列は query_mtg_database で。",
+   "description_db_dependent": false,
+   "doc": "cards: カード名の一覧（1〜20）。set: セット記号（必須・例 LCI）。",
+   "function_name": "draft_pack_stats",
+   "is_async": false,
+   "parameters": {
+    "properties": {
+     "cards": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Cards",
+      "type": "array"
+     },
+     "set": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Set"
+     }
+    },
+    "required": [
+     "cards"
+    ],
+    "title": "draft_pack_statsArguments",
+    "type": "object"
+   },
+   "signature": "(cards: list[str], set: str | None = None) -> str",
    "title": null
   },
   "find_combos": {
@@ -189,7 +228,7 @@
   },
   "mtg_probability": {
    "annotations": null,
-   "description": "【確率の計算はこれ。自分で計算しない】デッキの確率を超幾何分布で厳密に計算する（DB の SQL 関数・決定的・1 ミリ秒未満）。kind: at_least=N 枚のデッキから D 枚引いて K 枚入りのカードが m 枚以上／by_turn=turn ターン目までに K 枚入りのカードを m 枚以上（見る枚数=初手 7−マリガン＋引き・先手は turn−1 回・後手は turn 回）／land_drops=turn ターン目まで毎ターン土地を置ける（見たカードに土地が turn 枚以上）／combo_by_turn=turn ターン目までに A（copies）と B（copies_b）を両方 1 枚以上。引数: deck_size（60/40/99 等）・copies（当たりの枚数・land_drops では土地の枚数）・copies_b（combo の相方）・draws（at_least の引く枚数）・turn・on_play（先手 true／後手 false）・at_least（m・既定 1）・mulligans（既定 0）。返り値の probability を percent と一緒にそのまま書き、formula と cards_seen を添えると読者が検算できる。色マナ源の問い（例: 2 ターン目に青 2 つ）は by_turn で copies=その色のソース枚数・at_least=必要数。答えに『前提: 先手／後手・マリガン n 回』を必ず添える。",
+   "description": "【確率の計算はこれ。自分で計算しない】デッキの確率を超幾何分布で厳密に計算する（DB の SQL 関数・決定的・1 ミリ秒未満）。kind: at_least=N 枚のデッキから D 枚引いて K 枚入りのカードが m 枚以上／by_turn=turn ターン目までに K 枚入りのカードを m 枚以上（見る枚数=初手 7−マリガン＋引き・先手は turn−1 回・後手は turn 回）／land_drops=turn ターン目まで毎ターン土地を置ける（見たカードに土地が turn 枚以上）／combo_by_turn=turn ターン目までに A（copies）と B（copies_b）を両方 1 枚以上。引数: deck_size（60/40/99 等）・copies（当たりの枚数・land_drops では土地の枚数）・copies_b（combo の相方）・draws（at_least の引く枚数）・turn・on_play（先手 true／後手 false）・at_least（m・既定 1）・mulligans（既定 0）。返り値の probability を percent と一緒にそのまま書き、formula と cards_seen を添えると読者が検算できる。色マナ源の問い（例: 2 ターン目に青 2 つ）は by_turn で copies=その色のソース枚数・at_least=必要数。答えに『前提: 先手／後手・マリガン n 回』を必ず添える。castable=turn ターン目までに土地だけで呪文を唱えられる確率（土地の枚数と色を同時に・2 色土地の割り当てまで厳密。色ごとに by_turn を出して掛け合わせるのは誤り）。lands=[{name, count, produces?}]（土地の名前で渡せば出る色は DB が判定・フェッチランド等は produces で指定）と spell（呪文の名前）か mana_cost（例 {1}{G}{G}）。返り値の by_turn で 1〜turn ターン目の推移。hand=見たカードが呼ぶ側の決めた条件に入る確率（キープ率など）。groups=[{label, count, min, max}]（束は重ならないこと）・turn=0 で初手だけ。",
    "description_db_dependent": false,
    "doc": null,
    "function_name": "mtg_probability",
@@ -221,9 +260,53 @@
       "title": "Draws",
       "type": "integer"
      },
+     "groups": {
+      "anyOf": [
+       {
+        "items": {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Groups"
+     },
      "kind": {
       "title": "Kind",
       "type": "string"
+     },
+     "lands": {
+      "anyOf": [
+       {
+        "items": {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Lands"
+     },
+     "mana_cost": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Mana Cost"
      },
      "mulligans": {
       "default": 0,
@@ -234,6 +317,18 @@
       "default": true,
       "title": "On Play",
       "type": "boolean"
+     },
+     "spell": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Spell"
      },
      "turn": {
       "default": 1,
@@ -247,7 +342,7 @@
     "title": "mtg_probabilityArguments",
     "type": "object"
    },
-   "signature": "(kind: str, deck_size: int = 60, copies: int = 4, copies_b: int = 0, draws: int = 7, turn: int = 1, on_play: bool = True, at_least: int = 1, mulligans: int = 0) -> str",
+   "signature": "(kind: str, deck_size: int = 60, copies: int = 4, copies_b: int = 0, draws: int = 7, turn: int = 1, on_play: bool = True, at_least: int = 1, mulligans: int = 0, lands: list[dict] | None = None, spell: str | None = None, mana_cost: str | None = None, groups: list[dict] | None = None) -> str",
    "title": null
   },
   "mtg_rag_health": {

@@ -96,19 +96,20 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
         return cols, rows, ""
     try:
         hits = _db(
-            "SELECT card_name, name_display, name_en_front, name_en_back, name_ja_back, digital FROM mtg_cards_v2"
+            "SELECT card_name, name_display, name_en_front, name_en_back, name_ja_back, digital,"
+            " (NOT digital AND legalities->>'vintage' = 'not_legal') FROM mtg_cards_v2"
             " WHERE card_name = ANY(%s) OR name_en_front = ANY(%s) OR name_en_back = ANY(%s)",
             (cands, cands, cands), lane=LANE_LIGHT)
     except Exception:
         return cols, rows, ""
     # 正式名・表面名は表面の完成形（name_display）、裏面名はその面の完成形。裏面名が本物のカード名と同じ（prepare）なら本物が勝つ
     ja_of: dict[str, str] = {}
-    for en, label, enf, enb, jab, dg in hits:
+    for en, label, enf, enb, jab, dg, pv in hits:
         ja_of[en] = label
         ja_of[enf] = label
-    for en, label, enf, enb, jab, dg in hits:
+    for en, label, enf, enb, jab, dg, pv in hits:
         if enb:
-            ja_of.setdefault(enb, face_display(enb, jab, bool(dg)))
+            ja_of.setdefault(enb, face_display(enb, jab, bool(dg), bool(pv)))
     # 列ごとに「その列の値の過半がカード名」なら名前列と見なす（数字混じりの雑多な列を避ける）
     lower_cols = {c.lower() for c in cols}
     name_cols = []
@@ -147,15 +148,18 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
 # 表ごとの注記（出典・列の意味）。返り値に載せる＝クライアントに確実に届くのは返り値だけ
 # （MCP の返り値は自己完結させる）。変わる事実（収録セット一覧）は固定文にせず実測で添える。
 # 以前は一覧が relname だけだった（スキーマ落ち）→ public 以外の表は「スキーマ名.表名」で返す。
-# 17Lands 集計は同日 limited_card_stats → public.limited_card_stats に統合（設計判断・表 1 枚に別スキーマは不要）。
+# 17Lands 集計も同時に limited_card_stats → public.limited_card_stats に統合（設計判断・表 1 枚に別スキーマは不要）。
 _TABLE_NOTES = {
     "mtg_cards_v2": (
         "カード本体。**名前の正本は面の列** name_en_front／name_en_back／name_ja_front／name_ja_back（両面カードは 2 面・単面カードは back が NULL）。"
         "card_name（『表 // 裏』）・japanese_name（両面揃った時だけ結合、揃わなければ NULL）・name_display（表面の完成形）は面から自動で作る生成列＝書けない。"
-        "裏面（出来事・変身後・分割の片方）で引くときは name_en_back／name_ja_back。name_ja_src_front/back は日本語名の出所（scryfall／manual／rule_a／whisper／legacy）。"
+        "裏面（出来事・変身後・分割の片方）で引くときは name_en_back／name_ja_back。name_ja_src_front/back は日本語名の出所（scryfall／manual／rule_a／whisper／legacy／wotc_gallery）。"
         "digital=true は Arena 専用のカード（アルケミー・A- リバランス・Jumpstart: Historic Horizons 等・"
         "2026-08-31 に 860 枚を合流）＝紙には存在しない。紙のカードの照会は WHERE NOT digital を付ける。"
-        "name_display の「（日本語名未収録）」は Arena に日本語版はあるがこの DB がまだ持っていない印（「（日本語版なし）」とは別）。"),
+        "name_display の「（日本語名未収録）」は Arena に日本語版はあるがこの DB がまだ持っていない印（「（日本語版なし）」とは別）。"
+        "「（日本語名は未収録・発売前）」は発売前に先行収録したカード（NOT digital AND legalities->>'vintage' = 'not_legal'）＝"
+        "今はどのフォーマットでも使えない。発売日と set_type は mtg_sets を set_code で結合して見る。統率者セット（set_type='commander'）の新カードは"
+        "発売後もスタンダード・パイオニア・モダンでは使えない（統率者・レガシー・ヴィンテージ）。name_ja_src が wotc_gallery の日本語名は公式ギャラリー由来（発売前の仮・Scryfall の日本語版が入ると置き換わる）。"),
     "limited_color_stats": (
         "17Lands（集計元 Premier Draft・Bo1 ドラフト一般の物差し＝Quick Draft の問いにも使う）のセット × デッキの色組み合わせ（main_colors・例 'WU'）× splash（タッチ有無）の勝率。"
         "列: games, wins, wr。「どの色の組み合わせが勝っているか」はこの表（多色カードの平均ではない・2026-09-02）。"

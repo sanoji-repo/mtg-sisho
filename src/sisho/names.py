@@ -12,7 +12,7 @@ DESIGN 12（名前が複数あるものは面ごとの列で持つ）の帰結�
 やっていることは同じ「面の名前 → 正式名」で、片方だけ直す事故が起きうる。
 両者が呼ぶ 1 つの関数をここに置く。**返り値（相方検索・裁定検索の答え）は変えない**。
 
-実測で確かめた 2 つの実装の意味差（rag_dev）:
+実測で確かめた 2 つの実装の意味差（開発側の DB）:
   - `name_en_front` も `name_en_back` も DB 内で重複なし（実測 0 件）＝1 つの名前に当たる行は最大 2 行
     （表で当たる行 1 つ・裏で当たる行 1 つ）。
   - 単面カードは `card_name = name_en_front`（`name_en_back IS NULL AND card_name <> name_en_front` は 0 件）。
@@ -47,10 +47,11 @@ def resolve_face_name(name: str) -> list[str]:
         " ORDER BY (name_en_front = %s) DESC", (n, n, n), lane=LANE_LIGHT)]
 
 
-def face_display(en: str, ja: str | None, digital: bool = False) -> str:
-    """面の完成形。ja があれば《ja/en》・無ければ「en（日本語版なし）」・digital のカードは「en（日本語名未収録）」。"""
+def face_display(en: str, ja: str | None, digital: bool = False, preview: bool = False) -> str:
+    """面の完成形。ja があれば《ja/en》・無ければ「en（日本語版なし）」・digital のカードは「en（日本語名未収録）」・
+    発売前のカードは「en（日本語名は未収録・発売前）」（DB の name_display の式と同じ枝）。"""
     if ja:
         return f"《{ja}/{en}》"
-    note = "日本語名未収録" if digital else "日本語版なし"
+    note = "日本語名未収録" if digital else ("日本語名は未収録・発売前" if preview else "日本語版なし")
     return f"{en}（{note}）"
 

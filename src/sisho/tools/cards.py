@@ -10,6 +10,7 @@ import os
 from sisho import errors
 from sisho.db import LANE_LIGHT, _db
 from sisho.names import face_display
+from sisho.preview import preview_notes
 from sisho.sets_blurb import _SETS_BLURB, _SETS_HEAD
 from sisho.toollog import _log_tool
 
@@ -123,7 +124,7 @@ DESCRIPTION = (
 def _mark_draft_set(cards: list[dict], expansion: str) -> None:
     """各カードに in_draft_set（そのセットに入っているか）を立てる。
 
-    由来: ChatGPT での実地テストで、画像から読んだ曖昧な名前を「聖遺」のような部分文字列で
+    由来: 実地テストで、画像から読んだ曖昧な名前を「聖遺」のような部分文字列で
     引く使い方が出た。draft_set は **検索を絞らない**（17Lands 統計を添えるセットの指定）ので
     別セットのカードが EDHREC 人気順に並び、唯一のそのセット収録カードが 5 番目に沈んでいた。
     返り値に収録セットが無いため、どれがそのセットかを**クライアントが判断できない**状態で、
@@ -252,6 +253,20 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
             "                   similarity(coalesce(japanese_name,''), %s)) DESC"
             " LIMIT %s", tuple(p3))
         cards = [_row(r) for r in fuzzy_rows]
+    # 発売前のカード（先行収録）: 発売後に使えるフォーマットを候補ごとに書く
+    # （統率者セットの新カードがスタンダードで使えるように読まれないため）。日本語名の無い面は表示も直す。
+    notes = preview_notes([c["card_name"] for c in cards])
+    for c in cards:
+        note = notes.get(c["card_name"])
+        if not note:
+            continue
+        c["preview_note"] = note
+        if c.get("japanese_name") is None:
+            c["name_note"] = "日本語名は未収録（発売前）＝name_display をそのまま使う（訳名を作らない）"
+        for f in c.get("faces", []):
+            f["display"] = face_display(f["en"], f["ja"], False, True)
+        if c.get("matched_face") == "back":
+            c["face_display"] = c["faces"][1]["display"]
     if not cards:
         # 「該当なし」は入力の誤りでなく引き当てゼロ＝error_kind を分ける（no_match）。
         # 解釈し直した format は 0 件でも必ず言う（成功時と同じ format_note の鍵で）。
