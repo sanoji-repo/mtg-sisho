@@ -3,6 +3,7 @@
 接続 URL を一人ひとりに「札」（token_urlsafe(24)）として配り、
 札ごとにレート制限を課す。身元は聞かない・名簿を持たない。
 """
+import asyncio
 import datetime
 import html
 import logging
@@ -206,6 +207,40 @@ def _get_header(scope: dict, name: str) -> str:
     return ""
 
 
+_ISSUE_BODY_MAX = 8192      # 発行ページへの POST の本文の上限（バイト）
+_ISSUE_BODY_SEC = 5.0       # 本文を読み切るまでの上限（秒）
+
+
+async def _respond_plain(send, status: int, body: bytes) -> None:
+    """短い平文の応答。本文を読み切らずに返すときに使う＝接続は閉じる。"""
+    await send({"type": "http.response.start", "status": status,
+                "headers": [(b"content-type", b"text/plain; charset=utf-8"),
+                            (b"content-length", str(len(body)).encode()),
+                            (b"connection", b"close")]})
+    await send({"type": "http.response.body", "body": body})
+
+
+_DEFAULT_PORT = {"http": "80", "https": "443"}
+
+
+def _origin_of(url: str, *, strict: bool = False) -> str | None:
+    """URL の origin（scheme://host[:port]・小文字・既定のポートは落とす）。形が origin でなければ None。
+    strict=True は要求の Origin ヘッダ用＝パスも末尾の / も付かない完全な形だけ受ける（ブラウザはそう送る）。
+    設定の値（公開 URL・MCP_ALLOWED_ORIGINS）は strict=False＝パスと末尾の / を落とす。
+    設定と要求を同じ関数で揃える（設定の大文字が許可されず、
+    https://allowed.example/anything のような不正な値が丸められて通っていた）。"""
+    m = re.fullmatch(r"([A-Za-z][A-Za-z0-9+.-]*)://([^/?#@\s]+)(.*)", url.strip(), re.S)
+    if not m or (strict and m.group(3)):
+        return None
+    scheme, hostport = m.group(1).lower(), m.group(2).lower()
+    host, sep, port = hostport.rpartition(":")
+    if not sep or not port.isdigit():
+        host, port = hostport, ""
+    if port == _DEFAULT_PORT.get(scheme):
+        port = ""
+    return f"{scheme}://{host}" + (f":{port}" if port else "")
+
+
 def _build_base_url(scope: dict, public_base: str) -> str:
     if public_base:
         return public_base.rstrip("/")
@@ -219,7 +254,8 @@ class GateASGI:
     def __init__(self, app, store: FudaStore, limiter: RateLimiter,
                  issue_limiter: RateLimiter, *, inner_path: str = "/mcp",
                  prefix: str = "/mcp/", issue_path: str = "/issue",
-                 legacy_on: bool = True, public_base: str = ""):
+                 legacy_on: bool = True, public_base: str = "",
+                 allowed_origins: frozenset[str] = frozenset()):
         self.app = app
         self.store = store
         self.limiter = limiter
@@ -229,6 +265,8 @@ class GateASGI:
         self.issue_path = issue_path
         self.legacy_on = legacy_on
         self.public_base = public_base
+        # Origin の許可リスト: 公開 URL の origin と、明示して足した物だけ。
+        self.allowed_origins = frozenset(o for o in (_origin_of(x) for x in (*allowed_origins, public_base) if x) if o)
         self._fuda_re = re.compile(re.escape(self.prefix) + r"([A-Za-z0-9_-]{16,64})")
 
     @classmethod
@@ -240,6 +278,7 @@ class GateASGI:
         legacy_on = os.environ.get("MCP_LEGACY_PATH", "1") in ("1", "true", "yes")
         public_base = os.environ.get("MCP_PUBLIC_BASE", "")
         issue_path = os.environ.get("MCP_ISSUE_PATH", "/issue")
+        allowed_origins = frozenset(o.strip() for o in os.environ.get("MCP_ALLOWED_ORIGINS", "").split(",") if o.strip())
 
         if not public_base:
             _gate_log.warning("[gate] MCP_PUBLIC_BASE が空: 発行ページの URL は Host ヘッダから組む（公開サーバーでは必ず設定）")
@@ -251,7 +290,7 @@ class GateASGI:
         return cls(app, store, limiter, issue_limiter,
                    inner_path=inner_path, prefix=prefix,
                    issue_path=issue_path, legacy_on=legacy_on,
-                   public_base=public_base)
+                   public_base=public_base, allowed_origins=allowed_origins)
 
     async def _respond_404(self, send, ip: str | None = None) -> None:
         """404。ip を渡したときは**探りとして IP の枠で数える**（指摘）。
@@ -273,6 +312,20 @@ class GateASGI:
         ]
         await send({"type": "http.response.start", "status": 404, "headers": headers})
         await send({"type": "http.response.body", "body": b"not found"})
+
+    async def _respond_403_origin(self, send, ip: str, origin: str) -> None:
+        """Origin が許可リストに無い（MCP の Streamable HTTP の要件「不正な Origin は 403」）。
+        DNS rebinding（ブラウザに別サイトから公開サーバーの口を叩かせる）への備え。Origin を送らない客（claude.ai・CLI）は対象外。
+        探りと同じく IP の枠で数える。Origin は秘密ではないので記録に残す（先頭 120 字）。"""
+        ok, retry = self.limiter.check(ip)
+        if not ok:
+            return await send_429(send, retry, f"混雑: 呼び出しが多すぎます。{retry} 秒待ってからもう一度呼んでください。")
+        _gate_log.warning("[gate] origin 拒否 ip=%s origin=%s", ip, origin[:120])
+        body = b"forbidden origin"
+        await send({"type": "http.response.start", "status": 403,
+                    "headers": [(b"content-type", b"text/plain; charset=utf-8"),
+                                (b"content-length", str(len(body)).encode())]})
+        await send({"type": "http.response.body", "body": body})
 
     def _issue_retry_after(self, ip: str | None) -> int:
         """発行の枠を超えたときの待ち秒＝直近 24 時間で最も古い issue 行が窓を出るまで。ip None は全体。"""
@@ -309,10 +362,23 @@ class GateASGI:
             return
 
         if method == "POST":
-            # フォームの本文が残ったまま応答すると h11 が接続を切るため読み捨てる
-            more_body = True
+            # フォームの本文が残ったまま応答すると h11 が接続を切るため読み捨てる。
+            # 本文は使わないので上限と時間を切る＝巨大な本文・極端に遅い本文で
+            # 接続を握り続けられないように。発行ページのフォームは空（数十バイト）。
+            clen = _get_header(scope, "content-length")
+            if clen.isdigit() and int(clen) > _ISSUE_BODY_MAX:
+                return await _respond_plain(send, 413, b"payload too large")
+            total, deadline, more_body = 0, time.monotonic() + _ISSUE_BODY_SEC, True
             while more_body:
-                msg = await receive()
+                try:
+                    msg = await asyncio.wait_for(receive(), max(0.0, deadline - time.monotonic()))
+                except asyncio.TimeoutError:
+                    return await _respond_plain(send, 408, b"request timeout")
+                if msg.get("type") == "http.disconnect":
+                    return
+                total += len(msg.get("body") or b"")
+                if total > _ISSUE_BODY_MAX:
+                    return await _respond_plain(send, 413, b"payload too large")
                 more_body = msg.get("more_body", False)
 
             # 第三者サイトからの自動投稿（CSRF）を防ぐ: Sec-Fetch-Site が cross-site なら 403
@@ -419,6 +485,11 @@ class GateASGI:
 
         ip_token = CURRENT_CLIENT_IP.set(ip)
         try:
+            # 同名のヘッダが複数なら先頭だけ見ずに断る
+            origins = [v.decode("latin1") for k, v in scope.get("headers", []) if k.lower() == b"origin" and v.strip()]
+            if len(origins) > 1 or (origins and _origin_of(origins[0], strict=True) not in self.allowed_origins):
+                return await self._respond_403_origin(send, ip, " , ".join(origins))
+
             if path.rstrip("/") == self.issue_path.rstrip("/"):
                 ok, retry = self.limiter.check(ip)     # 発行ページも IP の枠（60/分）で数える
                 if not ok:

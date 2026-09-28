@@ -1,0 +1,94 @@
+{
+ "cases": {
+  "at_least": {
+   "kind": "at_least",
+   "deck_size": 60,
+   "copies": 4,
+   "draws": 7,
+   "at_least": 1
+  },
+  "by_turn": {
+   "kind": "by_turn",
+   "deck_size": 40,
+   "copies": 9,
+   "turn": 3,
+   "on_play": true,
+   "at_least": 2,
+   "mulligans": 0
+  },
+  "by_turn_mull": {
+   "kind": "by_turn",
+   "deck_size": 60,
+   "copies": 4,
+   "turn": 2,
+   "on_play": false,
+   "at_least": 1,
+   "mulligans": 1
+  },
+  "land_drops": {
+   "kind": "land_drops",
+   "deck_size": 40,
+   "copies": 17,
+   "turn": 4,
+   "on_play": true
+  },
+  "combo_by_turn": {
+   "kind": "combo_by_turn",
+   "deck_size": 60,
+   "copies": 4,
+   "copies_b": 4,
+   "turn": 4,
+   "on_play": true
+  },
+  "castable": {
+   "kind": "castable",
+   "deck_size": 40,
+   "lands": [
+    {
+     "name": "森",
+     "count": 9,
+     "produces": "G"
+    },
+    {
+     "name": "山",
+     "count": 8,
+     "produces": "R"
+    }
+   ],
+   "mana_cost": "{1}{G}",
+   "turn": 3
+  },
+  "hand": {
+   "kind": "hand",
+   "deck_size": 40,
+   "groups": [
+    {
+     "label": "土地",
+     "count": 17,
+     "min": 2,
+     "max": 5
+    }
+   ],
+   "turn": 0
+  },
+  "bad_kind": {
+   "kind": "zzz"
+  },
+  "out_of_range": {
+   "kind": "by_turn",
+   "deck_size": 40,
+   "copies": 41
+  }
+ },
+ "outputs": {
+  "at_least": "{\n \"kind\": \"at_least\",\n \"inputs\": {\n  \"deck_size\": 60,\n  \"copies\": 4,\n  \"draws\": 7,\n  \"at_least\": 1\n },\n \"cards_seen\": 7,\n \"probability\": 0.3995,\n \"percent\": \"40.0%\",\n \"premise\": \"7 枚引く\",\n \"formula\": \"P(X ≥ 1) = Σ C(4, i)·C(56, 7−i) / C(60, 7)  (i = 1..min(4,7))\",\n \"note\": \"超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。土地の連続配置は『見たカードに土地が turn 枚以上』の近似ではなく同値。\"\n}",
+  "by_turn": "{\n \"kind\": \"by_turn\",\n \"inputs\": {\n  \"deck_size\": 40,\n  \"copies\": 9,\n  \"turn\": 3,\n  \"on_play\": true,\n  \"at_least\": 2,\n  \"mulligans\": 0\n },\n \"cards_seen\": 9,\n \"probability\": 0.6666,\n \"percent\": \"66.7%\",\n \"premise\": \"先手（3 ターン目までの引き 2 回）\",\n \"formula\": \"見る枚数 9 = 7−0＋2・P(X ≥ 2) 超幾何(N=40, K=9, D=9)\",\n \"note\": \"超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。土地の連続配置は『見たカードに土地が turn 枚以上』の近似ではなく同値。\"\n}",
+  "by_turn_mull": "{\n \"kind\": \"by_turn\",\n \"inputs\": {\n  \"deck_size\": 60,\n  \"copies\": 4,\n  \"turn\": 2,\n  \"on_play\": false,\n  \"at_least\": 1,\n  \"mulligans\": 1\n },\n \"cards_seen\": 8,\n \"probability\": 0.4448,\n \"percent\": \"44.5%\",\n \"premise\": \"後手（2 ターン目までの引き 2 回）・マリガン 1 回（初手 6 枚）\",\n \"formula\": \"見る枚数 8 = 7−1＋2・P(X ≥ 1) 超幾何(N=60, K=4, D=8)\",\n \"note\": \"超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。土地の連続配置は『見たカードに土地が turn 枚以上』の近似ではなく同値。\"\n}",
+  "land_drops": "{\n \"kind\": \"land_drops\",\n \"inputs\": {\n  \"deck_size\": 40,\n  \"copies\": 17,\n  \"turn\": 4,\n  \"on_play\": true,\n  \"mulligans\": 0\n },\n \"cards_seen\": 10,\n \"probability\": 0.7069,\n \"percent\": \"70.7%\",\n \"premise\": \"先手（4 ターン目までの引き 3 回）\",\n \"formula\": \"見る枚数 10・P(土地 ≥ 4 枚) 超幾何(N=40, K=17, D=10)＝4 ターン目まで毎ターン土地を置ける\",\n \"note\": \"超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。土地の連続配置は『見たカードに土地が turn 枚以上』の近似ではなく同値。\"\n}",
+  "combo_by_turn": "{\n \"kind\": \"combo_by_turn\",\n \"inputs\": {\n  \"deck_size\": 60,\n  \"copies\": 4,\n  \"copies_b\": 4,\n  \"turn\": 4,\n  \"on_play\": true,\n  \"mulligans\": 0\n },\n \"cards_seen\": 10,\n \"probability\": 0.2653,\n \"percent\": \"26.5%\",\n \"premise\": \"先手（4 ターン目までの引き 3 回）\",\n \"formula\": \"見る枚数 10・1 − P(A なし) − P(B なし) ＋ P(両方なし)（包除・A=4 枚・B=4 枚・N=60）\",\n \"note\": \"超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。土地の連続配置は『見たカードに土地が turn 枚以上』の近似ではなく同値。\"\n}",
+  "castable": "{\n \"kind\": \"castable\",\n \"probability\": 0.9101,\n \"percent\": \"91.0%\",\n \"spell\": null,\n \"mana_cost\": \"{1}{G}\",\n \"condition\": \"3 ターン目までに置ける土地 min(引いた土地, 3) ≥ 2、かつ色の記号 1 つにつき別々の土地を割り当てられる（2 色土地は 1 回に 1 色）\",\n \"premise\": \"40 枚・先手・3 ターン目（見る枚数 9）・マリガン 0 回（初手は 7−マリガン枚として数えるだけ）・全部の土地がアンタップで出ると仮定・マナ・アーティファクトやマナ・クリーチャー・ランプ呪文・コスト軽減は数えない・土地は置く順を自由に選べる\",\n \"cards_seen\": 9,\n \"lands_resolved\": [\n  {\n   \"name_display\": \"《森/Forest》\",\n   \"count\": 9,\n   \"produces\": [\n    \"G\"\n   ],\n   \"source\": \"指定\"\n  },\n  {\n   \"name_display\": \"《山/Mountain》\",\n   \"count\": 8,\n   \"produces\": [\n    \"R\"\n   ],\n   \"source\": \"指定\"\n  }\n ],\n \"other_cards\": 23,\n \"by_turn\": {\n  \"1\": 0.0,\n  \"2\": 0.8687,\n  \"3\": 0.9101\n },\n \"note\": \"多変量超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。呪文そのものを引いているかは問わない（引いていたら唱えられるか＝マナの問い）\"\n}",
+  "hand": "{\n \"kind\": \"hand\",\n \"probability\": 0.8785,\n \"percent\": \"87.8%\",\n \"groups\": [\n  {\n   \"label\": \"土地\",\n   \"count\": 17,\n   \"min\": 2,\n   \"max\": 5\n  }\n ],\n \"other_cards\": 23,\n \"cards_seen\": 7,\n \"premise\": \"40 枚・初手に見る 7 枚・マリガン 0 回・束は互いに重ならない前提（重なっていると誤った値になる）\",\n \"formula\": \"Σ Π C(count_i, x_i)·C(その他, 見る枚数−Σx_i) / C(deck_size, 見る枚数)（x_i は min_i〜max_i）\",\n \"note\": \"キープの基準は呼ぶ側が決めたもの。道具は確率を厳密に計算するだけ\"\n}",
+  "bad_kind": "{\n \"error\": \"kind は at_least, by_turn, land_drops, combo_by_turn, castable, hand のどれか（受け取った値: 'zzz'）\",\n \"error_kind\": \"unknown_option\"\n}",
+  "out_of_range": "{\n \"error\": \"引数の範囲外: copies は 0〜deck_size\",\n \"error_kind\": \"out_of_range\"\n}"
+ }
+}

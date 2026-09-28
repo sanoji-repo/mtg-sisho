@@ -21,7 +21,7 @@ from sisho.tools.cards import _archetype_lines, _resolve_draft_set
 QUERY_MTG_DATABASE_DESCRIPTION = ("【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
     "【専用ツールで表せない集計は Web に行かずここで SQL】読み取り専用 SQL（PostgreSQL・SELECT/WITH のみ・1 文・10 秒・最大 50 行）。条件違いの比較（色別・セット別・ランク帯別など）は同じ表を何度も引かず GROUP BY／CASE で 1 文にまとめる（往復 1 回が速い）。"
     "主な棚: mtg_cards_v2（card_name, japanese_name, name_display, type_line, mana_cost, oracle_text, legalities, edhrec_rank）／"
-    "mtg_rules／card_rulings／card_format_strength・edh_card_strength（採用率）／card_cooccurrence・edh_card_cooccurrence_v2（共起）／"
+    "mtg_rules／card_rulings／card_format_strength・edh_card_strength（採用率）／card_cooccurrence_v2（共起・population_id＝cooccurrence_populations のフォーマット×区間・relation m＝メイン同士 a<b／s＝メイン A→サイド B）・card_population_deck_counts（分母）・cooccurrence_population_stats（区間の N）／"
     "mtg_sets（セット発売日・set_type・エキスパンション紀元の突き合わせ用）／"
     "deck_list・deck_cards（実デッキ・プレイヤー名は players 表に隔離＝非公開・deck_list は player_id）。列名は describe_mtg_tables で確認（推測しない）。"
     "結果のカード名列の右隣に <列>_display（完成形）を自動同伴＝それをそのまま書く。【players 表（プレイヤー名）は内部専用＝権利上の理由で公開版のデータには含まれない】"
@@ -31,6 +31,26 @@ QUERY_MTG_DATABASE_DESCRIPTION = ("【名前の掟】カード名は返り値の
     + ("セット記号は search_mtg_cards の説明にある一覧から（知らないセットでも MTG・推測しない）。" if _SETS_BLURB else "")
     + "確率の SQL 関数（データと結合するとき・単発は mtg_probability）: mtg_hypergeom_atleast(N,K,D,m)・mtg_prob_by_turn(deck,copies,turn,on_play,m,mull)・"
       "mtg_land_drops(deck,lands,turn,on_play,mull)・mtg_combo_by_turn(deck,a,b,turn,on_play,mull)・mtg_cards_seen(turn,on_play,mull)。")
+# 客の SQL を外側の SELECT で包む（セキュリティ審査の補助・本丸は公開サーバーの vm.overcommit_memory=2）。
+#   (1) LIMIT: psycopg2 の普通のカーソルは結果を全部 Python に受け取ってから fetchmany で切る＝
+#       `SELECT * FROM deck_cards`（2,100 万行）が丸ごと流れ込めた。返す行数だけ DB の側で止める。
+#   (2) 1 行の大きさの関所: 1 行が _ROW_MAX を超えたら DB の中でわざと型変換のエラーを起こし、Python に
+#       巨大な値を届かせない（実データの 1 行は最大 5.7KB・実測）。エラー文は上で言い直す。
+#       大きさを文字列に混ぜるのは、定数の式だと計画の段階で畳まれて小さな行でもエラーになるため。
+#   客の SQL の末尾が -- のコメントでも閉じ括弧を食わないように、前後に改行を置く。
+#   並び順: 外側は絞り込みと LIMIT だけなので、内側の ORDER BY の順のまま返る（PostgreSQL の仕様上の保証ではない）。
+#   DB に関数などの物は置かない（開発側・公開サーバー・作り直しの脚本の 3 か所に揃える手間を作らない）。
+_ROW_MAX = 256 * 1024
+_ROW_GUARD = "_sisho_row_too_large"
+
+
+def _guarded(sql: str, max_rows: int) -> str:
+    return (f"SELECT _q.* FROM (\n{sql}\n) AS _q"
+            f" WHERE CASE WHEN pg_column_size(_q.*) > {_ROW_MAX}"
+            f" THEN (pg_column_size(_q.*)::text || '{_ROW_GUARD}')::int > 0 ELSE true END"
+            f" LIMIT {int(max_rows)}")
+
+
 def query_mtg_database(sql: str, max_rows: int = 30) -> str:
     _log_tool("query_mtg_database", {"sql": sql[:max(150, TOOL_LOG_MAX)]})
     # 先頭コメントのタグ（全ての SQL にコメントを付けてもらい、届いたら Python を一つ通す・読むだけで書き換えない）
@@ -48,12 +68,23 @@ def query_mtg_database(sql: str, max_rows: int = 30) -> str:
     if head not in ("SELECT", "WITH"):
         return f"拒否: SELECT / WITH で始まる読み取りクエリのみ実行できます（先頭語: {head}）。"
     try:
-        cols, rows = _db_readonly(stripped, max_rows, lane=LANE_HEAVY)
+        cols, rows = _db_readonly(_guarded(stripped, max_rows), max_rows, lane=LANE_HEAVY)
     except DBBusy as e:
         return str(e)          # 混雑は SQL の誤りでない＝「SQL エラー」に丸めない（errors.BUSY）
     except Exception as e:
-        # 想定外の例外は丸めず素通し（PostgreSQL のエラー文がそのまま次の一手になる・errors.DB_ERROR）
-        return f"SQL エラー: {str(e)[:400]}"
+        # 関所の印は PostgreSQL の primary message（エラーの 1 行目）の完全一致でだけ見る。例外の全文には
+        # LINE の行に客の SQL が引用されるので、客が別名などに印を書くと別のエラーを取り違える
+        # （SELECT no_such_column AS "999_sisho_row_too_large" で再現）
+        diag = getattr(e, "diag", None)
+        primary = (getattr(diag, "message_primary", None) or str(e).split("\n", 1)[0]).strip()
+        m = _re.fullmatch(r'invalid input syntax for type integer: "(\d+)' + _ROW_GUARD + '"', primary)
+        if m:
+            return (f"拒否: 結果の 1 行が大きすぎます（約 {int(m.group(1)) // 1024:,} KB・上限 {_ROW_MAX // 1024} KB）。"
+                    "選ぶ列を絞るか、長い文字列は left(列, 200) のように切ってから選んでください。")
+        # 想定外の例外は丸めず素通し（PostgreSQL のエラー文がそのまま次の一手になる・errors.DB_ERROR）。
+        # 包んだ分だけずれた行番号（LINE n）を客の SQL の行番号に戻す（_guarded は客の SQL の前に 1 行足す）
+        msg = _re.sub(r"\bLINE (\d+):", lambda mm: f"LINE {max(1, int(mm.group(1)) - 1)}:", str(e))
+        return f"SQL エラー: {msg[:400]}"
     if not rows:
         return "0 行（クエリは成功）。"
     cols, rows, ja_note = _attach_japanese_names(cols, rows)

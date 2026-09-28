@@ -58,7 +58,7 @@ def test_lookup_rule_by_word_and_glossary_tag():
 def test_lookup_rule_multiword_falls_back_to_or():
     """概念の羅列（全語 AND が不発になる問い）でも空で帰さない（OR に降りる）。"""
     r = lr("dies trigger simultaneous", 5)
-    assert "該当なし" not in r and _numbers(r), "AND 不発なら OR で拾う（2026-08-11 のクライアントのバグ報告）"
+    assert "該当なし" not in r and _numbers(r), "AND 不発なら OR で拾う（クライアントのバグ報告）"
 
 
 def test_lookup_rule_limit_bounds():
@@ -87,8 +87,7 @@ def test_rulings_exact_name():
 def test_rulings_face_name_resolves_to_official_name():
     """面の名前（出来事の呪文側）で引いても、正式名の裁定に辿り着く。
 
-    注意: この解決は partners.py の _name_variants ではなく、rules.py が
-    name_en_front／name_en_back を直接引いてやっている（実装を見て確認・重複した経路）。
+    解決は names.resolve_card_ex に一本化（partners と同じ関数・正式名 → 表面名 → 裏面名）。
     """
     r = gr("Petty Theft", 3)
     assert "裁定なし" not in r, "裏面の名前でも空で帰さない"
@@ -96,9 +95,31 @@ def test_rulings_face_name_resolves_to_official_name():
 
 
 def test_rulings_partial_match_fallback():
-    """完全一致も面の名前も外れたら部分一致で救う。"""
+    """完全一致も面の名前も外れたら、カード表の部分一致で救う。候補がちょうど 1 枚のときだけ、その 1 枚だと明示して引く。
+    2 枚以上なら選ばせる（以前は裁定の表を部分一致で引き、「Ragavan」で当たった最初のカードの裁定を返していた＝
+    《ラシュミとラガバン/Rashmi and Ragavan》もあるのに 1 枚に決めつけていた）。"""
+    # 「Nimble Pilferer」は別の本物のカード《敏捷なこそ泥/Nimble Pilferer》の名前ちょうど＝部分一致ではなくそのカードになる
+    r = gr("Ragavan, Nimble", 2)
+    assert r.startswith("「Ragavan, Nimble」は 《") and "Ragavan, Nimble Pilferer（" in r, r[:200]
     r = gr("Ragavan", 2)
-    assert "裁定なし" not in r and "Ragavan" in r, "部分一致の救済"
+    assert r.startswith("裁定なし: Ragavan（この名前ちょうどのカードは無い。名前に含むカード: "), r[:200]
+
+
+def test_rulings_never_slide_to_another_cards_rulings():
+    """名前ちょうどのカードが在るなら、裁定が 0 件でも別カードの裁定へ滑らない。
+    「Fog」は以前《目つぶしの霧/Blinding Fog》の裁定を黙って返していた（道具ログは ok＝見張りにも出なかった）。
+    LIKE の記号（_ と %）は字として扱う＝「R_gavan」「Ragavan%」で Ragavan の裁定を返さない。"""
+    r = gr("Fog", 3)
+    assert r.startswith("裁定なし: 《") and "/Fog》" in r and "Blinding" not in r, r[:200]
+    for name in ("R_gavan", "Ragavan%"):
+        r = gr(name, 3)
+        assert r.startswith(f"裁定なし: {name}（カードが見つかりません"), r[:200]
+
+
+def test_rulings_back_face_partial_names_the_official_name():
+    """裏面の一部で当たったときは、表面の完成形だけでなく正式名も見せる。"""
+    r = gr("Petty The", 1)
+    assert "（正式名 Brazen Borrower // Petty Theft）" in r and "Brazen Borrower // Petty Theft（" in r, r[:200]
 
 
 def test_rulings_limit_bounds():
@@ -146,3 +167,79 @@ def test_empty_query_is_refused_not_answered_with_anything():
         r2 = gr(bad)
         assert "（20" not in r2, f"空の検索語に裁定を返した: {r2[:90]}"
         assert "カード名" in r2, f"何が足りないかを言うべき: {r2[:90]}"
+
+
+def test_rulings_known_card_without_rulings_is_not_blamed_on_the_name():
+    """裁定が 0 件でもカードが在るなら、名前を疑わせず『収録済み・公式裁定がまだ無い』を返す。
+    実例は Shang-Chi（実デッキ 869 本・裁定 0 件）。今その状態のカードを DB から 1 枚選ぶ。"""
+    row = rules._db(
+        "SELECT m.card_name FROM mtg_cards_v2 m WHERE NOT m.digital AND m.card_name NOT LIKE '%%//%%'"
+        " AND NOT EXISTS (SELECT 1 FROM card_rulings r WHERE r.card_name ILIKE '%%' || m.card_name || '%%')"
+        " ORDER BY m.id LIMIT 1", ())
+    assert row, "裁定の無いカードが 1 枚はある"
+    r = gr(row[0][0], 5)
+    assert r.startswith("裁定なし: "), r
+    assert "収録済み" in r and "lookup_mtg_rule" in r, r
+    assert "英語の正式カード名" not in r, "在るカードの名前を疑わせない"
+
+
+
+def test_rulings_partial_name_lists_candidates():
+    """「Shang-Chi」のような一部の名前は、候補を完成形で並べる。"""
+    r = gr("Shang-Chi", 5)
+    assert r.startswith("裁定なし: Shang-Chi（この名前ちょうどのカードは無い。名前に含むカード: 《"), r
+    assert "Shang-Chi, Master of Kung Fu》" in r and "Shang-Chi, Martial Mentor》" in r, r
+
+
+
+def test_rulings_names_only_in_the_rulings_table_still_work():
+    """裁定の表を入力そのままで先に引く。裁定の表の名前のうち 732 種（次元・アンセット等）は
+    カード表に無い＝カード表を先に見ると「見つかりません」や別カードへ滑った（The Maelstrom →《アラーラへの侵攻》の裁定）。"""
+    for name in ("Rules Lawyer", "The Maelstrom", "Raven's Run"):
+        r = gr(name, 1)
+        assert r.startswith(name + "（"), r[:150]
+    r = gr("rules lawyer", 1)
+    assert r.startswith("「rules lawyer」は Rules Lawyer として引いた:") and "Rules Lawyer（" in r, r[:150]
+
+
+def test_rulings_case_only_difference_resolves():
+    """大文字小文字だけ違う正式名は、補正したと明示して引く（「brainstorm」は裏面名 Brainstorm の別カードと
+    部分一致で並んで候補の列挙に落ちていた）。"""
+    r = gr("brainstorm", 1)
+    assert r.startswith("「brainstorm」は 《") and "\nBrainstorm（" in r.replace("\n\n", "\n"), r[:200]
+
+
+def test_rulings_ambiguous_back_face_is_not_decided_by_id():
+    """裏面の名前が複数のカードで重なるときは 1 枚に決めない（「Vicious Verse」は 3 枚）。
+    《稲妻/Lightning Bolt》は裁定が 0 件でも、裏面が Lightning Bolt の別カードの裁定へ滑らない（以前の版は滑っていた）。"""
+    r = gr("Vicious Verse", 1)
+    assert r.startswith("裁定なし: Vicious Verse（この名前は複数のカードの面の名前で、1 枚に決まらない: "), r[:200]
+    assert r.count(" // Vicious Verse") >= 2, r
+    r = gr("Lightning Bolt", 1)
+    assert "Emeritus" not in r, r[:200]
+
+
+def test_rulings_digital_only_candidate_is_labeled():
+    """デジタル専用の候補には印を付ける。"""
+    r = gr("A-Falcon Abominatio", 1)
+    assert "（デジタル専用）" in r, r[:200]
+
+
+def test_rulings_partial_names_include_names_only_in_the_rulings_table():
+    """部分一致の候補は裁定の表にだけある名前（次元・アンセット等）も含める。
+    カード表だけを見ると「Rules Law」が見つからず、「Talon Gat」は別カード《マダラの鉤爪門》の裁定に決まっていた。
+    候補が 2 つ以上なら決めずに並べる。大文字小文字を直したデジタルカードも印を残す。"""
+    r = gr("Rules Law", 1)
+    assert r.startswith("「Rules Law」は Rules Lawyer として引いた:") and "Rules Lawyer（" in r, r[:150]
+    r = gr("Talon Gat", 1)
+    assert r.startswith("裁定なし: Talon Gat（この名前ちょうどのカードは無い。") and "Talon Gates＝" in r, r[:200]
+    assert "（デジタル専用）" in gr("a-falcon abomination", 1)
+
+
+def test_rulings_only_names_are_not_hidden_behind_many_card_candidates():
+    """カード表の候補が上限（5 件）以上あっても、裁定の表にだけある名前を分けて案内する。
+    「Gavon」はカード表に Gavony ○○ が 7 件あり、裁定の表にだけある Gavony（次元）が消えていた。
+    「Goldmeado」はカード表がちょうど 5 件で、足した Goldmeadow が 6 番目として表示から隠れていた。"""
+    for name, only in (("Gavon", "Gavony"), ("Goldmeado", "Goldmeadow")):
+        r = gr(name, 1)
+        assert "裁定の表にだけある名前（次元・アンセット等）: " + only + "＝" in r, r[-200:]

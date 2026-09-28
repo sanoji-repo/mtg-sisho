@@ -50,7 +50,7 @@ def test_entry_line_shape_is_unchanged_and_exit_line_follows():
     rows = _lines()
     assert len(rows) == 2, f"1 呼び出し＝入口 1 行＋出口 1 行（{rows}）"
     entry, end = rows
-    # 入口: 時刻・道具名・引数の JSON・接続用の鍵（末尾に鍵の先頭を追加）
+    # 入口: 時刻・道具名・引数の JSON・札（末尾に札を追加）
     assert len(entry) == 4 and entry[1] == "find_combos"
     assert json.loads(entry[2]) == {"n": 0, "commanders": None, "limit": 10}
     # 出口: 時刻・end・道具名・outcome・所要秒・DB 回数・DB 秒・接続用の鍵
@@ -91,12 +91,15 @@ def test_log_failure_does_not_kill_the_tool(monkeypatch):
     ("混雑: DB の順番待ちが 20 秒を超えました。", "busy"),
     ("該当なし: zzz（条番号または英語キーワードで検索してください）", "no_match"),
     ("裁定なし: zzz（英語の正式カード名で検索してください）", "no_match"),
-    ("共起なし: zzz（scope=edh・英語の正式カード名で指定してください）", "no_match"),
+    ("共起なし: zzz（カードが見つかりません。英語の正式カード名か表面の名前で指定してください）", "no_match"),
     ("テーブルなし: zzz（describe_mtg_tables() を引数なしで呼ぶと一覧が出る）", "unknown_table"),
     ("表名に使えない文字: 「deck-list」（英数字と _ のみ）。", "invalid_identifier"),
     ("スキーマ名に使えない文字: 「pub-lic」（英数字と _ のみ）。", "invalid_identifier"),
     ("order_by が不正: zzz（count / lift）", "unknown_option"),
-    ("scope が不正: zzz（edh/constructed/pauper/vintage/precon）", "unknown_option"),
+    ("format が不正: zzz（Standard / Pioneer / Modern / Legacy / Premodern / Pauper / Vintage / Duel Commander / Commander / Precon）", "unknown_option"),
+    ("relation が不正: zzz（main / side）", "unknown_option"),
+    ("集計が準備中: Modern の共起の集計がまだそろっていない（all）。…", "not_ready"),
+    ("relation='side' は Commander には無い（…）", "unknown_option"),
 ])
 def test_outcome_of_reads_the_result_without_touching_it(result, expected):
     assert errors.outcome_of(result) == expected, f"{result[:30]} → {expected}"
@@ -108,8 +111,8 @@ def test_real_text_tools_are_not_logged_as_ok(monkeypatch):
     assert m.query_mtg_database("DELETE FROM x").startswith("拒否: ")
     assert m.describe_mtg_tables("deck-list").startswith("表名に使えない")
     assert m.describe_mtg_tables("pub-lic.mtg_rules").startswith("スキーマ名に使えない")
-    assert m.find_partner_cards("Sol Ring", order_by="zzz").startswith("order_by が不正")
-    # scope の検査は名前の解決（DB）より後なので、この試験では扱わない（下の DB あり側で見る）
+    assert m.find_partner_cards("Sol Ring", "Commander", order_by="zzz").startswith("order_by が不正")
+    assert m.find_partner_cards("Sol Ring", "zzz").startswith("format が不正")   # 名前の解決より前に検査する
 
     def raise_busy(*a, **k):
         raise db.DBBusy("混雑: DB の順番待ちが 20 秒を超えました。")
@@ -122,22 +125,42 @@ def test_real_text_tools_are_not_logged_as_ok(monkeypatch):
                    ("describe_mtg_tables", "invalid_identifier"),
                    ("describe_mtg_tables", "invalid_identifier"),
                    ("find_partner_cards", "unknown_option"),
+                   ("find_partner_cards", "unknown_option"),
                    ("query_mtg_database", "busy"),
                    ("mtg_rag_health", "busy")], got
 
 
 @requires_db
 def test_real_text_tools_no_match_and_unknown_table():
-    """DB が要る側の文言（scope が不正・該当なし・裁定なし・共起なし・テーブルなし）も ok に化けない。"""
-    m.find_partner_cards("Sol Ring", scope="zzz")
+    """DB が要る側の文言（サイドの無いフォーマット・該当なし・裁定なし・共起なし・テーブルなし）も ok に化けない。"""
+    m.find_partner_cards("Sol Ring", "Commander", relation="side")
     m.lookup_mtg_rule("zzzqqqxxx")
     m.get_card_rulings("zzzqqqxxx")
-    m.find_partner_cards("zzzqqqxxx")
+    m.find_partner_cards("zzzqqqxxx", "Commander")
     m.describe_mtg_tables("no_such_table_zzz")
     assert [(e[2], e[3]) for e in _ends()] == [
         ("find_partner_cards", "unknown_option"),
         ("lookup_mtg_rule", "no_match"), ("get_card_rulings", "no_match"),
         ("find_partner_cards", "no_match"), ("describe_mtg_tables", "unknown_table")]
+
+
+@requires_db
+def test_partners_not_ready_is_logged_as_not_ready(monkeypatch):
+    """『集計が準備中』（公開サーバーへの写しの途中など）は終了記録でも not_ready（ok に化けない）。"""
+    import sisho.tools.partners as partners
+    real = partners._db
+
+    def half(sql, params, lane=None):
+        out = real(sql, params, lane=lane) if lane else real(sql, params)
+        if "json_agg(row_to_json(hdr))" in sql:
+            hdr, rows = out[0]
+            for h in hdr:
+                h["card_rows"] = h["card_row_count"] // 2
+            out = [(hdr, rows)]
+        return out
+    monkeypatch.setattr(partners, "_db", half)
+    assert m.find_partner_cards("Lightning Bolt", "Modern").startswith("集計が準備中:")
+    assert [(e[2], e[3]) for e in _ends()] == [("find_partner_cards", "not_ready")]
 
 
 def test_text_prefixes_use_the_registered_vocabulary():

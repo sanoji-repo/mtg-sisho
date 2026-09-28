@@ -56,16 +56,16 @@ MCP の `query_mtg_database` はこれらを読み取り専用の役割（`reado
 ### 図から外したテーブルとその理由
 本図では可読性を保つため中核の 8 表に絞り込み、以下のテーブルを図から除外しています。
 
-#### 外部キーを持つが図から除外したテーブル（3 表）
+#### 外部キーを持つが図から除外したテーブル（4 表）
 - `edh_card_strength`: `mtg_cards_v2.id` への外部キー（ON DELETE CASCADE）を持ちますが、`card_format_strength` と同構造の統率者戦特化集計テーブルであり、関係モデルが重複するため割愛しました。
-- `card_scope_deck_counts`: `mtg_cards_v2.id` への外部キー（ON DELETE CASCADE）を持ちますが、DATA_MODEL.md の 19 表一覧に含まれないスコープ別集計テーブルのため割愛しました。
+- `card_population_deck_counts`・`card_cooccurrence_v2`: 開発側では `mtg_cards_v2.id` と `cooccurrence_populations` への外部キーを持ちます（公開側の複製には外部キーを付けていません）が、共起の派生集計であり中核の参照構造から外れるため割愛しました。
 - `players`: `deck_list.player_id` からの外部キー参照先ですが、開発側環境のみに存在するテーブルであり、公開データベースには含まれないため割愛しました。
 
 #### 外部キーを持たないその他のテーブル（10 表）
 - `mtg_cards_v2_nonlegal`: 非合法カードの退避用テーブルであり、`mtg_cards_v2` と同構造かつ外部キー・外部参照を持たないため。
 - `mtg_rules`: 総合ルールの条文と用語集を保持するテーブルであり、他テーブルと結合を持たない独立データであるため。
-- `card_cooccurrence`: 構築デッキから算出したカード名ペアの共起テーブルであり、派生集計の構造が重複するため。
-- `edh_card_cooccurrence_v2`: `card_cooccurrence` と同趣旨の統率者戦向けカード ID ペア共起テーブルであり、派生集計の構造が重複するため。
+- `cooccurrence_populations`: 共起を数える母集団（フォーマット × 区間）の定義表で、18 行の設定データであるため。
+- `cooccurrence_population_stats`: 母集団ごとのデッキ数・区間・集計の日時を持つ表で、共起の集計の付帯情報であるため。
 - `mtgo_name_alias`: MTGO 固有のカード別名表示を正式名へ読み替える辞書テーブルであり、中核の参照構造から外れるため。
 - `limited_color_stats`: リミテッドの色勝率集計テーブルであり、カード単位ではなくアーキタイプ（色の組み合わせ）単位の集計であるため。
 - `limited_matchup_stats`: リミテッドの色相性集計テーブルであり、カード単位ではなく色同士のマッチアップ集計であるため。
@@ -86,8 +86,10 @@ MCP の `query_mtg_database` はこれらを読み取り専用の役割（`reado
 | `card_format_strength` | 約 1.0 万 | 60 枚構築の採用率（フォーマット別・そのカードを含むデッキ数） |
 | `edh_card_strength` | 約 2.1 万 | 統率者戦・Duel Commander の採用率 |
 | `format_deck_counts` | 10 | 採用率の分母（フォーマット別のデッキ総数） |
-| `card_cooccurrence` | 約 59 万 | 60 枚構築の共起（カード名の組・出所別） |
-| `edh_card_cooccurrence_v2` | 約 215 万 | 統率者戦の共起（card_id の組・出所別） |
+| `cooccurrence_populations` | 18 | 共起を数える母集団（フォーマット 10 種 × 区間「直近 90 日」「全期間」。Commander と Precon は全期間だけ）（2026-09-28） |
+| `cooccurrence_population_stats` | 18 | 母集団ごとの異なるリストの数・区間の日付・集計の日時・検収用の指紋 |
+| `card_population_deck_counts` | 約 9.3 万 | 母集団ごとの、そのカードをメインに入れたリスト数とサイドに置いたリスト数（共起の分母） |
+| `card_cooccurrence_v2` | 約 747 万 | 共起（母集団 × 関係 × カード ID の組・同じデッキに入ったリスト数） |
 | `mtgo_name_alias` | 158 | MTGO が別名で表示するカードの対応表（例: Superior Spider-Man を Kavaero, Mind-Bitten として表示） |
 | `limited_card_stats` | 10,316 | リミテッド（ドラフト）のカード別統計。17Lands Public Datasets（CC BY 4.0）をセット×カードで集計（2026-08-31・33 セット） |
 | `limited_color_stats` | 1,945 | リミテッドのセット×デッキの色の組み合わせ×タッチ有無の勝率（2026-09-02・32 セット。STX は元データに色の列が無く未収録） |
@@ -169,8 +171,10 @@ MCP の `query_mtg_database` はこれらを読み取り専用の役割（`reado
 | --- | --- | --- |
 | `card_format_strength` / `edh_card_strength` | `card_id` / `format_name` / `play_decks` | そのフォーマットでそのカードを含むデッキ数。分母は `format_deck_counts` |
 | `format_deck_counts` | `format_name` / `total_decks` | フォーマット別のデッキ総数 |
-| `card_cooccurrence` | `card_name_a` / `card_name_b` / `co_count` / `source` | 同じデッキに入った回数（名前の組・片方向格納・出所別） |
-| `edh_card_cooccurrence_v2` | `card_id_a` / `card_id_b` / `deck_count` / `source` | 同上（統率者戦・card_id の組） |
+| `cooccurrence_populations` | `population_id` / `format_name` / `window_code` / `sources` / `pair_min_decks` / `definition` | 母集団の定義。`window_code` は `recent_90d`（直近 90 日・大会日で数える）か `all`（全期間）。`definition` に数え方（同じリストの写しは 1 本・基本土地を除く・サイドの関係を持つか等） |
+| `cooccurrence_population_stats` | `population_id` / `deck_count` / `window_start` / `window_end` / `computed_at` / `content_digest` ほか | その母集団の異なるリストの数 N・区間・集計の日時 |
+| `card_population_deck_counts` | `population_id` / `card_id` / `main_deck_count` / `side_deck_count` | そのカードをメインに入れたリスト数 M と、サイドに置いたリスト数 S（サイドの関係を持たない母集団は NULL） |
+| `card_cooccurrence_v2` | `population_id` / `relation` / `card_id_a` / `card_id_b` / `cooccurrence_count` | 同じリストに入ったリスト数。`relation` が `m` はメイン同士（`card_id_a < card_id_b`）、`s` はメインの A とサイドの B（向きあり・A=B も保存） |
 | `mtgo_name_alias` | `mtgo_name` / `card_name` / `mtgo_id` / `set_code` / `note` | MTGO の表示名 → 正式名 |
 
 ### limited_card_stats（リミテッド統計・17Lands 集計）

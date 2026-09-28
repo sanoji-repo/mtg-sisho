@@ -48,7 +48,7 @@ PSQL -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHER
 # 公開サーバーは論理レプリカ（subscription sisho_sub）で追従する運用になった。restore は「初期化・作り直し」専用。
 #   subscription が生きたまま DB を差し替えると apply worker が旧 DB を掴んで DROP できず、VM 側のスロットも孤児になる → 先に公開サーバーで DROP SUBSCRIPTION sisho_sub。
 NSUB=$(PSQL -d "$DB" -c "SELECT count(*) FROM pg_subscription" 2>/dev/null || echo 0)
-[ "${NSUB:-0}" = "0" ] || die "$DB に subscription が $NSUB 本ある。先に 'DROP SUBSCRIPTION sisho_sub' してから（docs/ai/SISHO_BOX.md §4）"
+[ "${NSUB:-0}" = "0" ] || die "$DB に subscription が $NSUB 本ある。先に 'DROP SUBSCRIPTION sisho_sub' してから（docs/PUBLIC_SERVER.md）"
 PSQL -d postgres -c "DROP DATABASE IF EXISTS \"$NEW\"" || die "旧 $NEW を落とせない"
 PSQL -d postgres -c "CREATE DATABASE \"$NEW\" TEMPLATE template0 ENCODING 'UTF8'" || die "CREATE DATABASE 失敗"
 PSQL -d "$NEW" -c "CREATE EXTENSION IF NOT EXISTS pg_trgm" || die "pg_trgm が入らない"
@@ -85,6 +85,26 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly_ai;
 REVOKE EXECUTE ON FUNCTION pg_sleep(double precision) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION pg_sleep_for(interval) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION pg_sleep_until(timestamp with time zone) FROM PUBLIC;
+-- 客どうしの分離と読み取り専用（sh/sisho_repl/27_both_harden_readonly_ai.sql と同じ）:
+-- 同じロールの別接続を止める関数・任意の表を載せる pg_prewarm・一時表を外し、取引を既定で読み取り専用に
+REVOKE EXECUTE ON FUNCTION pg_cancel_backend(integer) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION pg_terminate_backend(integer, bigint) FROM PUBLIC;
+DO \$\$ BEGIN
+  IF to_regprocedure('pg_prewarm(regclass, text, text, bigint, bigint)') IS NOT NULL THEN
+    EXECUTE 'REVOKE EXECUTE ON FUNCTION pg_prewarm(regclass, text, text, bigint, bigint) FROM PUBLIC';
+  END IF;
+END \$\$;
+REVOKE TEMP ON DATABASE "$NEW" FROM PUBLIC;
+ALTER ROLE readonly_ai SET default_transaction_read_only = on;
+-- 他の客の SQL を読む口も閉じ、見張り（vitals.sh・OS ユーザー sanoji）は pg_monitor のロールで読む（28_box_hide_activity.sql と同じ）
+DO \$\$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'sanoji') THEN CREATE ROLE sanoji LOGIN; END IF;
+END \$\$;
+GRANT pg_monitor TO sanoji;
+REVOKE SELECT ON pg_catalog.pg_stat_activity FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION pg_catalog.pg_stat_get_activity(integer), pg_catalog.pg_stat_get_backend_activity(integer) FROM PUBLIC;
+GRANT SELECT ON pg_catalog.pg_stat_activity TO pg_monitor;
+GRANT EXECUTE ON FUNCTION pg_catalog.pg_stat_get_activity(integer), pg_catalog.pg_stat_get_backend_activity(integer) TO pg_monitor;
 ANALYZE;
 SQL
 

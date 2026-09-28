@@ -4,7 +4,8 @@
 LOOKUP_MTG_RULE_DESCRIPTION・GET_CARD_RULINGS_DESCRIPTION と名前を分ける。
 """
 from sisho.db import LANE_LIGHT, _db
-from sisho.names import resolve_face_name
+from sisho.names import (_like_exact, ambiguous_hint, candidate_label, card_candidates, not_found_hint,
+                         resolve_card, resolve_card_ex)
 from sisho.toollog import _log_tool
 
 
@@ -93,23 +94,46 @@ def get_card_rulings(card_name: str, limit: int = 20) -> str:
     if not card_name.strip():
         return "カード名が空です。英語の正式カード名（例: Lightning Bolt）を渡してください。"
     limit = max(1, min(int(limit), 40))
-    rows = _db(
-        "SELECT card_name, published_at, comment FROM card_rulings"
-        " WHERE card_name = %s ORDER BY published_at, id LIMIT %s",
-        (card_name.strip(), limit), lane=LANE_LIGHT)
-    if not rows:                                   # 面の名前（表・裏）→ 正式名に解決して引く
-        # 名前の解決は sisho/names.py に 1 つ（以前はここに同じ SQL を直書きしていた）。
-        # 候補は表面一致が先＝裏面名が別の本物のカード名と同じ 21 枚では本物のカードが勝つ（DESIGN 12）。
-        full = resolve_face_name(card_name)
-        if full:
-            rows = _db("SELECT card_name, published_at, comment FROM card_rulings WHERE card_name = %s ORDER BY published_at, id LIMIT %s",
-                       (full[0], limit), lane=LANE_LIGHT)
+    n = card_name.strip()
+    sql = "SELECT card_name, published_at, comment FROM card_rulings WHERE card_name = %s ORDER BY published_at, id LIMIT %s"
+    note = ""
+    # 引く順:
+    #   1 裁定の表を入力そのままで（完全一致）。裁定の表の名前のうち 732 種（次元・アンセット等）はカード表に無い＝
+    #     カード表を先に見ると「見つかりません」や別カードへ滑る（Rules Lawyer・The Maelstrom・Raven's Run）。
+    #   2 カード表で 1 枚に決め（names.resolve_card_ex: 完全一致 → 大文字小文字だけ違う全体一致・面の名前が複数の
+    #     カードで重なれば決めない）、そのカードの正式名で引く。0 件なら「収録済み・裁定がまだ無い」＝別カードへ降りない
+    #     （以前は「Fog」が《目つぶしの霧/Blinding Fog》の裁定を黙って返していた）。
+    #   3 裁定の表を大文字小文字だけ無視した全体一致で（カード表に無い名前の小文字入力）。
+    #   4 カード表の部分一致。候補がちょうど 1 枚のときだけ、その 1 枚だと明示して引く。2 枚以上は選ばせる。
+    #   LIKE の記号（_ %）は字として扱う（「R_gavan」で Ragavan の裁定を返していた）。
+    rows = _db(sql, (n, limit), lane=LANE_LIGHT)
     if not rows:
-        rows = _db(
-            "SELECT card_name, published_at, comment FROM card_rulings"
-            " WHERE card_name ILIKE %s ORDER BY card_name, published_at, id LIMIT %s",
-            (f"%{card_name.strip()}%", limit))
-    if not rows:
-        return f"裁定なし: {card_name}（英語の正式カード名で検索してください）"
+        card, amb = resolve_card_ex(n)
+        if amb:
+            return f"裁定なし: {n}（" + ambiguous_hint(amb) + "）"
+        if card:
+            rows = _db(sql, (card["card_name"], limit), lane=LANE_LIGHT)
+            if card["case_fixed"]:
+                note = f"「{n}」は {candidate_label(card['card_name'], card['display'], card['digital'])} として引いた:\n\n"
+            if not rows:
+                how = (f"「{n}」はこのカードとして解釈した" if card["case_fixed"] else "カードは収録済み・名前は正しい")
+                disp = card["display"] + ("（デジタル専用）" if card["digital"] else "")
+                return (f"裁定なし: {disp}（{how}。Wizards の公式裁定がこのカードにはまだ無い。"
+                        "挙動は lookup_mtg_rule で総合ルールの条文から確かめる）")
+    if not rows and not note:
+        rows = _db("SELECT card_name, published_at, comment FROM card_rulings WHERE card_name ILIKE %s"
+                   " ORDER BY published_at, id LIMIT %s", (_like_exact(n), limit))   # 大文字小文字の無視＝重いレーン
+        if rows and rows[0][0] != n:
+            note = f"「{n}」は {rows[0][0]} として引いた:\n\n"
+    if not rows and not note:
+        cands = card_candidates(n, with_rulings=True)   # 裁定の表にだけある名前も候補
+        if len(cands) != 1:
+            return f"裁定なし: {n}（" + not_found_hint(n, "英語の正式カード名で検索してください", cands) + "）"
+        label = candidate_label(*cands[0])
+        rows = _db(sql, (cands[0][0], limit), lane=LANE_LIGHT)   # 候補の正式名＝裁定の表の名前（カード表に無い名前もそのまま）
+        if not rows:
+            return (f"裁定なし: {label}（「{n}」を名前に含むカードはこの 1 枚。Wizards の公式裁定がこのカードにはまだ無い。"
+                    "挙動は lookup_mtg_rule で総合ルールの条文から確かめる）")
+        note = f"「{n}」は {label} として引いた:\n\n"
     out = [f"{name}（{date}）: {comment}" for name, date, comment in rows]
-    return "\n\n".join(out)
+    return note + "\n\n".join(out)

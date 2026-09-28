@@ -10,6 +10,8 @@
 import os
 import sys
 
+import threading as _threading_for_tests
+
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -18,6 +20,7 @@ import sisho.tools.verify as verify  # noqa: E402  monkeypatch はこちら側
 from conftest import requires_db  # noqa: E402
 
 pytestmark = requires_db
+_REAL_THREAD = _threading_for_tests.Thread
 
 v = m.verify_answer.fn if hasattr(m.verify_answer, "fn") else m.verify_answer
 
@@ -195,20 +198,291 @@ def test_verify_no_cards_is_passthrough():
     assert "未確認の名前: なし" in v(s)
 
 
-def test_verify_name_cache_is_reused(monkeypatch):
-    """名前表は 1 時間キャッシュ＝答案ごとに 3 万行を引き直さない。"""
-    verify._names()                     # 温めておく
+def _spy_db(monkeypatch):
     calls = []
     real = verify._db
 
-    def spy(sql, params):
+    def spy(sql, params, **kw):
         calls.append(sql)
-        return real(sql, params)
+        return real(sql, params, **kw)
 
     monkeypatch.setattr(verify, "_db", spy)
+    return calls
+
+
+def test_verify_name_cache_is_reused(monkeypatch):
+    """名前の辞書は常時キャッシュ＝答案ごとに 3 万行を引き直さない。"""
+    verify._names()                     # 温めておく
+    calls = _spy_db(monkeypatch)
     v("《稲妻》は強い。")
     assert not any("FROM mtg_cards_v2" in c and "similarity" not in c for c in calls), (
         f"名前表の再取得が走っている: {calls}")
+
+
+def test_verify_without_unknown_names_does_not_touch_db(monkeypatch):
+    """未確認の名前が無ければ DB に行かない（温まった後）＝混雑時に DB のスロットを使わない。"""
+    verify._names()
+    calls = _spy_db(monkeypatch)
+    v("《稲妻/Lightning Bolt》は 1 マナ。稲妻をもう一枚。今日は晴れ。")
+    assert calls == [], f"DB に行った: {calls}"
+
+
+def _count_builds(monkeypatch):
+    builds = []
+    real = verify._build_names
+
+    def counting():
+        builds.append(1)
+        return real()
+
+    monkeypatch.setattr(verify, "_build_names", counting)
+    return builds
+
+
+def test_names_are_built_once_under_concurrency(monkeypatch):
+    """辞書が空のときに同時に来ても、作るのは一人（負荷試験で 6 本同時に作り直して 8〜11 秒）。"""
+    import threading
+    verify._names()
+    builds = _count_builds(monkeypatch)
+    monkeypatch.setattr(verify, "_NAMES", None)
+    ts = [threading.Thread(target=v, args=("《稲妻》と稲妻。",)) for _ in range(6)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    assert len(builds) == 1, f"辞書を {len(builds)} 回作った"
+
+
+def test_names_are_rebuilt_only_when_cards_change(monkeypatch):
+    """期限では捨てない。mtg_cards_v2 の署名が変わったときだけ作り直す。"""
+    verify._names()
+    builds = _count_builds(monkeypatch)
+    verify._refresh_if_changed()
+    assert builds == [], "カードが変わっていないのに作り直した"
+    monkeypatch.setattr(verify, "_NAMES_SIG", ("古い署名",))
+    verify._refresh_if_changed()
+    assert builds == [1], "カードが変わったのに作り直さなかった"
+
+
+def test_rebuild_swaps_in_a_new_dict_and_leaves_the_old_one_intact(monkeypatch):
+    """作り直しは別の辞書に作ってから差し替える＝作り直しの最中に読んでいる呼び出しの辞書は変わらない。"""
+    old = verify._names()
+    before = len(old["ja"])
+    monkeypatch.setattr(verify, "_NAMES_SIG", ("古い署名",))
+    verify._refresh_if_changed()
+    assert verify._names() is not old, "差し替わっていない"
+    assert len(old["ja"]) == before, "古い辞書の中身を書き換えた"
+
+
+def _isolate_cache(monkeypatch, retry=0.3):
+    """辞書の状態を試験ごとに戻す（monkeypatch が元に戻す）。"""
+    for k in ("_NAMES", "_NAMES_SIG", "_NAMES_NEXT_CHECK", "_NAMES_FAILED", "_CHECKING"):
+        monkeypatch.setattr(verify, k, getattr(verify, k))
+    monkeypatch.setattr(verify, "_NAMES_RETRY_SEC", retry)
+
+
+def test_first_build_failure_is_shared_by_waiting_callers(monkeypatch):
+    """空の辞書が作れないとき、待っている客は一人目の失敗を共有する（客ごとに作り直して待ちを直列に積まない）。
+    再試行の間隔が過ぎたら次の客が作り直せる（DB の復旧後）。"""
+    import threading
+    import time
+    _isolate_cache(monkeypatch)
+    real = verify._build_names
+    builds, outcomes = [], []
+    down = threading.Event()
+    down.set()
+
+    def flaky():
+        builds.append(1)
+        if down.is_set():
+            time.sleep(0.12)
+            raise RuntimeError("connection refused")
+        return real()
+
+    monkeypatch.setattr(verify, "_build_names", flaky)
+    monkeypatch.setattr(verify, "_NAMES", None)
+    monkeypatch.setattr(verify, "_NAMES_FAILED", None)
+    gate = threading.Barrier(3)
+
+    def call():
+        gate.wait()
+        t0 = time.perf_counter()
+        try:
+            verify._names()
+            outcomes.append(("ok", time.perf_counter() - t0))
+        except verify.NamesUnavailable as e:
+            outcomes.append((str(e), time.perf_counter() - t0))
+
+    ts = [threading.Thread(target=call) for _ in range(3)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    assert len(builds) == 1, f"失敗した作成を {len(builds)} 回試した"
+    assert all("connection refused" in o for o, _ in outcomes), outcomes
+    assert max(w for _, w in outcomes) < 0.3, f"待ちが積み上がった: {outcomes}"
+    # 間隔の内側は作り直さない・過ぎたら作れる
+    with pytest.raises(verify.NamesUnavailable):
+        verify._names()
+    assert len(builds) == 1
+    down.clear()
+    time.sleep(0.35)
+    assert verify._names()["ja"], "復旧後に作れなかった"
+    assert len(builds) == 2 and verify._NAMES_FAILED is None
+
+
+def test_verify_answer_says_temporarily_unavailable_without_raw_cause(monkeypatch):
+    """辞書が作れないとき verify_answer は『一時的に使えません』と次の一手だけを返す＝『入力が不正』でも原因の生の文でもない
+    （投げられた例外は隠す形）。道具ログの outcome は db_error。"""
+    from sisho import errors
+    _isolate_cache(monkeypatch)
+    monkeypatch.setattr(verify, "_NAMES", None)
+    monkeypatch.setattr(verify, "_NAMES_FAILED", None)
+
+    def boom():
+        raise RuntimeError('connection to server at "127.0.0.1", port 1 failed')
+
+    monkeypatch.setattr(verify, "_build_names", boom)
+    out = v("《稲妻》")
+    assert out.startswith("一時的に使えません:") and "入力の問題ではありません" in out
+    assert "127.0.0.1" not in out and "RuntimeError" not in out
+    assert errors.outcome_of(out) == errors.DB_ERROR
+
+
+def test_failed_check_is_retried_soon_not_in_ten_minutes(monkeypatch):
+    """見回りが失敗したら、次の確認は 10 分先でなく再試行の間隔の先。成功なら 10 分先。"""
+    import time
+    verify._names()
+    _isolate_cache(monkeypatch, retry=5)
+    real_db = verify._db
+
+    def failing(sql, params, **kw):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(verify, "_db", failing)
+    verify._refresh_if_changed()
+    left = verify._NAMES_NEXT_CHECK - time.time()
+    assert 3 < left <= 5, f"失敗後の次の確認まで {left:.1f} 秒"
+    monkeypatch.setattr(verify, "_db", real_db)
+    verify._refresh_if_changed()
+    left = verify._NAMES_NEXT_CHECK - time.time()
+    assert left > verify._NAMES_CHECK_SEC - 5, f"成功後の次の確認まで {left:.1f} 秒"
+
+
+def test_only_one_check_thread_starts_under_concurrency(monkeypatch):
+    """時刻が来た瞬間に同時に来ても、見回りは一本だけ起こす。"""
+    import threading
+    verify._names()
+    _isolate_cache(monkeypatch)
+    started = []
+
+    class FakeThread:
+        def __init__(self, target, daemon):
+            self.target = target
+
+        def start(self):
+            started.append(1)
+
+    monkeypatch.setattr(verify.threading, "Thread", FakeThread)
+    monkeypatch.setattr(verify, "_NAMES_NEXT_CHECK", 0.0)
+    monkeypatch.setattr(verify, "_CHECKING", False)
+    gate = threading.Barrier(8)
+
+    def call():
+        gate.wait()
+        verify._maybe_start_check()
+
+    # 本物のスレッドは差し替える前の型で作る（verify.threading は threading そのもの）
+    workers = [_REAL_THREAD(target=call) for _ in range(8)]
+    for w in workers:
+        w.start()
+    for w in workers:
+        w.join()
+    assert len(started) == 1, f"見回りを {len(started)} 本起こした"
+
+
+def test_thread_start_failure_releases_the_mark(monkeypatch):
+    """見回りのスレッドが起こせなかったら印を戻し、再試行の間隔の後にまた起こせる。"""
+    verify._names()
+    _isolate_cache(monkeypatch)
+
+    class Broken:
+        def __init__(self, target, daemon):
+            pass
+
+        def start(self):
+            raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(verify.threading, "Thread", Broken)
+    monkeypatch.setattr(verify, "_NAMES_NEXT_CHECK", 0.0)
+    verify._maybe_start_check()
+    assert verify._CHECKING is False
+    assert verify._NAMES_NEXT_CHECK > 0.0
+
+
+def test_callers_get_the_old_dict_while_rebuilding(monkeypatch):
+    """作り直しの最中の客は待たずに古い辞書で答える（作り終えたら新しい辞書へ）。"""
+    import time
+    old = verify._names()
+    _isolate_cache(monkeypatch)
+    real = verify._build_names
+    release = __import__("threading").Event()
+
+    def slow():
+        release.wait(5)
+        return real()
+
+    monkeypatch.setattr(verify, "_build_names", slow)
+    monkeypatch.setattr(verify, "_NAMES_SIG", ("古い署名",))
+    t = _REAL_THREAD(target=verify._refresh_if_changed)
+    t.start()
+    time.sleep(0.05)
+    t0 = time.perf_counter()
+    assert verify._names() is old
+    assert time.perf_counter() - t0 < 0.05, "作り直しを待った"
+    release.set()
+    t.join()
+    assert verify._names() is not old
+
+
+def test_warm_retries_until_the_dict_is_built(monkeypatch):
+    """起動時の作成が失敗しても warm は間隔を置いて試し直す（復旧後の作成を最初の客に任せない）。"""
+    _isolate_cache(monkeypatch, retry=0.01)
+    real = verify._build_names
+    tries = []
+
+    def flaky():
+        tries.append(1)
+        if len(tries) < 3:
+            raise RuntimeError("db down")
+        return real()
+
+    monkeypatch.setattr(verify, "_build_names", flaky)
+    monkeypatch.setattr(verify, "_NAMES", None)
+    monkeypatch.setattr(verify, "_NAMES_FAILED", None)
+    verify.warm()
+    assert verify._NAMES is not None and len(tries) == 3
+
+
+def test_signature_tells_null_positions_apart():
+    """署名は NULL の位置と列の境目を区別する（旧 concat_ws は NULL を飛ばして同じ文字列になった）。"""
+    from sisho.db import _db
+    assert "concat_ws" not in verify._SIG_SQL
+    same = _db("SELECT hashtextextended(ROW('Card', NULL::text, 'Front')::text, 0)"
+               " = hashtextextended(ROW('Card', 'Front', NULL::text)::text, 0)", ())[0][0]
+    assert same is False
+    sig = _db(verify._SIG_SQL, ())[0]
+    assert sig[0] > 0 and sig[1] != 0
+
+
+def test_same_japanese_name_prefers_paper_card():
+    """同じ日本語名を紙と Arena 専用のカードが持つとき、紙のカードに決める（入れ順で揺れない）。"""
+    assert _fixed("《緊急脱出》を使う。") == "《緊急脱出/Eject》を使う。"
+
+
+def test_paper_card_is_not_marked_digital_by_a_digital_back_face():
+    """Arena 専用カードの裏面名が紙のカード名と同じでも、紙のカードをデジタル専用に数えない。"""
+    assert "Boltwave" not in verify._names()["digital"]
 
 
 if __name__ == "__main__":

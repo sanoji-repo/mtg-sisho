@@ -26,7 +26,7 @@ AI アシスタント（Claude Code・claude.ai のコネクタ等）にこの�
 | `search_mtg_cards` | 名前（日本語/英語・部分一致）または本文のキーワードでカードを検索。並び順は名前一致優先、次に EDHREC 人気順。フォーマット指定で使用可能カードに絞り込み可能 |
 | `lookup_mtg_rule` | 総合ルール（Comprehensive Rules）を条番号または英語キーワードで引く。条文 3,317＋用語集 739 |
 | `get_card_rulings` | カードの公式裁定（Wizards of the Coast 発行）をカード名で引く |
-| `find_partner_cards` | そのカードと同じデッキに入りやすいカード（共起）を実デッキ集計から返す。統率者戦・60 枚構築・Pauper・Vintage・構築済み製品を切り替え可能 |
+| `find_partner_cards` | そのカードと同じデッキに入りやすいカード（共起）を実デッキ集計から返す。フォーマット（Standard・Pioneer・Modern・Legacy・Premodern・Pauper・Vintage・Duel Commander・Commander・構築済み製品）ごとに数え、直近 90 日を優先して材料が少ないときだけ全期間へ広げる。60 枚構築ではサイドボードに何を置くかも引ける |
 | `query_mtg_database` | 読み取り専用の SQL 実行。専用ツールでカバーできない集計クエリを直接発行する（SELECT/WITH のみ・1 文・10 秒制限・最大 50 行） |
 | `verify_answer` | 生成した回答文の全文を渡すと、カード名を DB と照合して「DB に存在しない名称」を検出し、正式な完成形に置換した修正版を返す |
 | `mtg_probability` | デッキの確率を超幾何分布で厳密に計算（初手・t ターン目までの引き・土地の連続配置・2 枚コンボ・色マナ源）。計算は DB の SQL 関数で、返り値に式と前提を添える。言語モデルに算術をさせないための道具 |

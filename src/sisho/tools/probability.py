@@ -3,8 +3,11 @@
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
 """
 import json
+from typing import Annotated
 
-from sisho import errors, manabase
+from pydantic import Field
+
+from sisho import errors, manabase, probvary
 from sisho.db import LANE_LIGHT, _db
 from sisho.toollog import _log_tool
 
@@ -29,20 +32,32 @@ DESCRIPTION = (
     "castable=turn ターン目までに土地だけで呪文を唱えられる確率（土地の枚数と色を同時に・2 色土地の割り当てまで厳密。"
     "色ごとに by_turn を出して掛け合わせるのは誤り）。lands=[{name, count, produces?}]（土地の名前で渡せば出る色は DB が判定・"
     "フェッチランド等は produces で指定）と spell（呪文の名前）か mana_cost（例 {1}{G}{G}）。返り値の by_turn で 1〜turn ターン目の推移。"
-    "hand=見たカードが呼ぶ側の決めた条件に入る確率（キープ率など）。groups=[{label, count, min, max}]（束は重ならないこと）・turn=0 で初手だけ。")
+    "hand=見たカードが呼ぶ側の決めた条件に入る確率（キープ率など）。groups=[{label, count, min, max}]（束は重ならないこと）・turn=0 で初手だけ。"
+    "数字を変えて比べるときは 1 回で呼ぶ: vary={\"copies\":[15,16,17,18]}（3 つまで同時に振れる・at_least・by_turn・land_drops・combo_by_turn）。"
+    "返り値の table（前提つきの表）をそのまま答えに貼る。")
 
 
 def mtg_probability(kind: str, deck_size: int = 60, copies: int = 4, copies_b: int = 0, draws: int = 7,
                     turn: int = 1, on_play: bool = True, at_least: int = 1, mulligans: int = 0,
                     lands: list[dict] | None = None, spell: str | None = None, mana_cost: str | None = None,
-                    groups: list[dict] | None = None) -> str:
-    _log_tool("mtg_probability", {"kind": kind, "deck_size": deck_size, "copies": copies, "copies_b": copies_b,
+                    groups: list[dict] | None = None,
+                    vary: Annotated[dict | None, Field(description=probvary.VARY_DESCRIPTION)] = None) -> str:
+    # vary の中身の型は宣言しない（dict[str, list[int]] にすると入口が "17"・true・17.0 を黙って整数に直す）。
+    # 検査は probvary.validate が本体で行う。ログは vary を渡したときだけ先頭に置く（省いた呼び出しに null を書かない）。
+    _log_tool("mtg_probability", ({"vary": vary} if vary is not None else {}) | {"kind": kind, "deck_size": deck_size, "copies": copies, "copies_b": copies_b,
                                   "draws": draws, "turn": turn, "on_play": on_play, "at_least": at_least, "mulligans": mulligans,
                                   **({"lands": lands, "spell": spell, "mana_cost": mana_cost} if kind == "castable" else {}),
                                   **({"groups": groups} if kind == "hand" else {})})
     if kind not in _PROB_KINDS:
         return errors.err_json(errors.UNKNOWN_OPTION,
                                f"kind は {', '.join(_PROB_KINDS)} のどれか（受け取った値: {kind!r}）")
+    if vary is not None:
+        names, lists, err = probvary.validate(kind, vary)
+        if err:
+            return err
+        return probvary.compute(kind, names, lists, {"deck_size": deck_size, "copies": copies, "copies_b": copies_b,
+                                                  "draws": draws, "turn": turn, "on_play": on_play,
+                                                  "at_least": at_least, "mulligans": mulligans})
     # マナ基盤の 2 種（計算は sql/prob_functions_mana.sql）
     if kind in ("castable", "hand"):
         bad = []

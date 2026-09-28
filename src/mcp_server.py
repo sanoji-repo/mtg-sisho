@@ -12,12 +12,12 @@
 - 全道具がローカル PostgreSQL 直結。API サーバ（:8000）依存は撤去済み。
 - search_mtg_cards は素の一致検索（名前優先→本文 AND・EDHREC 人気順）。
   LLM もルーターも呼ばない＝決定的・応答は 1 秒未満。
-- 受付と接続用の鍵: 接続 URL は発行ページ（/issue）のボタン一つで鍵（token_urlsafe）を
+- 門と札: 接続 URL は発行ページ（/issue）のボタン一つで札（token_urlsafe）を
   発行し、/mcp/<鍵> で待ち受ける。GateASGI が鍵ごとのレート制限（60/分・find_combos 10/分）
   を課し、未知の鍵は 404（not found）で存在を漏らさない。旧パスは legacy の鍵として当面生かす。
 - 依存（mcp SDK 等）は requirements.txt。
 
-起動: python src/mcp_server.py http <port>（stdio で使うときは引数なし）
+起動: python <リポジトリ>/src/mcp_server.py（依存は requirements.txt）
 """
 import os
 
@@ -139,7 +139,7 @@ draft_pack_stats = server.tool(
     name="draft_pack_stats",
     description=_tool_draft.DESCRIPTION)(observed(_tool_draft.draft_pack_stats))
 
-# 自由 SQL の口 = sisho/tools/sql.py
+# 自由 SQL の口（発案）= sisho/tools/sql.py
 query_mtg_database = server.tool(
     name="query_mtg_database",
     description=_tool_sql.QUERY_MTG_DATABASE_DESCRIPTION)(observed(_tool_sql.query_mtg_database))
@@ -183,11 +183,10 @@ _ident = _tool_sql._ident
 _limited_sets_note = _tool_sql._limited_sets_note
 _PROB_KINDS = _tool_probability._PROB_KINDS
 _names = _tool_verify._names
-_NAME_CACHE = _tool_verify._NAME_CACHE
 _JA_STOP = _tool_verify._JA_STOP
 
 
-# レート制限は sisho/ratelimit.py へ切り出した。
+# レート制限（配布前の門）は sisho/ratelimit.py へ切り出した。
 # 旧名 _RateLimiter／_RateLimitASGI で届くように冒頭で別名輸入している（切り出し先の公開名は
 # RateLimiter／RateLimitASGI）。設計の経緯と実測値はそちらの注記に丸ごと移してある。
 
@@ -215,6 +214,9 @@ if __name__ == "__main__":
         # Cloudflare 即席トンネルが持つ。DNS rebinding 防御はトンネルの Host 名
         # （毎回ランダム）が allowed_hosts に書けないため、この一時試験に限り無効化。
         # 恒久のリモート版では allowed_hosts を固定ドメインで縫うこと。
+        # Origin の検査は門（sisho/gate.py の許可リスト・MCP_PUBLIC_BASE と MCP_ALLOWED_ORIGINS）が
+        # 全部の道（札・旧パス・発行ページ）の手前でする。SDK の側は切ったまま（Host は 127.0.0.1 の見張りの
+        # 呼び出しと Funnel の公開名の両方が来るので、SDK の allowed_hosts に一本で書けない）。
         from mcp.server.transport_security import TransportSecuritySettings
         port = int(sys.argv[2]) if len(sys.argv) > 2 else 8765
         # 待ち受けパス: Funnel のホスト名は CT ログで公開される
@@ -241,11 +243,14 @@ if __name__ == "__main__":
         # 道具の contract（必須引数の宣言）には触れないので、外から見える schema は不変。
         from sisho.backstage import BackstageASGI
         app = BackstageASGI(app)
-        # 受付と接続用の鍵の外皮（sisho/gate.py を参照）。
+        # 門と札の外皮（sisho/gate.py を参照）。
         # 鍵ごとのレート制限・発行ページ（/issue）・旧パス互換を GateASGI が束ねる。
         from sisho.gate import GateASGI
         app = GateASGI.from_env(app, inner_path=http_path)
         kw = _uvicorn_kwargs(port, server.settings.log_level.lower())
+        # 答案検査の名前の辞書を起動の裏で作っておく（最初の客に作らせない・失敗しても最初の呼び出しで作る）
+        import threading
+        threading.Thread(target=_tool_verify.warm, daemon=True).start()
         uvicorn.run(app, **kw)
     else:
         server.run("stdio")

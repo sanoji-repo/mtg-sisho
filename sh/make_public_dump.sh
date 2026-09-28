@@ -20,11 +20,11 @@ PY=/mnt/new_hdd/my_rag_env/bin/python
 STAMP=$(date +%Y%m%d)
 OUT="$DEST/sisho_public_${STAMP}.dump"
 # 公開サーバーに要る表（mcp_server.py が読む表＋describe で見せてよい表）。増やすときはここに足す
-# （publication の表と揃える＝sh/sisho_repl/01 と同じ 19 表）。
+# （publication の表と揃える＝sh/sisho_repl/01 と同じ 21 表・共起の 4 表・limited_card_stats・limited_* 5 表・mtg_sets を後から追加）。
 TABLES=(mtg_cards_v2 mtg_cards_v2_nonlegal mtg_rules card_rulings deck_list deck_cards
         card_format_strength edh_card_strength format_deck_counts
-        card_scope_deck_counts scope_deck_counts
-        card_cooccurrence edh_card_cooccurrence_v2 mtgo_name_alias
+        mtgo_name_alias
+        cooccurrence_populations cooccurrence_population_stats card_population_deck_counts card_cooccurrence_v2
         limited_card_stats
         limited_color_stats limited_matchup_stats limited_format_stats limited_card_rank_stats limited_card_pick_stats
         mtg_sets)

@@ -22,8 +22,9 @@ from conftest import requires_db  # noqa: E402
 
 def test_name_resolution_is_shared():
     """partners と rules は同じ 1 つの解決関数を見ている（DB 不要の構造の網）。"""
-    assert partners.resolve_face_name is names.resolve_face_name
-    assert rules.resolve_face_name is names.resolve_face_name
+    # 両方とも「入力を 1 枚のカードに決める」resolve_card を使う（面の候補を全部渡す形をやめた）
+    assert partners.resolve_card is names.resolve_card
+    assert rules.resolve_card is names.resolve_card
 
 
 @requires_db

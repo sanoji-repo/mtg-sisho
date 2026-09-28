@@ -99,3 +99,87 @@ def test_欠けと型が混ざったら片方だけを言わない():
     assert "足りないか、形が説明と違います" in t
     for leak in LEAKS:
         assert leak not in new.decode()
+
+
+def test_道具の本体の例外は原因を隠して再試行を案内する():
+    """SDK は本体の例外も同じ印で包む。DB 断を『入力が不正』と見せず、原因の生の文（DB の宛先など）も見せない
+    （投げられた例外は隠す形）。"""
+    raw = ('Error executing tool find_combos: connection to server at "127.0.0.1", port 5432 failed: Connection refused')
+    body = _sse(_payload(raw))
+    new, note = B._rewrite_body(body)
+    assert note == "find_combos|runtime"
+    text = new.decode()
+    assert "サーバー側の失敗: find_combos の実行中に" in text and "入力の問題ではありません" in text
+    for leak in ("127.0.0.1", "5432", "connection to server", "Error executing tool", "入力が不正"):
+        assert leak not in text, f"{leak} が客に見える"
+
+
+def test_別の道具名の検証エラーは引数検証とみなさない():
+    """道具の中で別のモデルの検証が失敗した文（<道具名>Arguments でない）は本体の例外＝入力の不正と言わない。"""
+    raw = ("Error executing tool search_mtg_cards: 1 validation error for CardRow\n"
+           "name\n  Field required [type=missing, input_value={}, input_type=dict]")
+    msg, tool, kind = B._rewrite_text(raw)
+    assert kind == "runtime" and tool == "search_mtg_cards"
+    assert "CardRow" not in msg and "入力が不正" not in msg
+
+
+# ── ASGI の外皮として: 応答の長さの宣言と本文を一致させる ──
+import asyncio
+
+
+def _run_asgi(start_headers, bodies, monkeypatch):
+    """内側のアプリが start と body（複数に分けて）を送る。外皮を通って出たメッセージを返す。"""
+    monkeypatch.setattr(B, "_log_tool", lambda *a, **k: None)
+    monkeypatch.setattr(B, "_log_tool_end", lambda *a, **k: None)
+
+    async def inner(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": start_headers})
+        for i, b in enumerate(bodies):
+            await send({"type": "http.response.body", "body": b, "more_body": i < len(bodies) - 1})
+
+    out = []
+
+    async def send(m):
+        out.append(m)
+
+    asyncio.run(B.BackstageASGI(inner)({"type": "http"}, None, send))
+    return out
+
+
+def _declared(msgs):
+    return int(dict(msgs[0]["headers"])[b"content-length"])
+
+
+def test_長さを宣言した応答は書き換え後の長さで宣言し直す(monkeypatch):
+    """MCP の 2026年7月28日版の道は JSON 一発で Content-Length を付ける。書き換えで本文の長さが変わっても宣言と一致する。"""
+    body = json.dumps(_payload(RAW), ensure_ascii=False).encode()
+    msgs = _run_asgi([(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())],
+                     [body], monkeypatch)
+    sent = b"".join(m.get("body", b"") for m in msgs if m["type"] == "http.response.body")
+    assert "pydantic" not in sent.decode() and len(sent) != len(body)
+    assert _declared(msgs) == len(sent)
+    assert [k for k, _ in msgs[0]["headers"]].count(b"content-length") == 1
+
+
+def test_分けて届いた本文もまとめて書き換える(monkeypatch):
+    body = json.dumps(_payload(RAW), ensure_ascii=False).encode()
+    half = len(body) // 2
+    msgs = _run_asgi([(b"content-length", str(len(body)).encode())], [body[:half], body[half:]], monkeypatch)
+    bodies = [m for m in msgs if m["type"] == "http.response.body"]
+    assert len(bodies) == 1 and not bodies[0]["more_body"]
+    assert "pydantic" not in bodies[0]["body"].decode() and _declared(msgs) == len(bodies[0]["body"])
+
+
+def test_印の無い長さ付き応答は一バイトも変えない(monkeypatch):
+    body = json.dumps({"result": {"content": [{"text": "ok", "type": "text"}]}}).encode()
+    msgs = _run_asgi([(b"content-length", str(len(body)).encode())], [body], monkeypatch)
+    assert msgs[1]["body"] == body and _declared(msgs) == len(body)
+
+
+def test_長さを宣言しない_sse_は逐次に通す(monkeypatch):
+    """SSE（chunked）は預からない＝start がすぐ出て、本文は届いた順に書き換えて通す。"""
+    first = b": ping\n\n"
+    msgs = _run_asgi([(b"content-type", b"text/event-stream")], [first, _sse(_payload(RAW))], monkeypatch)
+    assert [m["type"] for m in msgs] == ["http.response.start", "http.response.body", "http.response.body"]
+    assert msgs[1]["body"] == first and msgs[1]["more_body"] is True
+    assert "pydantic" not in msgs[2]["body"].decode()

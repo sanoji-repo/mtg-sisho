@@ -37,9 +37,10 @@ CREATE TRIGGER sisho_scrub_public BEFORE INSERT OR UPDATE ON public.deck_list
   FOR EACH ROW EXECUTE FUNCTION public.sisho_scrub_public();
 ALTER TABLE public.deck_list ENABLE ALWAYS TRIGGER sisho_scrub_public;
 
--- 2) 空にしてから初回コピー（dump の中身は捨て、VM の今と一致させる）。FK 4 本があるので 12 表を一文で。
+-- 2) 空にしてから初回コピー（dump の中身は捨て、開発側の今と一致させる）。FK 4 本があるので 14 表を一文で。
 TRUNCATE public.mtg_cards_v2, public.mtg_cards_v2_nonlegal, public.mtg_rules, public.card_rulings,
-  public.deck_list, public.deck_cards, public.card_cooccurrence, public.edh_card_cooccurrence_v2,
+  public.deck_list, public.deck_cards,
+  public.cooccurrence_populations, public.cooccurrence_population_stats, public.card_population_deck_counts, public.card_cooccurrence_v2,
   public.edh_card_strength, public.card_format_strength, public.mtgo_name_alias, public.format_deck_counts;
 
 -- 3) subscription（VM 側にスロット sisho_sub が作られる。やめるときは公開サーバーで DROP SUBSCRIPTION sisho_sub＝VM のスロットも消える）

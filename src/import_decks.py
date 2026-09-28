@@ -12,7 +12,7 @@ source カラムで将来の大会データと区別できる:
 使い方:
   python import_decks.py            # 全件取り込み
   python import_decks.py --status   # 取り込み状況確認
-  python import_decks.py --cooccur  # 共起集計テーブルを更新
+  （共起は src/build_cooccurrence.py・夜間ジョブで作る）
 """
 
 import argparse
@@ -66,16 +66,6 @@ def create_tables(conn):
             ON deck_cards (deck_id);
         """)
 
-        # 共起集計テーブル（後で更新する）
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS card_cooccurrence (
-                card_name_a    TEXT NOT NULL,
-                card_name_b    TEXT NOT NULL,
-                co_count       INTEGER NOT NULL DEFAULT 0,
-                source         TEXT NOT NULL DEFAULT 'mtgjson_precon',
-                PRIMARY KEY (card_name_a, card_name_b, source)
-            );
-        """)
 
     conn.commit()
     print("テーブル作成完了")
@@ -161,143 +151,6 @@ def import_decks(conn):
     print(f"\n完了: {imported} 件取り込み / {skipped} 件スキップ / {errors} 件エラー")
 
 
-# ─── 共起集計 ─────────────────────────────────────────────────
-
-# EDH（Duel Commander・多人数Commander）は card_cooccurrence と物理分離
-# （設計判断）。理由: 共起の意味論が構築と別物——構築は同一
-# アーキタイプの netdeck コピーで co_count が水増しされやすいのに対し、
-# EDH は 100枚シングルトンで各デッキがほぼ独立に構築されるため、高い
-# co_count はより強いシナジー信号になる。スキーマは card_cooccurrence と
-# 同一＝UNION 互換（card_format_strength/edh_card_strength と同じ設計）。
-EDH_COOCCUR_SOURCES = ("mtgtop8_edh", "moxfield_edh")
-
-
-def create_edh_cooccurrence_table(conn) -> None:
-    with conn.cursor() as cur:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS edh_card_cooccurrence (
-                card_name_a TEXT NOT NULL,
-                card_name_b TEXT NOT NULL,
-                co_count    INTEGER NOT NULL,
-                source      TEXT NOT NULL,
-                PRIMARY KEY (card_name_a, card_name_b, source)
-            );
-        """)
-        cur.execute("""
-            CREATE INDEX IF NOT EXISTS edh_card_cooccurrence_a_idx
-            ON edh_card_cooccurrence (card_name_a, source);
-        """)
-        cur.execute("""
-            CREATE INDEX IF NOT EXISTS edh_card_cooccurrence_b_idx
-            ON edh_card_cooccurrence (card_name_b, source);
-        """)
-    conn.commit()
-
-
-def update_cooccurrence(conn, source: str = SOURCE, table: str = "card_cooccurrence"):
-    """
-    同じデッキに含まれるカードの共起回数を集計して {table} に格納する。
-    card_name_a < card_name_b になるよう正規化（重複防止）。
-    table='edh_card_cooccurrence' は EDH_COOCCUR_SOURCES 専用
-    （create_edh_cooccurrence_table を先に呼ぶこと）。
-    時間がかかるので実行後にインデックスを張る。
-    """
-    print(f"共起集計中（source={source} → {table}）...")
-
-    # 取り決め: MTGO の大会は MTGO 公式を正とし、mtgtop8 は紙の大会担当。mtgtop8 系 source の集計では、
-    # MTGO 公式（source LIKE 'mtgo%'）が同形式を覆っている期間の MTGO 転載行（tournament_name LIKE 'MTGO %'）
-    # を外す（採用率 recompute_card_format_strength と同じ条件・全期間で外すと歴史が欠ける）。
-    excl = ""
-    if source.startswith("mtgtop8"):
-        excl = ("""
-                AND NOT ({dl}.tournament_name LIKE 'MTGO %%'
-                         AND {dl}.tournament_date >= (SELECT MIN(o.tournament_date) FROM deck_list o
-                              WHERE o.source LIKE 'mtgo%%' AND o.format_name = {dl}.format_name))""")
-    excl_keep = excl.format(dl="dl2")
-    excl_main = excl.format(dl="d")
-
-    with conn.cursor() as cur:
-        # 既存データをクリア
-        cur.execute(f"""
-            DELETE FROM {table} WHERE source = %s
-        """, (source,))
-
-        # 共起集計（同じデッキのカードペアをカウント）
-        # 完全同一リスト（全 board・枚数込みの署名一致）は source 内で 1 本に潰す
-        # （重複除去ジョブ。ネットデッキ写しが直近メタのペアだけを
-        #  選択的に水増しする実測 28% の歪み対策。採用率系テーブルは対象外＝
-        #  「何人が選んだか」は人気の信号として残す）
-        cur.execute(f"""
-            INSERT INTO {table} (card_name_a, card_name_b, co_count, source)
-            WITH keep AS (
-                SELECT MIN(s.deck_id) AS deck_id
-                FROM (
-                    SELECT dc.deck_id,
-                           md5(string_agg(dc.card_name || 'x' || dc.count || dc.board,
-                                          ',' ORDER BY dc.board, dc.card_name)) AS h
-                    FROM deck_cards dc
-                    JOIN deck_list dl2 ON dl2.id = dc.deck_id
-                    WHERE dl2.source = %s""" + excl_keep + """
-                    GROUP BY dc.deck_id
-                ) s
-                GROUP BY s.h
-            )
-            SELECT
-                a.card_name,
-                b.card_name,
-                COUNT(DISTINCT a.deck_id) AS co_count,
-                %s AS source
-            FROM deck_cards a
-            JOIN keep k ON k.deck_id = a.deck_id
-            JOIN deck_cards b
-                ON a.deck_id = b.deck_id
-                AND a.card_name < b.card_name
-            JOIN deck_list d ON a.deck_id = d.id
-            WHERE d.source = %s""" + excl_main + """
-            AND a.board = 'main'
-            AND b.board = 'main'
-            -- 基本土地を除外
-            AND a.card_name NOT IN (
-                'Plains', 'Island', 'Swamp', 'Mountain', 'Forest',
-                'Wastes', 'Snow-Covered Plains', 'Snow-Covered Island',
-                'Snow-Covered Swamp', 'Snow-Covered Mountain', 'Snow-Covered Forest'
-            )
-            AND b.card_name NOT IN (
-                'Plains', 'Island', 'Swamp', 'Mountain', 'Forest',
-                'Wastes', 'Snow-Covered Plains', 'Snow-Covered Island',
-                'Snow-Covered Swamp', 'Snow-Covered Mountain', 'Snow-Covered Forest'
-            )
-            GROUP BY a.card_name, b.card_name
-            HAVING COUNT(DISTINCT a.deck_id) >= 2
-            ORDER BY co_count DESC;
-        """, (source, source, source))
-
-    conn.commit()
-
-    with conn.cursor() as cur:
-        cur.execute(f"""
-            SELECT COUNT(*) FROM {table} WHERE source = %s
-        """, (source,))
-        count = cur.fetchone()[0]
-
-    print(f"共起ペア数: {count:,} 件")
-
-    # サンプル表示
-    with conn.cursor() as cur:
-        cur.execute(f"""
-            SELECT card_name_a, card_name_b, co_count
-            FROM {table}
-            WHERE source = %s
-            ORDER BY co_count DESC
-            LIMIT 10
-        """, (source,))
-        rows = cur.fetchall()
-
-    print("\nTOP10 共起ペア:")
-    for a, b, c in rows:
-        print(f"  {c:4d}回  {a} ↔ {b}")
-
-
 # ─── 状況確認 ─────────────────────────────────────────────────
 
 def check_status(conn):
@@ -308,40 +161,18 @@ def check_status(conn):
         cur.execute("SELECT COUNT(*) FROM deck_cards")
         card_count = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(*) FROM card_cooccurrence")
-        cooc_count = cur.fetchone()[0]
-
         cur.execute("""
             SELECT source, COUNT(*) FROM deck_list GROUP BY source
         """)
         by_source = cur.fetchall()
 
-        # Counterspell の共起カードを表示
-        cur.execute("""
-            SELECT
-                CASE WHEN card_name_a = 'Counterspell' THEN card_name_b
-                     ELSE card_name_a END AS partner,
-                co_count
-            FROM card_cooccurrence
-            WHERE card_name_a = 'Counterspell' OR card_name_b = 'Counterspell'
-            ORDER BY co_count DESC
-            LIMIT 10
-        """)
-        counterspell_cooc = cur.fetchall()
 
     print(f"デッキ数:     {deck_count:,}")
     print(f"カード総行数: {card_count:,}")
-    print(f"共起ペア数:   {cooc_count:,}")
     print(f"\nソース別:")
     for source, count in by_source:
         print(f"  {source}: {count}")
 
-    if counterspell_cooc:
-        print(f"\nCounterspell と共起するカード TOP10:")
-        for partner, count in counterspell_cooc:
-            print(f"  {count:3d}回  {partner}")
-    else:
-        print("\nCounterspell の共起データなし（共起集計を実行してください）")
 
 
 # ─── エントリーポイント ───────────────────────────────────────
@@ -349,7 +180,6 @@ def check_status(conn):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--status",  action="store_true", help="取り込み状況確認")
-    parser.add_argument("--cooccur", action="store_true", help="共起集計テーブルを更新")
     args = parser.parse_args()
 
     conn = psycopg2.connect(**DB_CONFIG)
@@ -357,13 +187,7 @@ if __name__ == "__main__":
 
     if args.status:
         check_status(conn)
-    elif args.cooccur:
-        update_cooccurrence(conn, source="mtgtop8")
     else:
         import_decks(conn)
-        print("\n共起集計を実行しますか？（数分かかります）")
-        ans = input("実行する場合は y を入力: ").strip().lower()
-        if ans == "y":
-            update_cooccurrence(conn)
 
     conn.close()

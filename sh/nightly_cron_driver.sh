@@ -102,28 +102,13 @@ while :; do
   sleep "$INTERVAL"
 done
 
-# EDH 共起 v2 の洗い替え（この便の中で取り込む）:
-# build_edh_cooccurrence.py は TRUNCATE→INSERT の冪等・実測 83 秒。ループを抜けた
-# 時点でこのドライバが起動したレーンは全部完了済み＝夜の新入りデッキ込みで再集計できる。
+# 共起（card_cooccurrence_v2）: フォーマット × 区間（直近 90 日・全期間）の 18 母集団を
+# 1 つのスナップショットで作り、検算して母集団ごとに組・分母・統計を 1 トランザクションで差分適用する
+# （src/build_cooccurrence.py）。検算で止めた母集団は前の完成版のまま残る。
 # 失敗しても夜間ジョブ全体は失敗扱いにしない（共起は検索本線でなく壁打ち道具箱の材料）。
-dlog "--- EDH 共起 v2 洗い替え開始 ---"
-/mnt/new_hdd/my_rag_env/bin/python "$REPO/src/build_edh_cooccurrence.py" >> "$LOGDIR/cooccurrence.log" 2>&1
-dlog "--- EDH 共起 v2 洗い替え完了 rc=$? ---"
-
-# 構築系共起（card_cooccurrence）の洗い替え（設計判断・MTGO 公式を採用率と共起に乗せる便）:
-# mtgtop8 系 3 source（MTGO 転載行は被覆期間で除外）＋ mtgo 系 4 source を update_cooccurrence で
-# source ごとに DELETE→INSERT（冪等・実測 4 分強）。失敗しても夜間ジョブ全体は失敗扱いにしない。
-dlog "--- 構築系共起 洗い替え開始 ---"
-PYTHONPATH=/home/claude/pylibs:$REPO/src /mnt/new_hdd/my_rag_env/bin/python - >> "$LOGDIR/cooccurrence.log" 2>&1 <<'PYEOF'
-import psycopg2
-from db_config import DB_CONFIG
-from import_decks import update_cooccurrence
-conn = psycopg2.connect(**DB_CONFIG)
-for src in ("mtgtop8", "mtgtop8_pauper", "mtgtop8_vintage", "mtgo", "mtgo_pauper", "mtgo_vintage", "mtgo_other"):
-    update_cooccurrence(conn, source=src); conn.commit()
-conn.close()
-PYEOF
-dlog "--- 構築系共起 洗い替え完了 rc=$? ---"
+dlog "--- 共起 v2（母集団）開始 ---"
+PYTHONPATH=/home/claude/pylibs:$REPO/src /mnt/new_hdd/my_rag_env/bin/python "$REPO/src/build_cooccurrence.py" >> "$LOGDIR/cooccurrence.log" 2>&1
+dlog "--- 共起 v2（母集団）完了 rc=$? ---"
 
 dlog "=== ドライバ終了（総パス $pass）==="
 exit 0

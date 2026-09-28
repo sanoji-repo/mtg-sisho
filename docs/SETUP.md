@@ -20,7 +20,7 @@ Sisho を自分の PostgreSQL と Python で動かす手順。
 | 4 | `src/enrich_*.py` | 印刷情報・表面キーワード・マナ加速/除去/ドロー/サーチの導出列を付与（すべて冪等） |
 | 5 | `src/import_rules.py`・`src/import_rulings.py` | 総合ルールと公式裁定をインポート |
 | 6 | `src/import_decks.py`・`src/scrape_mtgtop8.py`・`src/scrape_mtgo.py`・`src/scrape_moxfield.py` | 実デッキデータを取得。取得済みデータは自動スキップ（同一コマンドで差分更新可能） |
-| 7 | `src/fix_deck_links.py` → `src/recompute_card_format_strength.py` → `src/build_edh_cooccurrence.py` | デッキのカード名を card_id に紐付け → フォーマット別採用率を計算 → 共起データを生成 |
+| 7 | `src/fix_deck_links.py` → `src/recompute_card_format_strength.py` → `src/build_cooccurrence.py` | デッキのカード名を card_id に紐付け → フォーマット別採用率を計算 → 共起データを生成 |
 
 新セット発売時の一括更新バッチの雛形として `sh/convoy_20260821.sh`（退避 → 取得 → 搬入 → 導出 → 日本語 → 検収）を用意している。
 ※ `mtg_probability` などの確率計算を利用する場合は、DB 構築後に `sql/prob_functions.sql` を PostgreSQL に投入する必要がある。

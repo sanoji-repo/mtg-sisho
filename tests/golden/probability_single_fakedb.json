@@ -1,0 +1,70 @@
+{
+ "note": "変更前（git HEAD）の probability.py を tests/test_probability_vary.py の fake_db_single で動かした出力（DB の無い環境でも走る互換の試験用）",
+ "cases": {
+  "at_least": {
+   "kind": "at_least",
+   "deck_size": 60,
+   "copies": 4,
+   "draws": 7,
+   "at_least": 1
+  },
+  "by_turn": {
+   "kind": "by_turn",
+   "deck_size": 40,
+   "copies": 9,
+   "turn": 3,
+   "on_play": true,
+   "at_least": 2,
+   "mulligans": 0
+  },
+  "by_turn_mull": {
+   "kind": "by_turn",
+   "deck_size": 60,
+   "copies": 4,
+   "turn": 2,
+   "on_play": false,
+   "at_least": 1,
+   "mulligans": 1
+  },
+  "land_drops": {
+   "kind": "land_drops",
+   "deck_size": 40,
+   "copies": 17,
+   "turn": 4,
+   "on_play": true
+  },
+  "combo_by_turn": {
+   "kind": "combo_by_turn",
+   "deck_size": 60,
+   "copies": 4,
+   "copies_b": 4,
+   "turn": 4,
+   "on_play": true
+  },
+  "bad_kind": {
+   "kind": "zzz"
+  },
+  "out_of_range": {
+   "kind": "by_turn",
+   "deck_size": 40,
+   "copies": 41
+  },
+  "draws_out_of_range": {
+   "kind": "land_drops",
+   "deck_size": 40,
+   "copies": 16,
+   "turn": 4,
+   "draws": 99
+  }
+ },
+ "outputs": {
+  "at_least": "{\n \"kind\": \"at_least\",\n \"inputs\": {\n  \"deck_size\": 60,\n  \"copies\": 4,\n  \"draws\": 7,\n  \"at_least\": 1\n },\n \"cards_seen\": 7,\n \"probability\": 0.0722,\n \"percent\": \"7.2%\",\n \"premise\": \"7 枚引く\",\n \"formula\": \"P(X ≥ 1) = Σ C(4, i)·C(56, 7−i) / C(60, 7)  (i = 1..min(4,7))\",\n \"note\": \"超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。土地の連続配置は『見たカードに土地が turn 枚以上』の近似ではなく同値。\"\n}",
+  "by_turn": "{\n \"kind\": \"by_turn\",\n \"inputs\": {\n  \"deck_size\": 40,\n  \"copies\": 9,\n  \"turn\": 3,\n  \"on_play\": true,\n  \"at_least\": 2,\n  \"mulligans\": 0\n },\n \"cards_seen\": 11,\n \"probability\": 0.0592,\n \"percent\": \"5.9%\",\n \"premise\": \"先手（3 ターン目までの引き 2 回）\",\n \"formula\": \"見る枚数 11 = 7−0＋4・P(X ≥ 2) 超幾何(N=40, K=9, D=11)\",\n \"note\": \"超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。土地の連続配置は『見たカードに土地が turn 枚以上』の近似ではなく同値。\"\n}",
+  "by_turn_mull": "{\n \"kind\": \"by_turn\",\n \"inputs\": {\n  \"deck_size\": 60,\n  \"copies\": 4,\n  \"turn\": 2,\n  \"on_play\": false,\n  \"at_least\": 1,\n  \"mulligans\": 1\n },\n \"cards_seen\": 8,\n \"probability\": 0.0712,\n \"percent\": \"7.1%\",\n \"premise\": \"後手（2 ターン目までの引き 2 回）・マリガン 1 回（初手 6 枚）\",\n \"formula\": \"見る枚数 8 = 7−1＋2・P(X ≥ 1) 超幾何(N=60, K=4, D=8)\",\n \"note\": \"超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。土地の連続配置は『見たカードに土地が turn 枚以上』の近似ではなく同値。\"\n}",
+  "land_drops": "{\n \"kind\": \"land_drops\",\n \"inputs\": {\n  \"deck_size\": 40,\n  \"copies\": 17,\n  \"turn\": 4,\n  \"on_play\": true,\n  \"mulligans\": 0\n },\n \"cards_seen\": 9,\n \"probability\": 0.0672,\n \"percent\": \"6.7%\",\n \"premise\": \"先手（4 ターン目までの引き 3 回）\",\n \"formula\": \"見る枚数 9・P(土地 ≥ 4 枚) 超幾何(N=40, K=17, D=9)＝4 ターン目まで毎ターン土地を置ける\",\n \"note\": \"超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。土地の連続配置は『見たカードに土地が turn 枚以上』の近似ではなく同値。\"\n}",
+  "combo_by_turn": "{\n \"kind\": \"combo_by_turn\",\n \"inputs\": {\n  \"deck_size\": 60,\n  \"copies\": 4,\n  \"copies_b\": 4,\n  \"turn\": 4,\n  \"on_play\": true,\n  \"mulligans\": 0\n },\n \"cards_seen\": 10,\n \"probability\": 0.0782,\n \"percent\": \"7.8%\",\n \"premise\": \"先手（4 ターン目までの引き 3 回）\",\n \"formula\": \"見る枚数 10・1 − P(A なし) − P(B なし) ＋ P(両方なし)（包除・A=4 枚・B=4 枚・N=60）\",\n \"note\": \"超幾何分布の厳密値（17Lands 等の実測ではない）。デッキ全体を無作為に切った前提。土地の連続配置は『見たカードに土地が turn 枚以上』の近似ではなく同値。\"\n}",
+  "bad_kind": "{\n \"error\": \"kind は at_least, by_turn, land_drops, combo_by_turn, castable, hand のどれか（受け取った値: 'zzz'）\",\n \"error_kind\": \"unknown_option\"\n}",
+  "out_of_range": "{\n \"error\": \"引数の範囲外: copies は 0〜deck_size\",\n \"error_kind\": \"out_of_range\"\n}",
+  "draws_out_of_range": "{\n \"error\": \"引数の範囲外: draws は 0〜deck_size\",\n \"error_kind\": \"out_of_range\"\n}"
+ }
+}

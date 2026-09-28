@@ -2,9 +2,14 @@
 
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
 """
+import logging
+import os
+import threading
+import time
+
 from sisho.db import _db
 from sisho.names import face_display
-from sisho.toollog import _log_tool
+from sisho.toollog import JOURNAL, _log_tool
 
 
 # ─── 答案検査 ────────────────────────
@@ -12,7 +17,6 @@ from sisho.toollog import _log_tool
 # （Sonnet medium 10 問で 11 件・Opus low 200 問で 7 答案）。返り値側の同伴（_ja）では
 # 届かないので、答案そのものを DB に当てる口を置く。クライアントが最後に一回呼べば届く。
 
-_NAME_CACHE: dict = {"ts": 0.0}
 _JA_STOP = {"ショック", "巻き添え", "レベルアップ", "ナズグル", "フラッシュバック", "トランプル", "生け贄",
             "破壊不能", "打ち消し", "呪禁", "瞬速", "警戒", "飛行", "速攻", "接死", "絆魂", "威迫", "到達",
             "護法", "占術", "変身", "追放", "死亡", "召集", "探査", "続唱", "親和", "奇跡", "反復", "予見",
@@ -20,21 +24,52 @@ _JA_STOP = {"ショック", "巻き添え", "レベルアップ", "ナズグル"
             "マッドネス", "モーフ", "プロテクション"}
 
 
-def _names() -> dict:
-    """カード名表（1 時間キャッシュ）。ja→正式名・en→(ja or None)・両面は表名も登録。"""
-    import time
-    if time.time() - _NAME_CACHE["ts"] < 3600 and "ja" in _NAME_CACHE:
-        return _NAME_CACHE
+# ─── 名前の辞書（設計判断: 常時キャッシュ・差し替え式）──────────────
+# 答案検査は毎回カード全件の名前と照らすので、辞書はプロセスのメモリに丸ごと持つ（照合で DB に行かない＝
+# 混雑時に DB のスロットと CPU を他の道具に空けておける・負荷試験で postgres が CPU の 73%）。
+# 期限では捨てない。_NAMES_CHECK_SEC ごとに裏で mtg_cards_v2 の署名（名前・コスト・オラクル文のハッシュの和）を見て、
+# 変わっていれば新しい辞書を別に作り、作り終えたら差し替える（古い辞書は読み手が手放した時点で解放される）。
+# 作るのは一人だけ（_NAMES_LOCK）で、作り直しの間は古い辞書で答える。空のとき（起動直後）だけは作り終わるのを待つ。
+# 旧: 1 時間で捨てて最初の客が作り直す形。空のときに同時に来た呼び出しが全員それぞれ作り、6 本同時で 8〜11 秒かかった。
+
+_NAMES: dict | None = None
+_NAMES_SIG = None
+_NAMES_LOCK = threading.Lock()                    # 辞書を作る人は一人
+_NAMES_CHECK_SEC = float(os.environ.get("MCP_VERIFY_NAMES_CHECK_SEC", "600"))
+# 失敗の後は短い間隔で試し直す。
+#   空の辞書が作れなかったら、その失敗を _NAMES_RETRY_SEC の間は待っている客全員で共有する（客ごとに作り直して直列に積まない）。
+#   見回りが失敗したら、次の確認を 10 分先でなく _NAMES_RETRY_SEC 先に置く（成功した確認と失敗後の再試行で時刻を分ける）。
+_NAMES_RETRY_SEC = float(os.environ.get("MCP_VERIFY_NAMES_RETRY_SEC", "30"))
+_NAMES_NEXT_CHECK = 0.0                           # 次に見回りを起こしてよい時刻
+_NAMES_FAILED: tuple[float, str] | None = None   # 空の辞書の作成に失敗した時刻と要旨（成功で消す）
+_CHECK_LOCK = threading.Lock()                    # 見回りを起こすかの判定と「見回り中」の印を一緒に動かす
+_CHECKING = False
+# 署名: 行を丸ごと ROW(...)::text にしてから 64 ビットのハッシュを足す。
+#   旧 concat_ws('|', ...) は NULL を飛ばすので ('A', NULL, 'B') と ('A', 'B', NULL) が同じ文字列になった。
+#   行の文字列表現は NULL（空）と ''（""）と列の境目を区別する。和は 32 ビット→64 ビット（numeric で足す）。
+#   全行を読むので軽いレーン（点を引く照会の予約席）でなく既定の重いレーンで引く。
+_SIG_SQL = ("SELECT count(*), coalesce(sum(hashtextextended(ROW(card_name, japanese_name, name_en_front,"
+            " name_ja_front, name_en_back, name_ja_back, digital, mana_cost, cmc,"
+            " md5(coalesce(oracle_text, '')))::text, 0)::numeric), 0) FROM mtg_cards_v2")
+
+
+class NamesUnavailable(RuntimeError):
+    """カード名の辞書がまだ無く、作れなかった（DB に届かない等）。"""
+
+
+def _build_names() -> tuple[dict, tuple]:
+    """カード名の辞書を新しく作って返す（今使っている辞書には触らない）。ja→正式名・en→(ja or None)・両面は表名も登録。"""
+    sig = tuple(_db(_SIG_SQL, ())[0])
     # 面の列で組む。以前は裏面の英語名に表面の日本語名を割り当てていた（《厚かましい借り手/Petty Theft》型の誤接合）。
     #   en_ja: 英語（正式名／表面名／裏面名）→ 同じ粒度の日本語（無ければ None）
     #   ja_full: 日本語（空白抜き）→ 日本語（そのまま）  ja_en: 日本語 → 同じ粒度の英語
     #   裏面名は本物のカード名と同じことがある（prepare 20 枚）→ 裏面は setdefault＝本物のカードが勝つ
+    # 並びは紙が先（setdefault は先勝ち＝同じ日本語名を紙と Arena 専用が持つ《緊急脱出》は紙の Eject に決まる）
     rows = _db("SELECT card_name, japanese_name, digital, name_en_front, name_en_back, name_ja_front, name_ja_back,"
-               " mana_cost, cmc, oracle_text FROM mtg_cards_v2", ())
-    ja_full, en_ja, ja_en, digital, cost = {}, {}, {}, set(), {}
+               " mana_cost, cmc, oracle_text FROM mtg_cards_v2 ORDER BY digital, card_name", ())
+    ja_full, en_ja, ja_en, digital, paper, cost = {}, {}, {}, set(), set(), {}
     for en, ja, dg, enf, enb, jaf, jab, mc, cmc, otext in rows:
-        if dg:
-            digital.update(x for x in (en, enf, enb) if x)
+        (digital if dg else paper).update(x for x in (en, enf, enb) if x)
         # マナ・コストの照合用（正式名と表面名の両方から引ける）。軽減条項＝自分のコストが下がる文だけ
         rec = (mc or "", cmc, _reduction_clause(otext or ""))
         cost[en] = rec
@@ -48,13 +83,101 @@ def _names() -> dict:
             if j and e:
                 ja_full[j.replace(" ", "")] = j
                 ja_en.setdefault(j, e)
+    # 紙のカードも持つ名前はデジタル専用として扱わない（Arena 専用カードの裏面名 Boltwave が紙の Boltwave を巻き込んでいた）
+    digital -= paper
     # 裸の英語名検出用: 日本語名があり、5 文字以上か空白入り（短い一般語を避ける）
-    en_bare = sorted((e for e, j in en_ja.items() if j and (len(e) >= 5 or " " in e)), key=len, reverse=True)
+    # 並びは長い順・同じ長さなら名前順（報告の上位 10 件が入れ順で揺れないように）
+    en_bare = sorted((e for e, j in en_ja.items() if e and j and (len(e) >= 5 or " " in e)), key=lambda e: (-len(e), e))
     # 報告専用（書き換えはしない）なので短い名前も拾う。閾値を 4 から 2 へ下げた:
-    # 実測で「稲妻を 4 枚、島を 8 枚」型の答案が拾え、技術文書での誤ヒットは 0 件だった。
-    ja_bare = sorted((j for j in ja_full.values() if len(j) >= 2 and j not in _JA_STOP), key=len, reverse=True)
-    _NAME_CACHE.update({"ts": time.time(), "ja": ja_full, "en": en_ja, "ja_en": ja_en, "en_bare": en_bare, "ja_bare": ja_bare, "digital": digital, "cost": cost})
-    return _NAME_CACHE
+    # 実測で「稲妻を 4 枚」型の答案が拾え、技術文書での誤ヒットは 0 件だった。
+    ja_bare = sorted(set(j for j in ja_full.values() if len(j) >= 2 and j not in _JA_STOP), key=lambda j: (-len(j), j))
+    return ({"ja": ja_full, "en": en_ja, "ja_en": ja_en, "en_bare": en_bare, "ja_bare": ja_bare,
+             "digital": digital, "cost": cost}, sig)
+
+
+def _refresh_if_changed() -> None:
+    """裏の見回り: 署名が変わっていれば新しい辞書を作って差し替える。失敗しても古い辞書で答え続ける。"""
+    global _NAMES, _NAMES_SIG, _NAMES_NEXT_CHECK, _CHECKING
+    try:
+        if not _NAMES_LOCK.acquire(blocking=False):
+            _NAMES_NEXT_CHECK = time.time() + _NAMES_RETRY_SEC   # 誰かが作っている＝少し後に見直す
+            return
+        ok = False
+        try:
+            sig = tuple(_db(_SIG_SQL, ())[0])
+            if sig != _NAMES_SIG:
+                new, new_sig = _build_names()
+                _NAMES, _NAMES_SIG = new, new_sig    # 差し替え。古い辞書は使い終わった読み手から手放される
+            ok = True
+        except Exception:
+            logging.getLogger(JOURNAL).warning("[verify] 名前の辞書の見回りに失敗（古い辞書で継続・%d 秒後に再確認）",
+                                               int(_NAMES_RETRY_SEC), exc_info=True)
+        finally:
+            _NAMES_NEXT_CHECK = time.time() + (_NAMES_CHECK_SEC if ok else _NAMES_RETRY_SEC)
+            _NAMES_LOCK.release()
+    finally:
+        with _CHECK_LOCK:
+            _CHECKING = False
+
+
+def _maybe_start_check() -> None:
+    """見回りの時刻が来ていれば裏で一本だけ起こす（時刻の判定と印を同じ鍵の中で動かす＝二本立たない）。"""
+    global _CHECKING, _NAMES_NEXT_CHECK
+    if time.time() < _NAMES_NEXT_CHECK:
+        return
+    with _CHECK_LOCK:
+        if _CHECKING or time.time() < _NAMES_NEXT_CHECK:
+            return
+        _CHECKING = True
+    try:
+        threading.Thread(target=_refresh_if_changed, daemon=True).start()
+    except Exception:
+        with _CHECK_LOCK:
+            _CHECKING = False
+            _NAMES_NEXT_CHECK = time.time() + _NAMES_RETRY_SEC
+        logging.getLogger(JOURNAL).warning("[verify] 見回りを起こせなかった", exc_info=True)
+
+
+def _build_first() -> dict:
+    """空の辞書を作る（_NAMES_LOCK の中で呼ぶ）。直近の失敗は待ち手に共有し、客ごとに作り直さない。"""
+    global _NAMES, _NAMES_SIG, _NAMES_NEXT_CHECK, _NAMES_FAILED
+    if _NAMES is not None:
+        return _NAMES
+    if _NAMES_FAILED and time.time() - _NAMES_FAILED[0] < _NAMES_RETRY_SEC:
+        raise NamesUnavailable(_NAMES_FAILED[1])
+    try:
+        _NAMES, _NAMES_SIG = _build_names()
+    except Exception as e:
+        # 客には原因の生の文（DB の宛先など）を見せない＝ジャーナルにだけ残す
+        logging.getLogger(JOURNAL).warning("[verify] 名前の辞書の作成に失敗", exc_info=True)
+        _NAMES_FAILED = (time.time(), f"{type(e).__name__}: {str(e).strip()[:200]}")
+        raise NamesUnavailable(_NAMES_FAILED[1]) from e
+    _NAMES_FAILED = None
+    _NAMES_NEXT_CHECK = time.time() + _NAMES_CHECK_SEC
+    return _NAMES
+
+
+def _names() -> dict:
+    """今の辞書を返す。空のときだけ作り終わるまで待つ（同時に来ても作るのは一人）。見回りの時刻が来ていれば裏で起こす。"""
+    N = _NAMES
+    if N is None:
+        with _NAMES_LOCK:
+            return _build_first()
+    _maybe_start_check()
+    return N
+
+
+def warm() -> None:
+    """起動時に辞書を作っておく（mcp_server の起動から裏で呼ぶ）。失敗したら _NAMES_RETRY_SEC ごとに試し直す
+    （復旧後の作成を最初の客に任せない）。できたら、または客の側で作れたら終わる。"""
+    while _NAMES is None:
+        try:
+            _names()
+            return
+        except Exception:
+            logging.getLogger(JOURNAL).warning("[verify] 起動時の名前の辞書の作成に失敗（%d 秒後に再試行）",
+                                               int(_NAMES_RETRY_SEC), exc_info=True)
+        time.sleep(_NAMES_RETRY_SEC)
 
 
 _RED_PAT = None
@@ -185,7 +308,12 @@ DESCRIPTION = (
 def verify_answer(text: str) -> str:
     import re
     _log_tool("verify_answer", {"len": len(text)})
-    N = _names()
+    try:
+        N = _names()
+    except NamesUnavailable:
+        # 客に見せるのは次の一手だけ（原因の生の文はジャーナル）
+        return (f"一時的に使えません: サーバー側でカード名の辞書を用意できていません（入力の問題ではありません）。"
+                f"{int(_NAMES_RETRY_SEC)} 秒ほど待ってから同じ呼び出しをもう一度試してください。")
     ja_full, en_ja, ja_en = N["ja"], N["en"], N["ja_en"]
     # 二重・三重の囲み《《X》》は照合の**前に**畳む。
     # 以前は末尾でだけ畳んでいたため、抽出の正規表現 [^》]+ が開き括弧を中身に含めて

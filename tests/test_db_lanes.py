@@ -295,18 +295,27 @@ def test_find_partner_cards_uses_heavy_lane(monkeypatch):
 
     calls = []
 
-    monkeypatch.setattr(partners, "_name_variants", lambda n: [n])
+    monkeypatch.setattr(partners, "resolve_card_ex", lambda n: ({"id": 1, "display": "《x/X》", "card_name": "X"}, []))
 
     def mock_db(query, params, lane=db.LANE_LIGHT):
         calls.append({"query": query, "params": params, "lane": lane})
+        if "json_agg(row_to_json(hdr))" in query:           # 本体（見出しと一覧を 1 文で）
+            hdr = [{"w": w, "pid": pid, "has_side": False, "n": 100, "card_row_count": 10, "card_rows": 10,
+                    "window_start": None, "window_end": None, "first_event_date": None, "latest_event_date": None,
+                    "computed_at": "2099-01-01T00:00:00+00:00", "ma": 50, "sa": None, "has_pairs": True,
+                    "self_side": None} for w, pid in (("recent_90d", 1), ("all", 2))]
+            return [(hdr, [])]
         return []
 
     monkeypatch.setattr(partners, "_db", mock_db)
 
-    res = partners.find_partner_cards("Sol Ring")
-    assert "共起なし" in res
-    assert len(calls) == 1
-    assert calls[0]["lane"] == db.LANE_HEAVY
+    res = partners.find_partner_cards("Sol Ring", "Commander")
+    assert "共起なし" in res, res
+    # 集計の表は SQL 1 文で読む＝その本体だけが重いレーン。
+    # 基本土地の判定（カード表の主キーで 1 行）は軽いレーン。
+    heavy = [c for c in calls if c["lane"] == db.LANE_HEAVY]
+    assert len(heavy) == 1 and "json_agg(row_to_json(hdr))" in heavy[0]["query"], [c["query"][:40] for c in heavy]
+    assert all(c["lane"] == db.LANE_LIGHT for c in calls if c is not heavy[0])
 
 
 # ─── 9・10: 既定の向きと、軽いレーンを宣言してよい形（設計判断で既定を反転）───

@@ -388,20 +388,6 @@ def check_status():
         """)
         by_format = cur.fetchall()
 
-        # Counterspell の共起（大会データのみ）
-        cur.execute("""
-            SELECT
-                CASE WHEN card_name_a = 'Counterspell'
-                     THEN card_name_b ELSE card_name_a END AS partner,
-                co_count
-            FROM card_cooccurrence
-            WHERE (card_name_a = 'Counterspell' OR card_name_b = 'Counterspell')
-              AND source = 'mtgtop8'
-            ORDER BY co_count DESC
-            LIMIT 10
-        """)
-        cooc = cur.fetchall()
-
     conn.close()
 
     print("=== ソース別デッキ数 ===")
@@ -411,13 +397,6 @@ def check_status():
     print("\n=== フォーマット別（mtgtop8）===")
     for fmt, count in by_format:
         print(f"  {fmt}: {count}")
-
-    if cooc:
-        print("\n=== Counterspell 共起 TOP10（大会データ）===")
-        for partner, count in cooc:
-            print(f"  {count:3d}回  {partner}")
-    else:
-        print("\n大会データの共起集計は --cooccur で実行してください")
 
 
 # ─── エントリーポイント ───────────────────────────────────────

@@ -913,3 +913,133 @@ def test_issue_never_starts_with_dash(tmp_path, monkeypatch):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def _origin_gate(tmp_path, public_base="https://sisho.example.ts.net", allowed=frozenset()):
+    store = FudaStore(str(tmp_path / "fuda.tsv"))
+    fuda = store.issue("192.0.2.1")
+    calls = []
+
+    async def inner_app(scope, receive, send):
+        calls.append(scope["path"])
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    gate = GateASGI(inner_app, store, RateLimiter(per_ip=60, global_=300),
+                    RateLimiter(per_ip=3, global_=100, window=86400.0, exempt=""),
+                    inner_path="/mcp", prefix="/mcp/", legacy_on=True,
+                    public_base=public_base, allowed_origins=allowed)
+    return gate, fuda, calls
+
+
+def test_gate_asgi_origin_allowlist(tmp_path, caplog):
+    """Origin の許可リスト（MCP の Streamable HTTP「不正な Origin は 403」）。
+    Origin の無い客（claude.ai のコネクタ・CLI＝実測で送っていない）は通す。公開 URL の origin と明示した物は通す。
+    それ以外（null も含む）は札・旧パス・発行ページのどれでも 403 で、内側の app は呼ばれない。"""
+    import logging
+    gate, fuda, calls = _origin_gate(tmp_path, allowed=frozenset({"https://allowed.example"}))
+    ok_cases = [None, "https://sisho.example.ts.net", "HTTPS://SISHO.EXAMPLE.TS.NET", "https://allowed.example"]
+    for origin in ok_cases:
+        hdr = {"origin": origin} if origin else None
+        _, sent = asyncio.run(run_asgi_request(gate, f"/mcp/{fuda}", headers=hdr))
+        assert parse_response(sent)[0] == 200, origin
+    assert len(calls) == len(ok_cases)
+    with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
+        for path in (f"/mcp/{fuda}", "/mcp", "/issue"):
+            for origin in ("https://evil.example", "null", "https://sisho.example.ts.net.evil.example", "http://sisho.example.ts.net"):
+                _, sent = asyncio.run(run_asgi_request(gate, path, headers={"origin": origin}))
+                status, headers, body = parse_response(sent)
+                assert (status, body) == (403, b"forbidden origin"), (path, origin, status)
+                assert headers["content-length"] == str(len(body))
+    assert len(calls) == len(ok_cases), "拒否した呼び出しが内側に届いた"
+    assert any("[gate] origin 拒否" in r.message and "evil.example" in r.message for r in caplog.records)
+
+
+def test_gate_asgi_origin_rejections_count_against_ip(tmp_path):
+    """不正な Origin の連打も IP の枠で数える（枠を超えたら 429・存在の情報は与えない）。"""
+    gate, fuda, _ = _origin_gate(tmp_path)
+    gate.limiter = RateLimiter(per_ip=3, global_=300)
+    statuses = [parse_response(asyncio.run(run_asgi_request(gate, f"/mcp/{fuda}", headers={"origin": "https://evil.example"}))[1])[0]
+                for _ in range(5)]
+    assert statuses[:3] == [403, 403, 403] and statuses[3:] == [429, 429], statuses
+
+
+def test_gate_asgi_from_env_allowed_origins(tmp_path, monkeypatch):
+    """from_env: 公開 URL の origin（パスは落とす）＋ MCP_ALLOWED_ORIGINS（カンマ区切り・末尾の / は落とす）。"""
+    monkeypatch.setenv("MCP_FUDA_FILE", str(tmp_path / "f.tsv"))
+    monkeypatch.setenv("MCP_PUBLIC_BASE", "https://sisho.example.ts.net/some/path")
+    monkeypatch.setenv("MCP_ALLOWED_ORIGINS", " https://a.example/ ,http://localhost:8765")
+    async def dummy(scope, receive, send): pass
+    gate = GateASGI.from_env(dummy)
+    assert gate.allowed_origins == {"https://sisho.example.ts.net", "https://a.example", "http://localhost:8765"}
+
+
+def _issue_post(gate, chunks, headers=(), delay_after=None):
+    """発行ページへ POST。chunks を順に返し、delay_after 番目の後は返さずに待つ（遅い本文）。"""
+    scope = {"type": "http", "method": "POST", "path": "/issue", "raw_path": b"/issue",
+             "headers": [(b"content-type", b"application/x-www-form-urlencoded"), *headers],
+             "client": ("203.0.113.20", 12345)}
+    calls, sent = [], []
+
+    async def receive():
+        idx = len(calls)
+        calls.append(idx)
+        if delay_after is not None and idx >= delay_after:
+            await asyncio.sleep(3600)
+        return chunks[idx]
+
+    async def send(msg):
+        sent.append(msg)
+
+    asyncio.run(gate(scope, receive, send))
+    return parse_response(sent), calls
+
+
+def test_gate_asgi_issue_post_body_limits(tmp_path, monkeypatch):
+    """発行ページの POST 本文に上限: 8KB 超は 413（content-length で先に・
+    宣言が無くても読みながら数えて）・読み切るまで 5 秒を超えたら 408。札は発行しない。空のフォームは従来どおり 200。"""
+    import sisho.gate as G
+    monkeypatch.setattr(G, "_ISSUE_BODY_SEC", 0.2)
+    store = FudaStore(str(tmp_path / "fuda.tsv"))
+    async def dummy(scope, receive, send): pass
+    gate = GateASGI(dummy, store, RateLimiter(per_ip=60, global_=300),
+                    RateLimiter(per_ip=3, global_=100, window=86400.0, exempt=""), inner_path="/mcp", prefix="/mcp/")
+
+    (st, _, body), calls = _issue_post(gate, [{"type": "http.request", "body": b"", "more_body": False}])
+    assert st == 200
+    before = len(store.records)
+    (st, hd, body), calls = _issue_post(gate, [], headers=[(b"content-length", b"9000")])
+    assert (st, body, calls) == (413, b"payload too large", []), "宣言が大きければ読まずに断る"
+    big = [{"type": "http.request", "body": b"x" * 4096, "more_body": True} for _ in range(3)]
+    (st, hd, body), calls = _issue_post(gate, big)
+    assert (st, len(calls)) == (413, 3) and hd["connection"] == "close"
+    slow = [{"type": "http.request", "body": b"a=1", "more_body": True}]
+    (st, _, body), calls = _issue_post(gate, slow, delay_after=1)
+    assert (st, body) == (408, b"request timeout")
+    assert len(store.records) == before, "断った POST で札を発行した"
+
+
+def test_gate_asgi_origin_normalizes_config_and_request_alike(tmp_path):
+    """設定と要求の Origin を同じ形に揃える: 設定の大文字・末尾の /・既定のポートは
+    通る形に揃え、要求の側はパス付き・null・同名ヘッダの重複を断る。"""
+    gate, fuda, calls = _origin_gate(tmp_path, allowed=frozenset({"HTTPS://ALLOWED.EXAMPLE/", "http://localhost:8765"}))
+    assert gate.allowed_origins == {"https://sisho.example.ts.net", "https://allowed.example", "http://localhost:8765"}
+    for origin in ("https://allowed.example", "https://allowed.example:443", "HTTPS://Allowed.Example",
+                   "http://localhost:8765", "https://sisho.example.ts.net:443"):
+        _, sent = asyncio.run(run_asgi_request(gate, f"/mcp/{fuda}", headers={"origin": origin}))
+        assert parse_response(sent)[0] == 200, origin
+    for origin in ("https://allowed.example/anything", "https://allowed.example/", "https://allowed.example:8443",
+                   "http://localhost", "null", "allowed.example", "https://user@allowed.example"):
+        _, sent = asyncio.run(run_asgi_request(gate, f"/mcp/{fuda}", headers={"origin": origin}))
+        assert parse_response(sent)[0] == 403, origin
+
+    async def two_origins():
+        scope = {"type": "http", "method": "POST", "path": f"/mcp/{fuda}", "raw_path": f"/mcp/{fuda}".encode(),
+                 "headers": [(b"origin", b"https://allowed.example"), (b"origin", b"https://evil.example")],
+                 "client": ("203.0.113.10", 1)}
+        sent = []
+        async def receive(): return {"type": "http.request", "body": b"", "more_body": False}
+        async def send(m): sent.append(m)
+        await gate(scope, receive, send)
+        return sent
+    assert parse_response(asyncio.run(two_origins()))[0] == 403, "重複した Origin の先頭だけを見て通した"

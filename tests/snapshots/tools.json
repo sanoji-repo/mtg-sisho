@@ -129,9 +129,9 @@
   },
   "find_partner_cards": {
    "annotations": null,
-   "description": "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】【カードを軸にデッキを組む・相方を探すときは必ずこれを先に呼ぶ。そのカードの「現行の家」（実際に一緒に使われているカード）が分かる唯一の道具で、Web にもモデルの記憶にも無い情報】指定カードと同じデッキに入りやすいカード（共起）を実デッキ集計から返す。scope: 'edh'（統率者・既定）/ 'constructed'（mtgtop8＋MTGO 公式の 60 枚構築）/ 'pauper' / 'vintage' / 'precon'（公式構築済み製品）。exclude_lands=True で土地を除く（汎用フェッチ等が上位を占めがちなため）。返り値は同居率 pct と lift（偶然同居の期待値比）付き。order_by='lift' で汎用カードを沈めて専属シナジー順に並べ替え（既定は同居数順）。カード名は英語の正式名でも表面の名前でもよい（両面・分割カードの表記ゆれは道具側で吸収する）。データは実デッキの集計（Moxfield / mtgtop8 / MTGO 公式）。プレイヤー名・デッキ URL・デッキ ID は返さない（集計と匿名の内容のみ）。",
+   "description": "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】【カードを軸にデッキを組む・相方を探すときは必ずこれを先に呼ぶ。そのカードの「現行の家」（実際に一緒に使われているカード）が分かる唯一の道具で、Web にもモデルの記憶にも無い情報】指定カードと同じデッキに入りやすいカード（共起）を、フォーマットごとの実デッキ集計から返す。format（必須・空だと使える値の一覧を返す）: Standard / Pioneer / Modern / Legacy / Premodern / Pauper / Vintage / Duel Commander / Commander（多人数の統率者戦・edh も可）/ Precon（公式構築済み製品）。区間は直近 90 日を先に見て、そのカードのリストが少ないときだけ全期間へ広げる（返り値の頭にどちらで答えたかと理由）。relation: 'main'（既定・メイン同士）/ 'side'（メインにこのカードを入れたデッキが、サイドボードに何を置くか・60 枚の構築だけ）。exclude_lands=True で土地を除く（汎用の土地が上位を占めがちなため）。返り値は同居率 pct と lift（偶然同居の期待値比）付き。order_by='lift' で汎用カードを沈めて専属シナジー順に並べ替え（既定は同居数順）。カード名は英語の正式名でも表面の名前でもよい（両面・分割カードの表記ゆれは道具側で吸収する）。数え方: 1 本＝異なるリスト（同じリストの写しは 1 本）・枚数は数えない・基本土地は除く。データは実デッキの集計（Moxfield / mtgtop8 / MTGO 公式 / MTGJSON）。プレイヤー名・デッキ URL・デッキ ID は返さない（集計と匿名の内容のみ）。",
    "description_db_dependent": false,
-   "doc": "共起ペアは片方向格納＝両面 UNION で引く（実査）。\n\n    名前は表記ゆれを吸収して引く（_name_variants）。結果側の JOIN も\n    同じ理由で表の名前を許す＝相方が両面カードのとき静かに落ちるのを防ぐ\n    （実測: 相方名 215 種・7,958 ペアが落ちていた。うち 156 種は表の名前で救える）。\n\n    分母の導入（パーセンテージ表記にする）:\n    - pct = n_ab / (このカード入りデッキ数)。分母は毎回 deck_cards から実測\n      （edh_card_strength の play_decks は母集団の一致が未検証なので借りない）。\n    - lift = pct / (相方カードの全体出現率)。1.0 ≈ 偶然同居（汎用カード）・高いほど専属シナジー。\n    - order_by='lift' は同居 10 本以上・生カウント上位 400 の中で並べ替え\n      （少数サンプルの lift 暴発と全相方の分母計算の重さを両方避ける近似）。\n    - 分母の deck_list 直数えは共起集計の重複除去・MTGO 転載除外を再現しない\n      ＝pct は 2〜3% 控えめに出る近似（構築 scope でやや大きめ）。",
+   "doc": "同居の数（n_ab）と、pct = n_ab / M(A)・lift = n_ab·N / (M(A)·分母(B))。\n\n    分母(B) は relation='main' なら B をメインに入れたリスト数 M(B)、'side' なら B をサイドに置いたリスト数 S(B)。\n    どれも同じ母集団（フォーマット × 区間・同じリストの写しは 1 本）で数え、SQL 1 文で読む＝pct は 100% を超えない。\n    format は必須の扱いだが、既定を空にしてある＝省いた客（旧の scope で呼ぶ客）にも、MCP の引数検査の定型文でなく\n    この道具の断り（使える値の一覧）を届ける。",
    "function_name": "find_partner_cards",
    "is_async": false,
    "parameters": {
@@ -145,6 +145,11 @@
       "title": "Exclude Lands",
       "type": "boolean"
      },
+     "format": {
+      "default": "",
+      "title": "Format",
+      "type": "string"
+     },
      "limit": {
       "default": 15,
       "title": "Limit",
@@ -155,9 +160,9 @@
       "title": "Order By",
       "type": "string"
      },
-     "scope": {
-      "default": "edh",
-      "title": "Scope",
+     "relation": {
+      "default": "main",
+      "title": "Relation",
       "type": "string"
      }
     },
@@ -167,7 +172,7 @@
     "title": "find_partner_cardsArguments",
     "type": "object"
    },
-   "signature": "(card_name: str, scope: str = 'edh', limit: int = 15, exclude_lands: bool = False, order_by: str = 'count') -> str",
+   "signature": "(card_name: str, format: str = '', relation: str = 'main', limit: int = 15, exclude_lands: bool = False, order_by: str = 'count') -> str",
    "title": null
   },
   "get_card_rulings": {
@@ -228,7 +233,7 @@
   },
   "mtg_probability": {
    "annotations": null,
-   "description": "【確率の計算はこれ。自分で計算しない】デッキの確率を超幾何分布で厳密に計算する（DB の SQL 関数・決定的・castable と hand 以外は 1 ミリ秒未満・castable と hand は入力により数十〜数百ミリ秒）。kind: at_least=N 枚のデッキから D 枚引いて K 枚入りのカードが m 枚以上／by_turn=turn ターン目までに K 枚入りのカードを m 枚以上（見る枚数=初手 7−マリガン＋引き・先手は turn−1 回・後手は turn 回）／land_drops=turn ターン目まで毎ターン土地を置ける（見たカードに土地が turn 枚以上）／combo_by_turn=turn ターン目までに A（copies）と B（copies_b）を両方 1 枚以上。引数: deck_size（60/40/99 等）・copies（当たりの枚数・land_drops では土地の枚数）・copies_b（combo の相方）・draws（at_least の引く枚数）・turn・on_play（先手 true／後手 false）・at_least（m・既定 1）・mulligans（既定 0）。返り値の probability を percent と一緒にそのまま書き、formula と cards_seen を添えると読者が検算できる。色マナ源の問い（例: 2 ターン目に青 2 つ）は by_turn で copies=その色のソース枚数・at_least=必要数。答えに『前提: 先手／後手・マリガン n 回』を必ず添える。castable=turn ターン目までに土地だけで呪文を唱えられる確率（土地の枚数と色を同時に・2 色土地の割り当てまで厳密。色ごとに by_turn を出して掛け合わせるのは誤り）。lands=[{name, count, produces?}]（土地の名前で渡せば出る色は DB が判定・フェッチランド等は produces で指定）と spell（呪文の名前）か mana_cost（例 {1}{G}{G}）。返り値の by_turn で 1〜turn ターン目の推移。hand=見たカードが呼ぶ側の決めた条件に入る確率（キープ率など）。groups=[{label, count, min, max}]（束は重ならないこと）・turn=0 で初手だけ。",
+   "description": "【確率の計算はこれ。自分で計算しない】デッキの確率を超幾何分布で厳密に計算する（DB の SQL 関数・決定的・castable と hand 以外は 1 ミリ秒未満・castable と hand は入力により数十〜数百ミリ秒）。kind: at_least=N 枚のデッキから D 枚引いて K 枚入りのカードが m 枚以上／by_turn=turn ターン目までに K 枚入りのカードを m 枚以上（見る枚数=初手 7−マリガン＋引き・先手は turn−1 回・後手は turn 回）／land_drops=turn ターン目まで毎ターン土地を置ける（見たカードに土地が turn 枚以上）／combo_by_turn=turn ターン目までに A（copies）と B（copies_b）を両方 1 枚以上。引数: deck_size（60/40/99 等）・copies（当たりの枚数・land_drops では土地の枚数）・copies_b（combo の相方）・draws（at_least の引く枚数）・turn・on_play（先手 true／後手 false）・at_least（m・既定 1）・mulligans（既定 0）。返り値の probability を percent と一緒にそのまま書き、formula と cards_seen を添えると読者が検算できる。色マナ源の問い（例: 2 ターン目に青 2 つ）は by_turn で copies=その色のソース枚数・at_least=必要数。答えに『前提: 先手／後手・マリガン n 回』を必ず添える。castable=turn ターン目までに土地だけで呪文を唱えられる確率（土地の枚数と色を同時に・2 色土地の割り当てまで厳密。色ごとに by_turn を出して掛け合わせるのは誤り）。lands=[{name, count, produces?}]（土地の名前で渡せば出る色は DB が判定・フェッチランド等は produces で指定）と spell（呪文の名前）か mana_cost（例 {1}{G}{G}）。返り値の by_turn で 1〜turn ターン目の推移。hand=見たカードが呼ぶ側の決めた条件に入る確率（キープ率など）。groups=[{label, count, min, max}]（束は重ならないこと）・turn=0 で初手だけ。数字を変えて比べるときは 1 回で呼ぶ: vary={\"copies\":[15,16,17,18]}（3 つまで同時に振れる・at_least・by_turn・land_drops・combo_by_turn）。返り値の table（前提つきの表）をそのまま答えに貼る。",
    "description_db_dependent": false,
    "doc": null,
    "function_name": "mtg_probability",
@@ -334,6 +339,20 @@
       "default": 1,
       "title": "Turn",
       "type": "integer"
+     },
+     "vary": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "description": "数字を振って 1 回で比べる: {引数名: [整数, …]}。振れるのは 3 つまで・組み合わせは全部の掛け算で全部で 50 通りまで（重複はまとめる・渡した順に返す）。2 つなら行×列の表・3 つ目は値ごとに表を分ける。振れる引数: at_least=deck_size/copies/draws/at_least・by_turn=deck_size/copies/turn/at_least/mulligans・land_drops=deck_size/copies/turn/mulligans・combo_by_turn=deck_size/copies/copies_b/turn/mulligans。省けば 1 回の計算。",
+      "title": "Vary"
      }
     },
     "required": [
@@ -342,7 +361,7 @@
     "title": "mtg_probabilityArguments",
     "type": "object"
    },
-   "signature": "(kind: str, deck_size: int = 60, copies: int = 4, copies_b: int = 0, draws: int = 7, turn: int = 1, on_play: bool = True, at_least: int = 1, mulligans: int = 0, lands: list[dict] | None = None, spell: str | None = None, mana_cost: str | None = None, groups: list[dict] | None = None) -> str",
+   "signature": "(kind: str, deck_size: int = 60, copies: int = 4, copies_b: int = 0, draws: int = 7, turn: int = 1, on_play: bool = True, at_least: int = 1, mulligans: int = 0, lands: list[dict] | None = None, spell: str | None = None, mana_cost: str | None = None, groups: list[dict] | None = None, vary: Annotated[dict | None, FieldInfo(annotation=NoneType, required=True, description='数字を振って 1 回で比べる: {引数名: [整数, …]}。振れるのは 3 つまで・組み合わせは全部の掛け算で全部で 50 通りまで（重複はまとめる・渡した順に返す）。2 つなら行×列の表・3 つ目は値ごとに表を分ける。振れる引数: at_least=deck_size/copies/draws/at_least・by_turn=deck_size/copies/turn/at_least/mulligans・land_drops=deck_size/copies/turn/mulligans・combo_by_turn=deck_size/copies/copies_b/turn/mulligans。省けば 1 回の計算。')] = None) -> str",
    "title": null
   },
   "mtg_rag_health": {
@@ -368,7 +387,7 @@
   },
   "query_mtg_database": {
    "annotations": null,
-   "description": "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】【専用ツールで表せない集計は Web に行かずここで SQL】読み取り専用 SQL（PostgreSQL・SELECT/WITH のみ・1 文・10 秒・最大 50 行）。条件違いの比較（色別・セット別・ランク帯別など）は同じ表を何度も引かず GROUP BY／CASE で 1 文にまとめる（往復 1 回が速い）。主な棚: mtg_cards_v2（card_name, japanese_name, name_display, type_line, mana_cost, oracle_text, legalities, edhrec_rank）／mtg_rules／card_rulings／card_format_strength・edh_card_strength（採用率）／card_cooccurrence・edh_card_cooccurrence_v2（共起）／mtg_sets（セット発売日・set_type・エキスパンション紀元の突き合わせ用）／deck_list・deck_cards（実デッキ・プレイヤー名は players 表に隔離＝非公開・deck_list は player_id）。列名は describe_mtg_tables で確認（推測しない）。結果のカード名列の右隣に <列>_display（完成形）を自動同伴＝それをそのまま書く。【players 表（プレイヤー名）は内部専用＝権利上の理由で公開版のデータには含まれない】【SQL の 1 行目の掟】必ず `-- 目的` のコメントを 1 行目に書く（例: `-- #SOS 3 パック目の比較`）。リミテッドの問いでユーザーがセットを示していたら（#SOS のタグ・「SOS のクイックドラフト」等）、コメントに `#セット記号` を含める（そのセットの色の組み合わせ表が返り値に添う）。構築の問いでは記号を書かない。コメントは読むだけで SQL は書き換えない。セット記号は search_mtg_cards の説明にある一覧から（知らないセットでも MTG・推測しない）。確率の SQL 関数（データと結合するとき・単発は mtg_probability）: mtg_hypergeom_atleast(N,K,D,m)・mtg_prob_by_turn(deck,copies,turn,on_play,m,mull)・mtg_land_drops(deck,lands,turn,on_play,mull)・mtg_combo_by_turn(deck,a,b,turn,on_play,mull)・mtg_cards_seen(turn,on_play,mull)。",
+   "description": "【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】【専用ツールで表せない集計は Web に行かずここで SQL】読み取り専用 SQL（PostgreSQL・SELECT/WITH のみ・1 文・10 秒・最大 50 行）。条件違いの比較（色別・セット別・ランク帯別など）は同じ表を何度も引かず GROUP BY／CASE で 1 文にまとめる（往復 1 回が速い）。主な棚: mtg_cards_v2（card_name, japanese_name, name_display, type_line, mana_cost, oracle_text, legalities, edhrec_rank）／mtg_rules／card_rulings／card_format_strength・edh_card_strength（採用率）／card_cooccurrence_v2（共起・population_id＝cooccurrence_populations のフォーマット×区間・relation m＝メイン同士 a<b／s＝メイン A→サイド B）・card_population_deck_counts（分母）・cooccurrence_population_stats（区間の N）／mtg_sets（セット発売日・set_type・エキスパンション紀元の突き合わせ用）／deck_list・deck_cards（実デッキ・プレイヤー名は players 表に隔離＝非公開・deck_list は player_id）。列名は describe_mtg_tables で確認（推測しない）。結果のカード名列の右隣に <列>_display（完成形）を自動同伴＝それをそのまま書く。【players 表（プレイヤー名）は内部専用＝権利上の理由で公開版のデータには含まれない】【SQL の 1 行目の掟】必ず `-- 目的` のコメントを 1 行目に書く（例: `-- #SOS 3 パック目の比較`）。リミテッドの問いでユーザーがセットを示していたら（#SOS のタグ・「SOS のクイックドラフト」等）、コメントに `#セット記号` を含める（そのセットの色の組み合わせ表が返り値に添う）。構築の問いでは記号を書かない。コメントは読むだけで SQL は書き換えない。セット記号は search_mtg_cards の説明にある一覧から（知らないセットでも MTG・推測しない）。確率の SQL 関数（データと結合するとき・単発は mtg_probability）: mtg_hypergeom_atleast(N,K,D,m)・mtg_prob_by_turn(deck,copies,turn,on_play,m,mull)・mtg_land_drops(deck,lands,turn,on_play,mull)・mtg_combo_by_turn(deck,a,b,turn,on_play,mull)・mtg_cards_seen(turn,on_play,mull)。",
    "description_db_dependent": true,
    "doc": null,
    "function_name": "query_mtg_database",

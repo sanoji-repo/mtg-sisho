@@ -28,8 +28,11 @@ ALTER ROLE sisho_repl PASSWORD :'pw';
 ALTER ROLE sisho_repl CONNECTION LIMIT 3;
 
 GRANT SELECT ON public.mtg_cards_v2, public.mtg_cards_v2_nonlegal, public.mtg_rules, public.card_rulings,
-  public.deck_cards, public.card_cooccurrence, public.edh_card_cooccurrence_v2, public.edh_card_strength,
+  public.deck_cards, public.edh_card_strength,
   public.card_format_strength, public.mtgo_name_alias, public.format_deck_counts TO sisho_repl;
+-- 共起（旧の 2 表と分母の 2 表を置き換えた・稼働中の公開サーバーに足すときは 30/31・旧表を外すのは 33/34）
+GRANT SELECT ON public.cooccurrence_populations, public.cooccurrence_population_stats,
+  public.card_population_deck_counts, public.card_cooccurrence_v2 TO sisho_repl;
 GRANT SELECT (id, deck_name, set_code, source, created_at, tournament_name, tournament_date, placement,
   format_name, source_url, tournament_event_id, archetype, bracket) ON public.deck_list TO sisho_repl;
 -- 17Lands 集計（03_vm_add_limited_card_stats.sql で足した分。lab17.card_stats から public.limited_card_stats へ統合済み。ここが正本）
@@ -54,8 +57,13 @@ CREATE PUBLICATION sisho_pub FOR TABLE
   public.card_rulings (id, oracle_id, card_id, card_name, source, published_at, comment, source_version),
   public.deck_list (id, deck_name, set_code, source, created_at, tournament_name, tournament_date, placement, format_name, source_url, tournament_event_id, archetype, bracket),
   public.deck_cards (id, deck_id, card_name, count, board, card_id),
-  public.card_cooccurrence (card_name_a, card_name_b, co_count, source),
-  public.edh_card_cooccurrence_v2 (card_id_a, card_id_b, source, deck_count),
+  -- 共起（フォーマット × 区間の母集団）
+  public.cooccurrence_populations (population_id, format_name, window_code, sources, definition_version, pair_min_decks, definition),
+  public.cooccurrence_population_stats (population_id, build_id, computed_at, input_snapshot_at, window_start, window_end,
+    first_event_date, latest_event_date, raw_deck_count, deck_count, unresolved_unique_decks, pair_row_count, card_row_count,
+    content_digest, coverage),
+  public.card_population_deck_counts (population_id, card_id, main_deck_count, side_deck_count),
+  public.card_cooccurrence_v2 (population_id, relation, card_id_a, card_id_b, cooccurrence_count),
   public.edh_card_strength (card_id, format_name, play_decks),
   public.card_format_strength (card_id, format_name, play_decks),
   public.mtgo_name_alias (mtgo_name, card_name, mtgo_id, set_code, note),

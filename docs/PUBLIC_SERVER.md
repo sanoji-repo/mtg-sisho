@@ -89,7 +89,7 @@ sudo -u postgres env DB_PASS_ROAI=<.env と同じ値> PGUSER=postgres PGHOST=/va
 開発側（VM）:
 1. PostgreSQL を `wal_level=logical` にして再起動（docker compose なら command に `-c wal_level=logical`）。`max_slot_wal_keep_size` も置く（公開サーバーが長く落ちても開発側のディスクが埋まらない保険）。
 2. 公開サーバーから届く口を開ける（docker の ports に Tailscale の IP・Tailscale ACL に `tag:sisho → <VM>:5435`）。pg_hba は `host all all all scram-sha-256` があれば足りる。
-3. `sh/sisho_repl/01_vm_publication.sql` を流す（ロール `sisho_repl`＝REPLICATION＋公開する列だけ SELECT／publication `sisho_pub`＝21 表（`limited_card_stats`・17Lands 追加集計 5 表 `limited_*`・`mtg_sets`・スコープ別集計 2 表 `card_scope_deck_counts`／`scope_deck_counts` を含む・`make_public_dump.sh` の TABLES と同じ）・全表を明示の列指定——ただし主キーの無い `mtg_cards_v2_nonlegal`（REPLICA IDENTITY FULL）だけは列指定なし。列指定を付けると UPDATE/DELETE が「Column list used by the publication does not cover the replica identity」で拒否される（2026-08-31 実測））。
+3. `sh/sisho_repl/01_vm_publication.sql` を流す（ロール `sisho_repl`＝REPLICATION＋公開する列だけ SELECT／publication `sisho_pub`＝21 表（`limited_card_stats`・17Lands 追加集計 5 表 `limited_*`・`mtg_sets`・共起の 4 表 `cooccurrence_populations`／`cooccurrence_population_stats`／`card_population_deck_counts`／`card_cooccurrence_v2`（2026-09-28 に旧の共起 2 表とスコープ別集計 2 表から置き換え）を含む・`make_public_dump.sh` の TABLES と同じ）・全表を明示の列指定——ただし主キーの無い `mtg_cards_v2_nonlegal`（REPLICA IDENTITY FULL）だけは列指定なし。列指定を付けると UPDATE/DELETE が「Column list used by the publication does not cover the replica identity」で拒否される（2026-08-31 実測））。
    - `deck_list` の列指定に `player_name` を入れない＝名前は公開サーバーへ流れない。
    - 生成列（`mtg_cards_v2.name_display`）は列指定に入れない（公開サーバーが自分で計算する。入れると公開サーバー側で "incompatible generated column"）。
    - 主キーの無い表（`mtg_cards_v2_nonlegal`）は `REPLICA IDENTITY FULL`。

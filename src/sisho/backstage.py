@@ -19,6 +19,15 @@ JSON Schema の required を削ることになり、「必ず要る物は必須�
 なので契約には触れず、応答の側で幕を引く。
 
 安全側の設計: 書き換えるのは印（marker）を含む本体だけ。解析に少しでも失敗したら元のまま通す。
+
+SDK は道具の本体が投げた例外も同じ
+「Error executing tool <名前>: <例外文>」で包む。以前はこの印だけで引数検証と決めつけ、DB 断
+（OperationalError）が客に「入力が不正」と見え、道具ログにも schema_rejected が二重に残っていた。
+引数検証（本文が「N validation error(s) for <道具名>Arguments」で始まる回）だけを「入力が不正」にする。
+本体の例外は「サーバー側の失敗」として、原因の生の文（DB の宛先・例外の型など）を客に見せず再試行を
+案内する（「想定外は生の例外文を素通し」を、投げられた例外については改めた）。
+生の文はジャーナルに残す。道具ログは observed が exception で既に 1 組残しているので、ここでは足さない。
+道具が自分で返すエラー文（「SQL エラー:」など・客が直すのに要る）は例外ではないので、この幕を通らない。
 """
 import json
 import logging
@@ -28,6 +37,7 @@ from sisho.toollog import _log_tool, _log_tool_end
 
 _log = logging.getLogger("sisho.backstage")
 
+RUNTIME = "runtime"                              # 記録用の要旨: 本体の例外（引数検証でない）
 _MARKER = "Error executing tool "
 _MARKER_B = _MARKER.encode()
 # 「Error executing tool <名前>: 1 validation error for ...」から道具名を取る
@@ -42,6 +52,11 @@ def _rewrite_text(text: str) -> tuple[str, str, str] | None:
     if not m:
         return None
     tool, body = m.group(1), m.group(2)
+    if not re.match(rf"\d+ validation errors? for {re.escape(tool)}Arguments\b", body):
+        # 道具の本体の例外（DB 断など）＝入力の問題ではない。原因の生の文は見せない
+        msg = (f"サーバー側の失敗: {tool} の実行中にサーバー側でエラーが起きました（入力の問題ではありません）。"
+               "少し待ってから同じ呼び出しをもう一度試してください。")
+        return msg, tool, RUNTIME
     fields = [f for f in _FIELD_RE.findall(body) if f not in ("type", "input_value", "input_type")]
     where = "・".join(dict.fromkeys(fields)) if fields else ""
     # 「足りない」と「型が違う」は混ざって来る（一方だけを言うと嘘になる）
@@ -76,6 +91,8 @@ def _rewrite_payload(obj) -> str | None:
         done = _rewrite_text(text)
         if not done:
             continue
+        if done[2] == RUNTIME:
+            _log.warning("[backstage] %s の本体の例外を隠した: %s", done[1], text[:400])
         part["text"], tool, summary = done
         note = f"{tool}|{summary}"
     return note
@@ -123,22 +140,48 @@ class BackstageASGI:
             await self.app(scope, receive, send)
             return
 
+        # Content-Length 付きの応答（MCP の 2026年7月28日版の JSON 一発など）は、本文を書き換えると宣言した長さと
+        # ずれる（宣言 665 に実本文 415 を再現）。start を預かって本文を全部受け取り、
+        # 書き換えた後の長さで宣言し直してから送る。長さを宣言しない SSE（chunked）は従来どおり逐次に通す。
+        held = {"start": None, "chunks": []}
+
         async def _send(message):
-            if message.get("type") == "http.response.body":
-                body = message.get("body") or b""
-                if _MARKER_B in body:
-                    try:
-                        new, note = _rewrite_body(body)
-                    except Exception:          # 幕が原因で応答を壊さない
-                        new, note = body, None
-                    if note:
-                        tool, summary = note.split("|", 1)
-                        # 道具の本体に届かない回なので、ここでしか記録できない。
-                        # 入口と出口の 2 行を揃える＝道具ログの集計（end 行で失敗を数える）に出る。
-                        _log_tool(tool, {"_rejected_by": "schema", "detail": summary})
-                        _log_tool_end(tool, "schema_rejected", 0.0, 0, 0.0)
-                        _log.info("[backstage] %s の引数検証で弾いた（%s）", tool, summary)
-                        message = dict(message, body=new)
+            mtype = message.get("type")
+            if mtype == "http.response.start":
+                if any(k.lower() == b"content-length" for k, _ in message.get("headers") or []):
+                    held["start"] = message
+                    return
+            elif mtype == "http.response.body" and held["start"] is not None:
+                held["chunks"].append(message.get("body") or b"")
+                if message.get("more_body", False):
+                    return
+                start, body = held["start"], _rewrite_logged(b"".join(held["chunks"]))
+                held["start"], held["chunks"] = None, []
+                headers = [(k, v) for k, v in start.get("headers") or [] if k.lower() != b"content-length"]
+                headers.append((b"content-length", str(len(body)).encode()))
+                await send(dict(start, headers=headers))
+                await send({"type": "http.response.body", "body": body, "more_body": False})
+                return
+            elif mtype == "http.response.body":
+                message = dict(message, body=_rewrite_logged(message.get("body") or b""))
             await send(message)
 
         await self.app(scope, receive, _send)
+
+
+def _rewrite_logged(body: bytes) -> bytes:
+    """本文を書き換え、引数検証で弾いた回を道具ログに残す。印が無い・解析できない本文はそのまま返す。"""
+    if _MARKER_B not in body:
+        return body
+    try:
+        new, note = _rewrite_body(body)
+    except Exception:          # 幕が原因で応答を壊さない
+        return body
+    if note and not note.endswith("|" + RUNTIME):   # 本体の例外は observed が exception で道具ログに残している
+        tool, summary = note.split("|", 1)
+        # 道具の本体に届かない回なので、ここでしか記録できない。
+        # 入口と出口の 2 行を揃える＝道具ログの集計（end 行で失敗を数える）に出る。
+        _log_tool(tool, {"_rejected_by": "schema", "detail": summary})
+        _log_tool_end(tool, "schema_rejected", 0.0, 0, 0.0)
+        _log.info("[backstage] %s の引数検証で弾いた（%s）", tool, summary)
+    return new

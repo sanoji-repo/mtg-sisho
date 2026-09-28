@@ -201,3 +201,52 @@ def test_null_is_distinguishable_from_empty_string():
     a, b = [c.strip() for c in body.split("|")]
     assert a != b, f"NULL と空文字が同じ表記になっている（{a!r} と {b!r}）"
     assert a == "NULL", f"不在は NULL と書く（実際: {a!r}）"
+
+
+def test_query_rows_are_limited_in_the_db(monkeypatch):
+    """返す行数は DB の側で止める。普通のカーソルは結果を全部 Python に
+    受け取るので、LIMIT が無いと 2,100 万行の表を丸ごと受け取れた。Python に届く行が max_rows を超えないこと。"""
+    import sisho.db as db
+    got = []
+    real = db._run
+
+    def spy(cfg, sql, params, fetch, lane=db.LANE_HEAVY):
+        def counting(cur):
+            got.append(cur.rowcount)          # 普通のカーソルは execute の時点で受け取った全行数
+            return fetch(cur)
+        return real(cfg, sql, params, counting, lane=lane)
+
+    monkeypatch.setattr(db, "_run", spy)
+    r = q("SELECT generate_series(1, 100000) AS n", 7)
+    assert _body(r) == [str(i) for i in range(1, 8)]
+    assert got == [7], f"Python に {got} 行届いた"
+
+
+def test_query_rejects_oversized_rows_before_python():
+    """1 行が 256KB を超える結果は DB の中で止め、分かる文で断る（巨大な値を Python に届かせない）。
+    上限の手前は通す。上限は実データの 1 行（最大 5.7KB）より十分大きい。"""
+    r = q("SELECT repeat('x', 300000) AS big", 1)
+    assert r.startswith("拒否: 結果の 1 行が大きすぎます（約 29") and "上限 256 KB" in r, r
+    assert sqltool._ROW_GUARD not in r and "integer" not in r, "内部の仕掛けの文が漏れた"
+    ok = q("SELECT length(repeat('x', 300000)) AS n, repeat('y', 200000) AS s", 1)
+    assert _body(ok)[0].startswith("300000 | yyy"), ok[:80]
+
+
+def test_query_guard_mark_in_client_sql_is_not_mistaken():
+    """客の SQL に関所の印が書かれていても、別のエラーを『行が大きすぎます』と取り違えない
+    （エラーの LINE の行に客の別名が引用されて当たっていた）。"""
+    r = q('SELECT no_such_column AS "999_sisho_row_too_large"', 1)
+    assert r.startswith("SQL エラー:") and "no_such_column" in r, r
+    r = q("SELECT 1 AS n FROM nosuchtable_999_sisho_row_too_large", 1)
+    assert r.startswith("SQL エラー:"), r
+
+
+def test_query_wrapping_keeps_the_client_sql_semantics():
+    """包んでも客の SQL の意味は変わらない: 末尾の -- コメント・WITH・UNION と ORDER BY・同名の列・並び順。
+    エラーの行番号は客の SQL の行番号に戻す。"""
+    assert _body(q("SELECT 1 AS a -- 末尾のコメント", 5)) == ["1"]
+    assert _body(q("WITH x AS (SELECT 2 AS n UNION ALL SELECT 1) SELECT n FROM x ORDER BY n", 5)) == ["1", "2"]
+    assert _body(q("SELECT 1 AS n UNION SELECT 3 UNION SELECT 2 ORDER BY 1 DESC", 5)) == ["3", "2", "1"]
+    assert _body(q("SELECT 1 AS a, 2 AS a", 5)) == ["1 | 2"]
+    r = q("SELECT 1\nFROM nosuchtable", 5)
+    assert "LINE 2:" in r and "LINE 3:" not in r, r

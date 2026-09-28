@@ -8,6 +8,8 @@
 文言の物差し（境目は正確に・想定外は素通し）:
   - 境目（道具が入力を解釈する場所）の error は「何が分からなかったか」と「次に何を試すか」を両方書く。
   - 想定外の例外は「失敗しました」に丸めず、生の例外文（PostgreSQL のエラー文など）を先頭 200〜400 字そのまま載せる。
+    ただし道具が**投げた**例外は扱いを改めた: 客には「サーバー側の失敗」と再試行の案内だけを返し、
+    生の文（DB の宛先・例外の型）はジャーナルに残す（sisho/backstage.py）。道具が自分で**返す**エラー文は従来どおり。
   - 「該当なし」（引けたが無い）と「入力が不明・不正」は、文言も error_kind も分ける。
 
 いま `error_kind` を実際に載せているのは **返り値がもともと JSON の道具**
@@ -23,7 +25,7 @@ EMPTY_QUERY = "empty_query"                     # 必須の入力が空
 NO_MATCH = "no_match"                           # 入力は解釈できたが該当が無い（該当なし・裁定なし・共起なし）
 UNKNOWN_FORMAT = "unknown_format"               # legalities にその format の鍵が無い
 AMBIGUOUS_FORMAT = "ambiguous_format"           # 近い format の鍵が複数＝推測しない
-UNKNOWN_OPTION = "unknown_option"               # 列挙の引数（kind・scope・order_by）が一覧に無い
+UNKNOWN_OPTION = "unknown_option"               # 列挙の引数（kind・format・relation・order_by）が一覧に無い
 OUT_OF_RANGE = "out_of_range"                   # 数値・件数が範囲外、または入力の組み合わせが定義できない
 INVALID_IDENTIFIER = "invalid_identifier"       # 識別子（スキーマ名・表名）に使えない文字が入っている
 UNKNOWN_TABLE = "unknown_table"                 # その名前の表が無い
@@ -31,6 +33,7 @@ SQL_REJECTED = "sql_rejected"                   # 入口の鞘が SQL を拒否�
 
 # ─── 想定外・外の世界 ───
 BUSY = "busy"                                   # DB のスロット取りが順番待ちを超えた（失敗でなく混雑）
+NOT_READY = "not_ready"                         # 集計がまだそろっていない（夜間の集計の未生成・公開サーバーへの写しの途中）
 UPSTREAM_UNREACHABLE = "upstream_unreachable"   # 外部 API（Commander Spellbook）に届かない
 RATE_LIMITED = "rate_limited"                   # 外部 API を守るための接続用の鍵ごとの枠
 DB_ERROR = "db_error"                           # DB からの例外（生の例外文を素通しする）
@@ -42,12 +45,13 @@ KINDS: dict[str, str] = {
     NO_MATCH: "入力は解釈できたが該当が無い（次の引き方を文で言う）",
     UNKNOWN_FORMAT: "legalities にその format の鍵が無い（有効な鍵の一覧を添える）",
     AMBIGUOUS_FORMAT: "近い format の鍵が複数あり推測しない（候補を並べて選ばせる）",
-    UNKNOWN_OPTION: "列挙の引数（kind・scope・order_by）が一覧に無い（使える値を並べる）",
+    UNKNOWN_OPTION: "列挙の引数（kind・format・relation・order_by）が一覧に無い（使える値を並べる）",
     OUT_OF_RANGE: "数値・件数が範囲外、または入力の組み合わせが定義できない（範囲を書く）",
     INVALID_IDENTIFIER: "識別子（スキーマ名・表名）に使えない文字（使える文字と次の一手を書く）",
     UNKNOWN_TABLE: "その名前の表が無い（一覧の出し方を書く）",
     SQL_REJECTED: "入口の鞘が SQL を拒否した（複文・SELECT/WITH 以外）",
     BUSY: "DB のスロット取りが順番待ちの上限を超えた＝混雑（失敗ではない・待って呼び直す）",
+    NOT_READY: "集計がまだそろっていない（観測 0 件ではない・時間を置いて呼び直す）",
     UPSTREAM_UNREACHABLE: "外部 API に届かない（この道具だけの障害・他の道具は影響なし）",
     RATE_LIMITED: "外部 API を守るための接続用の鍵ごとの枠（指定秒数待って呼び直す）",
     DB_ERROR: "DB からの例外（生の例外文を先頭 200〜400 字そのまま載せる）",
@@ -61,6 +65,7 @@ KINDS: dict[str, str] = {
 #: startswith なので衝突しないが、読む人のために特定的な方から並べる）。
 TEXT_PREFIXES: tuple[tuple[str, str], ...] = (
     ("混雑:", BUSY),                          # _db_slot → query・describe・health
+    ("一時的に使えません:", DB_ERROR),          # verify（名前の辞書が作れない＝DB に届かない）
     ("拒否:", SQL_REJECTED),                   # query（複文・SELECT/WITH 以外）
     ("SQL エラー:", DB_ERROR),                 # query
     ("health 失敗:", DB_ERROR),                # health
@@ -68,11 +73,14 @@ TEXT_PREFIXES: tuple[tuple[str, str], ...] = (
     ("該当なし", NO_MATCH),                    # lookup_mtg_rule
     ("裁定なし", NO_MATCH),                    # get_card_rulings
     ("共起なし", NO_MATCH),                    # find_partner_cards
+    ("集計が準備中:", NOT_READY),               # find_partner_cards（集計が準備中）
     ("テーブルなし:", UNKNOWN_TABLE),           # describe
     ("表名に使えない", INVALID_IDENTIFIER),      # describe
     ("スキーマ名に使えない", INVALID_IDENTIFIER),  # describe
     ("order_by が不正", UNKNOWN_OPTION),        # find_partner_cards
-    ("scope が不正", UNKNOWN_OPTION),           # find_partner_cards
+    ("format が不正", UNKNOWN_OPTION),          # find_partner_cards（scope は format に置き換えた）
+    ("relation が不正", UNKNOWN_OPTION),        # find_partner_cards
+    ("relation='side' は", UNKNOWN_OPTION),     # find_partner_cards（サイドの関係が無いフォーマット）
     ("set が不正", UNKNOWN_OPTION),             # draft_pack_stats
     ("入力が空:", EMPTY_QUERY),                 # draft_pack_stats
     ("セットの指定が必要", EMPTY_QUERY),          # draft_pack_stats（必須の引数が無い）
