@@ -21,7 +21,7 @@ import re
 import psycopg2
 from psycopg2.extras import execute_batch
 
-from db_config import get_db_config
+from db_config import get_db_config, migrate_requested, require_columns, require_indexes
 
 
 def strip_reminder(t):
@@ -59,9 +59,14 @@ def main():
     cfg = get_db_config()
     conn = psycopg2.connect(**cfg)
     cur = conn.cursor()
-    cur.execute("ALTER TABLE mtg_cards_v2 ADD COLUMN IF NOT EXISTS front_keywords text[]")
-    cur.execute("CREATE INDEX IF NOT EXISTS mtg_cards_v2_front_keywords_gin "
-                "ON mtg_cards_v2 USING gin (front_keywords)")
+    # 通常運転では DDL を打たない
+    require_columns(conn, "mtg_cards_v2", ("front_keywords",),
+                    "ALTER TABLE mtg_cards_v2 ADD COLUMN IF NOT EXISTS front_keywords text[]",
+                    migrate=migrate_requested(), label="ALTER")
+    require_indexes(conn, "mtg_cards_v2", ("mtg_cards_v2_front_keywords_gin",),
+                    "CREATE INDEX IF NOT EXISTS mtg_cards_v2_front_keywords_gin "
+                    "ON mtg_cards_v2 USING gin (front_keywords)",
+                    migrate=migrate_requested())
     cur.execute("SELECT id, keywords, card_faces_json FROM mtg_cards_v2")
     updates = []
     n_multi, n_diff = 0, 0

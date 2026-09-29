@@ -24,10 +24,10 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-# 置き場所はリポジトリ直下から解く（作者の開発環境の絶対パスを使わない）。
-# 生の gz は data/17lands（.gitignore 済み）・報告は logs/（同じく）。
+# 置き場所は環境変数 MTG_DATA_DIR（既定はリポジトリ直下の data/）から解く。
+# 生の gz は <データの置き場所>/17lands・報告は logs/（どちらも .gitignore 済み）。
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-L17_DIR = os.environ.get("L17_DIR", os.path.join(_REPO_ROOT, "data", "17lands"))
+L17_DIR = os.environ.get("L17_DIR", os.path.join(os.environ.get("MTG_DATA_DIR", os.path.join(_REPO_ROOT, "data")), "17lands"))
 
 
 def log(msg: str) -> None:

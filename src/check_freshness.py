@@ -8,7 +8,7 @@ DB に入っている各棚の版と、世の中の最新版を突き合わせ�
 
 見るもの:
   1. Scryfall bulk（oracle_cards）の updated_at  vs  ローカル bulk ファイルの mtime
-     → legalities（禁止改定）と oracle テキストの鮮度。反映の手順は update_oracle.py。
+     → legalities（禁止改定）と oracle テキストの鮮度。反映は毎日の監視 daily_set_watch.py → sync_oracle_cards.py。
   2. mtg_rules.source_version  vs  WotC 総合ルールページの最終更新（best-effort・
      取れなければ「手動確認」と出す）→ エキスパンションごとの CR 改定。
   3. card_rulings.source_version → 裁定の取得日（古くなったら import_rulings.py を実行し直す）。
@@ -23,10 +23,10 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import psycopg2
-from db_config import DB_CONFIG
+from db_config import DATA_DIR, DB_CONFIG
 
-BULK_LOCAL = "/mnt/new_hdd/oracle_cards.json"
-ALL_CARDS_LOCAL = "/mnt/new_hdd/all_cards_scryfall.json"
+BULK_LOCAL = os.path.join(DATA_DIR, "oracle_cards.json")
+ALL_CARDS_LOCAL = os.path.join(DATA_DIR, "all_cards_scryfall.json")
 STALE = []
 UNKNOWN = []
 
@@ -61,7 +61,7 @@ def main() -> int:
     if remote_oracle:
         for path, label, hint in (
                 (BULK_LOCAL, "oracle_cards（legalities/オラクル）",
-                 "新版 DL → src/update_oracle.py（禁止改定はここで反映）"),
+                 "sync_oracle_cards.py が反映（禁止改定もここ・daily_set_watch.py が毎日走らせる）"),
                 (ALL_CARDS_LOCAL, "all_cards（日本語印刷/セット）",
                  "新版 DL → src/extract_japanese.py ほか enrich 群")):
             if os.path.exists(path):

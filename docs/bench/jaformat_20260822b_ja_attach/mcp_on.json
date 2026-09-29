@@ -1,1 +1,1 @@
-{"mcpServers": {"mtg-rag": {"command": "/mnt/new_hdd/my_rag_env/bin/python", "args": ["/mnt/mtg_rag/src/mcp_server.py"], "env": {"PYTHONPATH": "/home/claude/pylibs"}}}}
+{"mcpServers": {"mtg-rag": {"command": "<python>", "args": ["<repo>/src/mcp_server.py"]}}}

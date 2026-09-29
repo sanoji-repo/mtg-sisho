@@ -6,21 +6,21 @@
 # 方式: ホストの pg_dump は 17（サーバ 18 に不可）→ コンテナ内 pg_dump 18 を docker exec し
 #       stdout をホストの棚へ。ACCESS SHARE ロックのみ＝通常の読み書きと競合しない（DDL は待つ）。
 #       0:00 は夜間ジョブ（03:00〜10:00）の窓の外。REPEATABLE READ スナップショット＝開始時点の一貫像。
-# 出力: /mnt/new_hdd/db_archives/rag_dev_full_YYYYMMDD.dump（-Fc -Z6・約 200MB）
+# 出力: <データの置き場所>/db_archives/rag_dev_full_YYYYMMDD.dump（-Fc -Z6・約 200MB）
 # 世代: 最新 KEEP 本を残して古い rag_dev_full_*.dump を削除（既定 4）
 # 検収: pg_restore --list の TABLE DATA 件数が MIN_TABLES 未満なら警告して非ゼロ終了（dump は残す）
 # 復元: docker exec -i pg18-primary pg_restore -h localhost -U devuser -d rag_dev < <dump>
-# cron: 0 0 * * 0 /mnt/mtg_rag/sh/weekly_pgdump.sh >> /tmp/weekly_pgdump.out 2>&1
+# cron: 0 0 * * 0 <リポジトリ>/sh/weekly_pgdump.sh >> /tmp/weekly_pgdump.out 2>&1
 set -u
-REPO=/mnt/mtg_rag
-DEST=/mnt/new_hdd/db_archives
+REPO="${REPO:-$(cd "$(dirname "$0")/.." && pwd)}"
+DEST="${PGDUMP_DIR:-${MTG_DATA_DIR:-$REPO/data}/db_archives}"
 KEEP="${PGDUMP_KEEP:-4}"
 MIN_TABLES="${PGDUMP_MIN_TABLES:-20}"
 CONTAINER="${PGDUMP_CONTAINER:-pg18-primary}"
 STAMP=$(date +%Y%m%d)
 OUT="$DEST/rag_dev_full_${STAMP}.dump"
 LOG="$DEST/weekly_pgdump.log"
-PY=/mnt/new_hdd/my_rag_env/bin/python
+PY="${PYBIN:-python3}"
 
 log(){ echo "$(date '+%F %T') $*" | tee -a "$LOG"; }
 mkdir -p "$DEST"

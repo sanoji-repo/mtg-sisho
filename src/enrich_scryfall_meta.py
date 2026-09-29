@@ -18,15 +18,19 @@ enrich_scryfall_meta.py — Scryfall の構造化メタデータを mtg_cards_v2
 構造化列であり embed_text に入れないため reembed は不要。
 
 使い方:
-    python enrich_scryfall_meta.py [oracle_cards.json のパス]
+    python enrich_scryfall_meta.py [oracle_cards.json のパス]（省略時は <データの置き場所>/oracle_cards.json）
 """
+import os
 import sys
 import json
 import psycopg2
 from psycopg2.extras import execute_values
-from db_config import get_db_config
+from db_config import DATA_DIR, get_db_config, migrate_requested, require_columns
 
-BULK = sys.argv[1] if len(sys.argv) > 1 else "/mnt/new_hdd/oracle_cards.json"
+# --migrate を除いた最初の引数がバルクのパス。「- で始まる物は全部除く」にすると
+# -bulk.json のようなファイル名を黙って捨てて既定のバルクで走ってしまう。
+_ARGS = [a for a in sys.argv[1:] if a != "--migrate"]
+BULK = _ARGS[0] if _ARGS else os.path.join(DATA_DIR, "oracle_cards.json")
 
 ALTER = """
 ALTER TABLE mtg_cards_v2 ADD COLUMN IF NOT EXISTS produced_mana text[];
@@ -49,9 +53,10 @@ def _image_url(c: dict):
 def main():
     conn = psycopg2.connect(**get_db_config())
     cur = conn.cursor()
-    cur.execute(ALTER)
-    conn.commit()
-    print("カラム追加（IF NOT EXISTS）完了")
+    # 通常運転では DDL を打たない
+    require_columns(conn, "mtg_cards_v2",
+                    ("produced_mana", "edhrec_rank", "game_changer", "image_url"),
+                    ALTER, migrate=migrate_requested(), label="ALTER")
 
     # Scryfall バルクから name -> (produced_mana, edhrec_rank, game_changer)
     rows, seen = [], set()

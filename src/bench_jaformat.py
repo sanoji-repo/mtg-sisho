@@ -14,23 +14,24 @@
 機械採点は保守的な近似（bare_* は表記揺れを拾えない・短名は見ない）。答案原文は JSON に残るので人の目で補う。
 
 使い方:
-  PYTHONPATH=src /mnt/new_hdd/my_rag_env/bin/python src/bench_jaformat.py \
+  PYTHONPATH=src python src/bench_jaformat.py \
       --lineup sonnet:medium,sonnet:xhigh,opus:low \
       --questions docs/me/bench/jaformat_questions.csv \
       --out docs/me/bench/jaformat_20260822 --parallel 3
   途中で止まっても同じコマンドで再開（完了済みの回答 JSON は飛ばす）。--score-only で採点だけ。
 """
-import argparse, csv, json, os, re, subprocess, collections, statistics
+import argparse, csv, json, os, re, subprocess, sys, tempfile, collections, statistics
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+_SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 MCP_ON = {"mcpServers": {"mtg-rag": {
-    "command": "/mnt/new_hdd/my_rag_env/bin/python",
-    "args": [os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp_server.py")],   # 自分と同じ src/
-    "env": {"PYTHONPATH": "/home/claude/pylibs"}}}}
+    "command": sys.executable,
+    "args": [os.path.join(_SRC_DIR, "mcp_server.py")],
+    "env": {"PYTHONPATH": os.pathsep.join(p for p in (_SRC_DIR, os.environ.get("PYTHONPATH", "")) if p)}}}}
 
 BUILTIN_TOOLS = ("Bash,Read,Edit,Write,MultiEdit,Glob,Grep,LS,WebSearch,WebFetch,Task,Agent,"
                  "NotebookEdit,NotebookRead,TodoWrite,TodoRead,Skill,KillShell,BashOutput")
-RUN_CWD = os.environ.get("BENCH_CWD", "/tmp/claude-1003/-mnt-mtg-rag/bench_cwd")
+RUN_CWD = os.environ.get("BENCH_CWD", os.path.join(tempfile.gettempdir(), "mtg_bench_cwd"))
 
 
 # ─── 名前表（DB） ─────────────────────────────────────────────────────
@@ -42,15 +43,18 @@ def _norm(s):
 def load_names():
     """戻り: (ja_set, en_set, en_with_ja_set) — 両面・分割は全体名と各面の両方を登録"""
     import psycopg2
-    from db_config import DB_CONFIG
+    from db_config import DB_CONFIG, read_cursor
     conn = psycopg2.connect(**DB_CONFIG, connect_timeout=5)
-    cur = conn.cursor()
-    cur.execute("SELECT DISTINCT archetype FROM deck_list WHERE archetype IS NOT NULL AND archetype <> ''")
-    global ARCHETYPES
-    ARCHETYPES = {r[0] for r in cur.fetchall()}
-    cur.execute("SELECT card_name, japanese_name FROM mtg_cards_v2")
+    # 読んだら閉じる＝この後 LLM を待つ間 deck_list と mtg_cards_v2 のロックを
+    # 握ったままにしない（握ると逆に他の DDL を止める）
+    with read_cursor(conn) as cur:
+        cur.execute("SELECT DISTINCT archetype FROM deck_list WHERE archetype IS NOT NULL AND archetype <> ''")
+        global ARCHETYPES
+        ARCHETYPES = {r[0] for r in cur.fetchall()}
+        cur.execute("SELECT card_name, japanese_name FROM mtg_cards_v2")
+        rows = cur.fetchall()
     ja, en, en_has_ja = set(), set(), set()
-    for cn, jn in cur.fetchall():
+    for cn, jn in rows:
         parts_en = [cn] + [p.strip() for p in cn.split("//")] if "//" in cn else [cn]
         for p in parts_en:
             en.add(p)
@@ -153,6 +157,8 @@ def run_one(out_dir, model, effort, qid, question, cfg_on):
             print(f"  失敗 q{qid} {model}/{effort}: rc={r.returncode} {r.stderr[-200:]}", flush=True)
     except subprocess.TimeoutExpired:
         print(f"  タイムアウト q{qid} {model}/{effort}", flush=True)
+    except OSError as e:  # claude が PATH に無い等（systemd 環境など）を黙って飲まない
+        print(f"  起動失敗 q{qid} {model}/{effort}: {e}", flush=True)
     return out
 
 

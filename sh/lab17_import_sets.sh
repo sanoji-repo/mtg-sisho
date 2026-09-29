@@ -14,8 +14,8 @@
 # 生の CSV は再配布しない（DB に入れるのは集計値だけ・帰属は 17Lands https://www.17lands.com/）。
 set -u
 REPO=${REPO:-$(cd "$(dirname "$0")/.." && pwd)}
-PYBIN=${PYBIN:-python}
-DIR=${L17_DIR:-$REPO/data/17lands}
+PYBIN=${PYBIN:-python3}
+DIR=${L17_DIR:-${MTG_DATA_DIR:-$REPO/data}/17lands}
 LIST=${L17_LIST:-$REPO/sh/17lands_premier_sets.tsv}
 LOG=${L17_LOG:-$REPO/logs/lab17_import.log}
 # DB は開発側（書き込みがあるので bin/dbq の読み取り専用ロールは使わない）

@@ -16,7 +16,7 @@
 import re, sys
 import psycopg2
 from psycopg2.extras import Json, execute_batch
-from db_config import get_db_config
+from db_config import get_db_config, migrate_requested, require_columns, require_indexes
 
 TT = ["creature", "permanent", "artifact", "enchantment", "land",
       "planeswalker", "player", "spell"]
@@ -303,10 +303,10 @@ def main():
     cfg = get_db_config()
     conn = psycopg2.connect(**cfg)
     cur = conn.cursor()
-    for stmt in DDL.strip().split(';'):
-        if stmt.strip():
-            cur.execute(stmt)
-    conn.commit()
+    # 通常運転では DDL を打たない
+    require_columns(conn, "mtg_cards_v2",
+                    ("target_types", "target", "removal_types", "removal", "floor_cmc"),
+                    DDL, migrate=migrate_requested(), label="DDL")
 
     # 面対応: 導出入力を「唱えられる面」に限定。単面は結果不変なので、
     # 書き込みは値が実際に変わる行だけ（無駄な全行 UPDATE の物理チャーン回避）。
@@ -331,9 +331,9 @@ def main():
                   updates, page_size=1000)
     conn.commit()
 
-    for stmt in IDX.strip().split(';'):
-        if stmt.strip():
-            cur.execute(stmt)
+    require_indexes(conn, "mtg_cards_v2",
+                    ("mtg_cards_v2_target_types_gin", "mtg_cards_v2_removal_types_gin"),
+                    IDX, migrate=migrate_requested())
     conn.commit()
     cur.execute("ANALYZE mtg_cards_v2")
     conn.commit()

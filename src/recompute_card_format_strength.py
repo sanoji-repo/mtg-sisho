@@ -38,7 +38,7 @@ import argparse
 
 import psycopg2
 
-from db_config import DB_CONFIG
+from db_config import DB_CONFIG, ddl_cursor
 
 
 # 1v1 構築（card_format_strength に入る・率の横断比較に参加する）
@@ -87,7 +87,8 @@ _STRENGTH_INSERT = """
 
 
 def create_table(conn) -> None:
-    with conn.cursor() as cur:
+    # DDL は lock_timeout つき（取れなければ自分が失敗して行列を作らない）
+    with ddl_cursor(conn) as cur:
         for table in ("card_format_strength", "edh_card_strength"):
             cur.execute(
                 f"""

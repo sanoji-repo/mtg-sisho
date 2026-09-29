@@ -34,11 +34,11 @@
 # ============================================================================
 set -u
 
-REPO=/mnt/mtg_rag
-PY=/mnt/new_hdd/my_rag_env/bin/python
+REPO="${REPO:-$(cd "$(dirname "$0")/.." && pwd)}"
+PY="${PYBIN:-python3}"
 STAMP=$(date +%Y%m%d_%H%M)
 LANE="${NIGHTLY_LANE:-lane_$$}"
-LOGDIR="${NIGHTLY_LOGDIR:-$REPO/docs/me}"
+LOGDIR="${NIGHTLY_LOGDIR:-$REPO/logs}"
 REPORT=$LOGDIR/nightly_report_${STAMP}_${LANE}.md
 LOCK=/tmp/nightly_scrape_${LANE}.lock
 RECOMPUTE_LOCK=/tmp/recompute_strength.lock

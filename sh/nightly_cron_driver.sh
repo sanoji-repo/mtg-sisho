@@ -20,14 +20,14 @@
 #   NIGHTLY_END_HOUR   この時になったら新規起動をやめる（既定 10）
 #   NIGHTLY_INTERVAL   パス間の休憩秒（既定 600）
 #   NIGHTLY_MAX_PASSES 0=無制限（時刻でのみ終了）・正数でパス数上限
-#   NIGHTLY_LOGDIR     レポート/ログの出力先（既定 docs/me/nightly/<日付>）
+#   NIGHTLY_LOGDIR     レポート/ログの出力先（既定 logs/nightly/<日付>）
 #   NIGHTLY_JOBS_TOP8 / NIGHTLY_JOBS_MOX  ジョブ列の差し替え（空文字でレーン無効化）
 # ============================================================================
 set -u
 
-REPO=/mnt/mtg_rag
+REPO="${REPO:-$(cd "$(dirname "$0")/.." && pwd)}"
 NIGHT=$(date +%Y%m%d)
-LOGDIR="${NIGHTLY_LOGDIR:-$REPO/docs/me/nightly/$NIGHT}"
+LOGDIR="${NIGHTLY_LOGDIR:-$REPO/logs/nightly/$NIGHT}"
 END_HOUR="${NIGHTLY_END_HOUR:-10}"
 INTERVAL="${NIGHTLY_INTERVAL:-600}"
 MAX_PASSES="${NIGHTLY_MAX_PASSES:-0}"
@@ -36,7 +36,9 @@ JOBS_TOP8="${NIGHTLY_JOBS_TOP8-mtgtop8:ST:341 mtgtop8:PI:340 mtgtop8:MO:339 mtgt
 # 300 は Moxfield の在庫切れでなく自分で決めたバケット上限だった（bracket 2〜5 が
 # 揃って 300 で頭打ち＝満杯で早期打ち切り）。天井は Moxfield 側の totalResults=10000
 # キャップの方（bracket 1 の 31 件はそちらの本物の枯れ）。
-JOBS_MOX="${NIGHTLY_JOBS_MOX-moxfield:2,3,4,5:1000}"
+# 上限 1000 では上位を取り切ってしまい、大半の回が新規 0 件で空回りしたため 2500 に上げた
+# （1 万件の窓の底でも views・likes が低い＝窓の中を取り切るのが足切りを兼ねる）。
+JOBS_MOX="${NIGHTLY_JOBS_MOX-moxfield:2,3,4,5:2500}"
 # MTGO 公式デッキリスト。今月分を毎晩差分取得。月初は前月の
 # 取りこぼしも拾うため 1〜3 日は前月も並べる（cur と prev の 2 ジョブ・同一レーン直列）
 JOBS_MTGO="${NIGHTLY_JOBS_MTGO-mtgo:cur:all}"
@@ -107,8 +109,16 @@ done
 # （src/build_cooccurrence.py）。検算で止めた母集団は前の完成版のまま残る。
 # 失敗しても夜間ジョブ全体は失敗扱いにしない（共起は検索本線でなく壁打ち道具箱の材料）。
 dlog "--- 共起 v2（母集団）開始 ---"
-PYTHONPATH=/home/claude/pylibs:$REPO/src /mnt/new_hdd/my_rag_env/bin/python "$REPO/src/build_cooccurrence.py" >> "$LOGDIR/cooccurrence.log" 2>&1
+PYTHONPATH="$REPO/src" "${PYBIN:-python3}" "$REPO/src/build_cooccurrence.py" >> "$LOGDIR/cooccurrence.log" 2>&1
 dlog "--- 共起 v2（母集団）完了 rc=$? ---"
+
+# Scryfall・17Lands の毎日の監視（src/daily_set_watch.py）:
+# 毎日無条件に oracle_cards bulk（24MB 級）で冪等同期＝新セット・アルケミー・禁止改定が翌朝に入る。
+# /sets 1 コールで接近セットと発売直後の日本語名欠けを報告。17Lands は新セットの出現だけ自動で
+# 初回の取り込み（取り込み済みセットの更新は報告のみ）。失敗しても夜間ジョブ全体は失敗扱いにしない。
+dlog "--- 毎日監視（Scryfall/17Lands）開始 ---"
+"${PYBIN:-python3}" "$REPO/src/daily_set_watch.py" >> "$LOGDIR/set_watch.log" 2>&1
+dlog "--- 毎日監視 完了 rc=$? ---"
 
 dlog "=== ドライバ終了（総パス $pass）==="
 exit 0

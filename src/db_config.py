@@ -69,6 +69,10 @@ DB_CONFIG_STANDBY = {**_COMMON, "port": int(os.environ.get("DB_PORT_STANDBY", "5
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FLAG_FILE = os.environ.get("DB_FLAG_FILE", os.path.join(_REPO_ROOT, ".primary_updating"))
 
+# 入力データ（Scryfall バルク・デッキ配布物・17Lands の生データ）の置き場所。
+# 環境変数 MTG_DATA_DIR で変える。既定はリポジトリ直下の data/（.gitignore 済み）。
+DATA_DIR = os.environ.get("MTG_DATA_DIR", os.path.join(_REPO_ROOT, "data"))
+
 
 def get_db_config() -> dict:
     """フラグファイルが存在する場合は Standby を使用する。

@@ -10,6 +10,7 @@ sync_oracle_cards.py — oracle_cards 起点の English カード同期（go-for
 方針:
   - 英語カード本体は **oracle_cards**（名前単位で 1 オブジェクト）を正準ソースにする。
   - 名前ごとに「本物カード（Vintage 合法・非 token レイアウト）」を解決して採用する。
+    Vintage 非合法でも Arena の形式で合法な札（アルケミー等）は digital=true で採用。
   - **新規 insert は完全投入**（card_faces_json / set_code / edhrec_rank 等も含む）。
   - **既存 update は検索/正確性に効く列だけ**（UPDATE_COLS）。
     edhrec_rank（時間変動）/ collector_number・set_code・set_name（代表print ノイズ）/
@@ -23,8 +24,6 @@ sync_oracle_cards.py — oracle_cards 起点の English カード同期（go-for
 責務分離（本ツールはカードデータ同期のみ。embedding は既存ツール）:
   本ツール → mtg_cards_v2 の英語列を同期 + 変更 id を出力
   その後   → add_face_cmcs.py（face_cmcs/has_x）
-            rebuild_embed_text.py --update_text --card_ids_file <ids>
-            rebuild_embed_text.py --reembed --model SMALL_V2/BASE_V2 --card_ids_file <ids>
 
 使い方:
   python sync_oracle_cards.py --bulk /path/oracle_cards.json            # dry-run（既定）
@@ -34,6 +33,7 @@ sync_oracle_cards.py — oracle_cards 起点の English カード同期（go-for
 
 import argparse
 import json
+from datetime import date, timedelta
 from decimal import Decimal
 
 import ijson
@@ -49,19 +49,30 @@ EXCLUDE_LAYOUTS = {
 }
 VINTAGE_OK = {"legal", "restricted"}
 
+# Arena 専用札（Vintage 非合法だが Arena の形式で合法＝アルケミー・A- リバランス等）は digital=true で本線に入れる
+# （既定の検索は紙＝digital でない札）。
+ARENA_FORMATS = ("historic", "alchemy", "timeless", "brawl")
+
+
+def is_digital(legalities: dict) -> bool:
+    return (legalities.get("vintage") not in VINTAGE_OK
+            and any(legalities.get(f) == "legal" for f in ARENA_FORMATS))
+
+
 # 新規 insert で投入する列（本物カードを一通り埋める）。
 INSERT_COLS = [
     "card_name", "type_line", "oracle_text", "mana_cost", "colors",
     "color_identity", "rarity", "layout", "set_code", "set_name",
     "collector_number", "cmc", "power", "toughness", "loyalty",
     "card_faces_json", "keywords", "legalities", "produced_mana",
-    "edhrec_rank", "game_changer",
+    "edhrec_rank", "game_changer", "digital",
+    "name_en_front", "name_en_back",   # 面の列（name_en_front は NOT NULL）
 ]
 # 既存行で同期する列（検索/正確性に効くものだけ。代表print/時間変動/揮発jsonは除外）。
 UPDATE_COLS = [
     "type_line", "oracle_text", "mana_cost", "colors", "color_identity",
     "rarity", "layout", "cmc", "power", "toughness", "loyalty",
-    "keywords", "legalities", "produced_mana", "game_changer",
+    "keywords", "legalities", "produced_mana", "game_changer", "digital",
 ]
 # embed_text に効く列（これが変わった行だけ reembed）。
 EMBED_COLS = ["type_line", "oracle_text", "colors", "keywords", "rarity"]
@@ -99,10 +110,27 @@ def join_faces(card: dict, key: str) -> str:
     return " // ".join(vals)
 
 
+# 発売前の先行収録: 発売日が「今日より後・PREVIEW_DAYS 日以内」のセットの札は、
+# Scryfall がまだ全フォーマット not_legal にしていても入れる（新カードで仮組みできるように）。
+# 入口は --preview-days で開く（既定 0＝閉）。発売日に Scryfall が legal へ切り替えれば UPDATE で通常の状態へ移る。
+# 行には「発売前」の印を持たない＝「digital でなく、どのフォーマットでも使えない」がこの入口を通った行だけの状態
+# （name_display の「日本語名は未収録・発売前」と道具の注記はそこから導く）。
+PREVIEW_SET_TYPES = {"expansion", "core", "commander", "draft_innovation", "masters"}
+PREVIEW_DAYS = 0
+TODAY = date.today().isoformat()
+
+
+def is_preview(card: dict) -> bool:
+    rel = card.get("released_at") or ""
+    return (PREVIEW_DAYS > 0 and card.get("set_type") in PREVIEW_SET_TYPES
+            and TODAY < rel <= (date.today() + timedelta(days=PREVIEW_DAYS)).isoformat())
+
+
 def is_eligible(card: dict, exclude_sets: set) -> bool:
     if card.get("layout") in EXCLUDE_LAYOUTS:
         return False
-    if (card.get("legalities") or {}).get("vintage") not in VINTAGE_OK:
+    leg = card.get("legalities") or {}
+    if leg.get("vintage") not in VINTAGE_OK and not is_digital(leg) and not is_preview(card):
         return False
     if card.get("set") in exclude_sets:
         return False
@@ -127,7 +155,7 @@ def to_row(card: dict) -> dict:
         "card_name": card.get("name"),
         "type_line": join_faces(card, "type_line") or None,
         "oracle_text": join_faces(card, "oracle_text") or None,
-        "mana_cost": card.get("mana_cost") or "",          # DB は空を '' で持つ
+        "mana_cost": card.get("mana_cost") or None,        # 不在は NULL
         "colors": card.get("colors") or [],
         "color_identity": card.get("color_identity") or [],
         "rarity": card.get("rarity") or None,
@@ -145,6 +173,9 @@ def to_row(card: dict) -> dict:
         "produced_mana": card.get("produced_mana") or None,  # 不在は NULL（DB 規約）
         "edhrec_rank": card.get("edhrec_rank"),
         "game_changer": bool(card.get("game_changer", False)),
+        "digital": is_digital(card.get("legalities") or {}),
+        "name_en_front": (card.get("name") or "").split(" // ")[0],
+        "name_en_back": (card.get("name").split(" // ")[1] if " // " in (card.get("name") or "") else None),
     }
 
 
@@ -189,6 +220,14 @@ def sync(bulk_path: str, exclude_sets: set, apply: bool, ids_out: str):
 
         cur.execute("SELECT count(*) FROM _oc")
         n_incoming = cur.fetchone()[0]
+        # 上流（oracle_cards）から消えた札の検出＝報告だけ（消さない）。
+        cur.execute("SELECT m.card_name, m.set_code, m.digital FROM mtg_cards_v2 m LEFT JOIN _oc t ON t.card_name = m.card_name WHERE t.card_name IS NULL ORDER BY m.card_name")
+        ghosts = cur.fetchall()
+        print(f"\n  上流に無い札（幽霊・報告のみ）: {len(ghosts)}")
+        for nm, sc, dg in ghosts[:20]:
+            print(f"    ? {nm}  [{sc}{'/digital' if dg else ''}]")
+        if len(ghosts) > 20:
+            print(f"    … 他 {len(ghosts) - 20} 件")
         cur.execute("SELECT count(*) FROM _oc t LEFT JOIN mtg_cards_v2 m "
                     "ON m.card_name=t.card_name WHERE m.card_name IS NULL")
         n_insert = cur.fetchone()[0]
@@ -236,9 +275,11 @@ def sync(bulk_path: str, exclude_sets: set, apply: bool, ids_out: str):
                     f"WHERE m.card_name = t.card_name AND ({any_pred})")
         updated = cur.rowcount
 
+        # card_name は面の列から作る生成列＝_oc（一時表・LIKE は生成式を写さない）には入れて結合鍵に使い、本体への INSERT からは外す
+        real_cols = ", ".join(c for c in INSERT_COLS if c != "card_name")
         cur.execute(f"""
-            INSERT INTO mtg_cards_v2 ({ins_cols})
-            SELECT {ins_cols} FROM _oc t
+            INSERT INTO mtg_cards_v2 ({real_cols})
+            SELECT {real_cols} FROM _oc t
             WHERE NOT EXISTS (SELECT 1 FROM mtg_cards_v2 m WHERE m.card_name=t.card_name)
             RETURNING id
         """)
@@ -251,8 +292,7 @@ def sync(bulk_path: str, exclude_sets: set, apply: bool, ids_out: str):
             with open(ids_out, "w", encoding="utf-8") as f:
                 f.write("\n".join(str(i) for i in out_ids) + ("\n" if out_ids else ""))
             print(f"[apply] embed 変更 id {len(out_ids)} 件 → {ids_out}")
-            print("  次工程: add_face_cmcs.py → "
-                  "rebuild_embed_text.py --update_text/--reembed --card_ids_file 上記")
+            print("  次工程: add_face_cmcs.py")
     conn.close()
 
 
@@ -262,6 +302,9 @@ if __name__ == "__main__":
     ap.add_argument("--apply", action="store_true", help="実際に書き込む（既定はdry-run）")
     ap.add_argument("--ids-out", default=None, help="embed 変更 id の出力先")
     ap.add_argument("--exclude-sets", default="", help="除外 set code カンマ区切り")
+    ap.add_argument("--preview-days", type=int, default=0,
+                    help="発売日が今日より後・N 日以内のセットの札を not_legal でも入れる（既定 0＝入れない）")
     args = ap.parse_args()
+    PREVIEW_DAYS = args.preview_days
     excl = {s.strip() for s in args.exclude_sets.split(",") if s.strip()}
     sync(args.bulk, excl, args.apply, args.ids_out)

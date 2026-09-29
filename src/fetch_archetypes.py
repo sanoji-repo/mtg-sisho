@@ -33,13 +33,11 @@ HEADERS = {
 # ─── テーブル作成 ─────────────────────────────────────────────
 
 def create_table(conn):
-    with conn.cursor() as cur:
-        cur.execute("""
-            ALTER TABLE deck_list
-            ADD COLUMN IF NOT EXISTS archetype TEXT;
-        """)
-    conn.commit()
-    print("deck_list.archetype カラム確認完了")
+    """deck_list.archetype が在ることを確かめるだけ（無ければ --migrate）。"""
+    from db_config import migrate_requested, require_columns
+    require_columns(conn, "deck_list", ("archetype",),
+                    "ALTER TABLE deck_list ADD COLUMN IF NOT EXISTS archetype TEXT;",
+                    migrate=migrate_requested(), label="カラム確認")
 
 
 # ─── イベントページからアーキタイプ取得 ──────────────────────
@@ -210,6 +208,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--status",  action="store_true")
     parser.add_argument("--dry_run", action="store_true")
+    parser.add_argument("--migrate", action="store_true",
+                        help="足りない列や索引を作る（通常運転では DDL を打たない）")
     args = parser.parse_args()
 
     if args.status:

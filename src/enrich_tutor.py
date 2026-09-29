@@ -62,7 +62,7 @@ import psycopg2
 from psycopg2.extras import execute_batch, Json
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/
-from db_config import get_db_config
+from db_config import get_db_config, require_columns, require_indexes
 from enrich_removal import strip_reminder, castable_oracle
 
 # ── 語彙 ────────────────────────────────────────────────────────────
@@ -238,13 +238,16 @@ def main():
     ap.add_argument('--dry-run', action='store_true',
                     help='UPDATE せず分布と差分だけ出す')
     ap.add_argument('--show', metavar='NAME', help='1 枚の判定を詳しく見る')
+    ap.add_argument('--migrate', action='store_true',
+                    help='足りない列と索引を作る（通常運転では DDL を打たない）')
     args = ap.parse_args()
 
     conn = psycopg2.connect(**get_db_config())
     cur = conn.cursor()
-    cur.execute("ALTER TABLE mtg_cards_v2 ADD COLUMN IF NOT EXISTS tutor jsonb")
-    cur.execute("ALTER TABLE mtg_cards_v2 ADD COLUMN IF NOT EXISTS dig   jsonb")
-    conn.commit()
+    require_columns(conn, "mtg_cards_v2", ("tutor", "dig"),
+                    "ALTER TABLE mtg_cards_v2 ADD COLUMN IF NOT EXISTS tutor jsonb;"
+                    "ALTER TABLE mtg_cards_v2 ADD COLUMN IF NOT EXISTS dig jsonb;",
+                    migrate=args.migrate, label="ALTER")
 
     if args.show:
         cur.execute("""SELECT card_name, oracle_text, card_faces_json, type_line
@@ -285,9 +288,10 @@ def main():
                   [(Json(t) if t else None, Json(d) if d else None, cid)
                    for cid, _, t, d in changes], page_size=500)
     conn.commit()
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_cards_tutor ON mtg_cards_v2 USING gin (tutor)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_cards_dig   ON mtg_cards_v2 USING gin (dig)")
-    conn.commit()
+    require_indexes(conn, "mtg_cards_v2", ("idx_cards_tutor", "idx_cards_dig"),
+                    "CREATE INDEX IF NOT EXISTS idx_cards_tutor ON mtg_cards_v2 USING gin (tutor);"
+                    "CREATE INDEX IF NOT EXISTS idx_cards_dig ON mtg_cards_v2 USING gin (dig);",
+                    migrate=args.migrate)
     print(f"UPDATE 完了: {len(changes)} 行（値が変わる行だけ・冪等）＋ GIN 索引")
 
 

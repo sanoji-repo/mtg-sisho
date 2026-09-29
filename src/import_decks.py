@@ -24,16 +24,17 @@ import psycopg2
 import psycopg2.extras
 from tqdm import tqdm
 
-from db_config import DB_CONFIG
+from db_config import DATA_DIR, DB_CONFIG, ddl_cursor
 
-DECK_DIR = Path("/mnt/new_hdd/AllDecks/AllDeckFiles")
+DECK_DIR = Path(os.environ.get("MTG_DECK_DIR", os.path.join(DATA_DIR, "AllDecks", "AllDeckFiles")))
 SOURCE   = "mtgjson_precon"
 
 
 # ─── テーブル作成 ─────────────────────────────────────────────
 
 def create_tables(conn):
-    with conn.cursor() as cur:
+    # DDL は lock_timeout つき（取れなければ自分が失敗して行列を作らない）
+    with ddl_cursor(conn) as cur:
         # デッキ情報テーブル
         cur.execute("""
             CREATE TABLE IF NOT EXISTS deck_list (

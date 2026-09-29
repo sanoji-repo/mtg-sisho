@@ -17,7 +17,7 @@
   を課し、未知の鍵は 404（not found）で存在を漏らさない。旧パスは legacy の鍵として当面生かす。
 - 依存（mcp SDK 等）は requirements.txt。
 
-起動: python <リポジトリ>/src/mcp_server.py（依存は requirements.txt）
+起動: python <リポジトリ>/src/mcp_server.py（依存は requirements.txt）（依存は requirements.txt）
 """
 import os
 

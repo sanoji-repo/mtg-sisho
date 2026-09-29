@@ -24,24 +24,27 @@ def is_japanese(text: str) -> bool:
     """テキストに日本語文字（ひらがな・カタカナ・漢字）が含まれているか"""
     return bool(re.search(r'[ぁ-んァ-ン一-龯]', text))
 
-from db_config import DB_CONFIG
+from db_config import DATA_DIR, DB_CONFIG
 
-# 既定は従来どおり。**/mnt/new_hdd は postgres 所有で claude は書けない**ため
-# （搬入便で発覚）、別の場所に置いた新版は MTG_ALL_CARDS_JSON で差す。
+# 既定は <データの置き場所>/all_cards_scryfall.json。別の場所の版は MTG_ALL_CARDS_JSON で差す。
 JSON_FILE    = os.environ.get("MTG_ALL_CARDS_JSON",
-                              "/mnt/new_hdd/all_cards_scryfall.json")
+                              os.path.join(DATA_DIR, "all_cards_scryfall.json"))
 BATCH_COMMIT = 500
 
 
 def add_japanese_columns(conn):
-    with conn.cursor() as cur:
-        cur.execute("""
-            ALTER TABLE mtg_cards_v2
-            ADD COLUMN IF NOT EXISTS japanese_name TEXT,
-            ADD COLUMN IF NOT EXISTS japanese_oracle_text TEXT;
-        """)
-    conn.commit()
-    print("カラム確認完了: japanese_name, japanese_oracle_text")
+    """列が在ることを確かめるだけ（無ければ --migrate を促して止まる）。
+
+    毎回 DDL を打つと、空振りでも対象表の ACCESS EXCLUSIVE を要求してロックの
+    行列を作る。列を作るのは移行の仕事。
+    """
+    from db_config import migrate_requested, require_columns
+    require_columns(conn, "mtg_cards_v2",
+                    ("japanese_name", "japanese_oracle_text"),
+                    "ALTER TABLE mtg_cards_v2"
+                    " ADD COLUMN IF NOT EXISTS japanese_name TEXT,"
+                    " ADD COLUMN IF NOT EXISTS japanese_oracle_text TEXT;",
+                    migrate=migrate_requested(), label="カラム確認")
 
 
 def extract_printed_text(card: dict) -> tuple[str | None, str | None]:
@@ -80,6 +83,37 @@ def extract_printed_text(card: dict) -> tuple[str | None, str | None]:
     return ja_name, ja_text or None
 
 
+def face_names_from_printing(card: dict, n_faces: int) -> list:
+    """印刷 1 枚から面ごとの日本語名候補（長さ n_faces・無い面は None）。
+    単面はトップレベル printed_name → faces[0]。多面は faces[i].printed_name
+    （面の printed_name に全体名「採取 // 最終」が入る split は割る）。
+    ルビを剥がし、日本語文字を含まない値は採らない。"""
+    def clean(s):
+        s = (s or "").strip()
+        if not s:
+            return None
+        s = re.sub(r"（[ぁ-ん]+）", "", s)
+        return s if is_japanese(s) else None
+    faces = card.get("card_faces") or []
+    out = [None] * n_faces
+    top = (card.get("printed_name") or "").strip()
+    if n_faces == 1:
+        out[0] = clean(top) or (clean(faces[0].get("printed_name")) if faces else None)
+        return out
+    for i in range(n_faces):
+        if i < len(faces):
+            raw = (faces[i].get("printed_name") or "").strip()
+            if " // " in raw and len(raw.split(" // ")) == n_faces:
+                raw = raw.split(" // ")[i]
+            out[i] = clean(raw)
+    if top and " // " in top:
+        parts = [clean(p) for p in top.split(" // ")]
+        if len(parts) == n_faces:
+            for i in range(n_faces):
+                out[i] = out[i] or parts[i]
+    return out
+
+
 def apply_manual_names(conn) -> int:
     """手動補正表 name_ja_manual を最後に当てる（設計判断 (a)）。
 
@@ -92,10 +126,17 @@ def apply_manual_names(conn) -> int:
         cur.execute("SELECT to_regclass('name_ja_manual')")
         if cur.fetchone()[0] is None:
             return 0
-        cur.execute("""UPDATE mtg_cards_v2 c SET japanese_name = m.ja_name
-                       FROM name_ja_manual m
-                       WHERE c.card_name = m.card_name
-                         AND c.japanese_name IS DISTINCT FROM m.ja_name""")
+        # japanese_name は面の列から作る生成列。手動表「表 // 裏」は面に割って書く（面数が合う行だけ）・出所 manual。
+        cur.execute("""UPDATE mtg_cards_v2 c
+                          SET name_ja_front = split_part(m.ja_name, ' // ', 1), name_ja_src_front = 'manual',
+                              name_ja_back  = CASE WHEN c.name_en_back IS NOT NULL THEN split_part(m.ja_name, ' // ', 2) END,
+                              name_ja_src_back = CASE WHEN c.name_en_back IS NOT NULL THEN 'manual' END
+                         FROM name_ja_manual m
+                        WHERE c.card_name = m.card_name
+                          AND array_length(string_to_array(m.ja_name, ' // '), 1) = CASE WHEN c.name_en_back IS NULL THEN 1 ELSE 2 END
+                          AND (c.name_ja_front IS DISTINCT FROM split_part(m.ja_name, ' // ', 1)
+                               OR (c.name_en_back IS NOT NULL AND c.name_ja_back IS DISTINCT FROM split_part(m.ja_name, ' // ', 2))
+                               OR c.name_ja_src_front IS DISTINCT FROM 'manual')""")
         return cur.rowcount
 
 
@@ -105,8 +146,10 @@ def run():
 
     # mtg_cards_v2 の英語名 → id マップ
     with conn.cursor() as cur:
-        cur.execute("SELECT id, card_name FROM mtg_cards_v2")
-        name_to_id = {row[1]: row[0] for row in cur.fetchall()}
+        cur.execute("SELECT id, card_name, name_en_back IS NOT NULL FROM mtg_cards_v2")
+        rows_ = cur.fetchall()
+        name_to_id = {r[1]: r[0] for r in rows_}
+        n_faces_of = {r[1]: (2 if r[2] else 1) for r in rows_}
     total_cards = len(name_to_id)
     print(f"更新対象: {total_cards} 件")
 
@@ -153,7 +196,7 @@ def run():
 
             released_at = card.get("released_at", "1900-01-01")
             ja_cands.setdefault(name, []).append(
-                (released_at, ja_name, ja_text, key))
+                (released_at, ja_name, ja_text, key, face_names_from_printing(card, n_faces_of[name])))
 
     print(f"別名義印刷の (set, collector_number): {len(flavor_keys)} 組")
     for name, cands in ja_cands.items():
@@ -162,35 +205,41 @@ def run():
         if not clean:
             continue                      # 正史の日本語印刷が無い＝採用しない
         best = max(clean, key=lambda c: c[0])
-        # 名前だけは「最新印刷に無ければ、名前を持つ最新の印刷」から補う。
-        # テキストの採用規則（released_at 最新）は変えない。
-        best_name = best[1] or next(
-            (c[1] for c in sorted(clean, key=lambda c: c[0], reverse=True) if c[1]),
-            None)
-        ja_data[name] = (best[0], best_name, best[2])
+        # 名前は面ごとに「その面の日本語名を持つ最新の印刷」から。テキストの採用規則（released_at 最新）は変えない。
+        n = n_faces_of[name]
+        faces_ja = [None] * n
+        for i in range(n):
+            for c in sorted(clean, key=lambda c: c[0], reverse=True):
+                if c[4][i]:
+                    faces_ja[i] = c[4][i]; break
+        ja_data[name] = (best[0], faces_ja, best[2])
     print(f"別名義印刷として除外した ja 印刷: {dropped_flavor} 件")
 
     print(f"日本語データ収集完了: {len(ja_data)} 件")
     print(f"printed_text 空でスキップ: {skipped_empty} 件")
 
-    # DB を一括 UPDATE（全件上書き）
+    # japanese_name は生成列＝書かない。面の列 name_ja_front/back に、Scryfall に値がある面だけ書く
+    # （無い面は触らない＝無条件上書きで他の出所の名前を消さない）。出所 manual の面は触らない（手動表が勝つ）。
+    # japanese_oracle_text は値が違う行だけ更新する。
     print("DB を更新中...")
     updated = 0
     not_found = 0
 
     with conn.cursor() as cur:
-        for name, (released_at, ja_name, ja_text) in tqdm(
+        for name, (released_at, faces_ja, ja_text) in tqdm(
             ja_data.items(), desc="DB update", mininterval=5
         ):
             card_id = name_to_id.get(name)
             if not card_id:
                 not_found += 1
                 continue
-            cur.execute("""
-                UPDATE mtg_cards_v2
-                SET japanese_name = %s, japanese_oracle_text = %s
-                WHERE id = %s
-            """, (ja_name, ja_text, card_id))
+            cur.execute("UPDATE mtg_cards_v2 SET japanese_oracle_text = %s WHERE id = %s AND japanese_oracle_text IS DISTINCT FROM %s",
+                        (ja_text, card_id, ja_text))
+            for i, col in enumerate(("front", "back")[:len(faces_ja)]):
+                if faces_ja[i]:
+                    cur.execute(f"UPDATE mtg_cards_v2 SET name_ja_{col} = %s, name_ja_src_{col} = 'scryfall'"
+                                f" WHERE id = %s AND name_ja_{col} IS DISTINCT FROM %s AND coalesce(name_ja_src_{col}, '') <> 'manual'",
+                                (faces_ja[i], card_id, faces_ja[i]))
             updated += 1
             if updated % BATCH_COMMIT == 0:
                 conn.commit()
@@ -252,6 +301,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--status", action="store_true",
                         help="取得状況を確認する")
+    parser.add_argument("--migrate", action="store_true",
+                        help="足りない列や索引を作る（通常運転では DDL を打たない）")
     args = parser.parse_args()
 
     if args.status:

@@ -27,7 +27,7 @@ import re
 import psycopg2
 from psycopg2.extras import execute_batch
 
-from db_config import get_db_config
+from db_config import get_db_config, migrate_requested, require_columns, require_indexes
 from enrich_removal import strip_reminder, castable_oracle
 
 NUM = {'a': 1, 'an': 1, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
@@ -100,10 +100,9 @@ def main():
     cfg = get_db_config()
     conn = psycopg2.connect(**cfg)
     cur = conn.cursor()
-    for stmt in DDL.strip().split(';'):
-        if stmt.strip():
-            cur.execute(stmt)
-    conn.commit()
+    # 通常運転では DDL を打たない。無ければ --migrate を促して止まる。
+    require_columns(conn, "mtg_cards_v2", ("draw_count", "draw_x"), DDL,
+                    migrate=migrate_requested(), label="DDL")
 
     # 書き込みは値が変わる行だけ（物理チャーン回避・enrich_removal と同じ流儀）
     cur.execute("""SELECT id, oracle_text, card_faces_json, draw_count, draw_x
@@ -121,9 +120,8 @@ def main():
                   updates, page_size=1000)
     conn.commit()
 
-    for stmt in IDX.strip().split(';'):
-        if stmt.strip():
-            cur.execute(stmt)
+    require_indexes(conn, "mtg_cards_v2", ("mtg_cards_v2_draw_count_idx",), IDX,
+                    migrate=migrate_requested())
     conn.commit()
     cur.execute("ANALYZE mtg_cards_v2")
     conn.commit()

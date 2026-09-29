@@ -2,8 +2,9 @@
 条件 off=Claude(Sonnet) 単体・on=同＋mtg-rag MCP。正解は DB の japanese_name（NULL=日本語版なし）。
 判定: correct / wrong（捏造・別名）/ unknown（不明と答えた）/ noja_wrong（日本語版ありなのに「なし」）/ parse_fail。
 """
+import os
 import csv, json, re, sys, collections
-W = "/tmp/claude-1003/-mnt-mtg-rag/25008f6c-85b1-4617-98c4-9498c6ec23e0/scratchpad"
+W = os.environ.get("BENCH_WORK", os.path.join(os.path.dirname(os.path.abspath(__file__)), "work"))
 
 def norm(s):
     if s is None: return None

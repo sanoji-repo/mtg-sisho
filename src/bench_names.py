@@ -14,13 +14,14 @@
       --out docs/me/bench/names_opus_20260821 --parallel 4
   途中で止まっても同じコマンドで再開（完了済みの回答 JSON は飛ばす）。
 """
-import argparse, csv, json, os, re, subprocess, sys, collections, statistics
+import argparse, csv, json, os, re, subprocess, sys, tempfile, collections, statistics
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+_SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 MCP_ON = {"mcpServers": {"mtg-rag": {
-    "command": "/mnt/new_hdd/my_rag_env/bin/python",
-    "args": [os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp_server.py")],   # 自分と同じ src/
-    "env": {"PYTHONPATH": "/home/claude/pylibs"}}}}
+    "command": sys.executable,
+    "args": [os.path.join(_SRC_DIR, "mcp_server.py")],
+    "env": {"PYTHONPATH": os.pathsep.join(p for p in (_SRC_DIR, os.environ.get("PYTHONPATH", "")) if p)}}}}
 MCP_OFF = {"mcpServers": {}}
 
 PROMPT = ("次の Magic: The Gathering のカードの日本語の正式名（日本語版カードに印刷されている名前）を"
@@ -63,7 +64,7 @@ def judge(truth, ans):
 BUILTIN_TOOLS = ("Bash,Read,Edit,Write,MultiEdit,Glob,Grep,LS,WebSearch,WebFetch,Task,Agent,"
                  "NotebookEdit,NotebookRead,TodoWrite,TodoRead,Skill,KillShell,BashOutput")
 # cwd はリポジトリ外（CLAUDE.md・フック・.mcp.json を拾わせない）
-RUN_CWD = os.environ.get("BENCH_CWD", "/tmp/claude-1003/-mnt-mtg-rag/25008f6c-85b1-4617-98c4-9498c6ec23e0/scratchpad/bench_cwd")
+RUN_CWD = os.environ.get("BENCH_CWD", os.path.join(tempfile.gettempdir(), "mtg_bench_cwd"))
 
 
 def run_one(out_dir, model, effort, cond, idx, card, cfg_on, cfg_off):

@@ -39,7 +39,7 @@ import sys
 import psycopg2
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/
-from db_config import DB_CONFIG
+from db_config import DB_CONFIG, ddl_cursor
 
 DDL = """
 CREATE TABLE IF NOT EXISTS mtg_rules (
@@ -121,7 +121,9 @@ def main():
 
     conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
-    cur.execute(DDL)
+    with ddl_cursor(conn) as dcur:                  # DDL は lock_timeout つき
+        dcur.execute(DDL)
+    cur.execute("SET lock_timeout = '10s'")         # TRUNCATE も黙って待たない
     cur.execute('TRUNCATE mtg_rules RESTART IDENTITY')
     cur.executemany(
         'INSERT INTO mtg_rules (rule_number, section, is_glossary, text_en,'

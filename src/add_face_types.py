@@ -20,12 +20,12 @@ face_cmcs が cmc 側で既に実装していた「mana_cost 非空の面＝唱�
 既に mtg_cards_v2 にあるので外部ソース不要。
 
 使い方:
-    /mnt/new_hdd/my_rag_env/bin/python add_face_types.py
+    python src/add_face_types.py
 """
 import json
 import psycopg2
 from psycopg2.extras import execute_values
-from db_config import get_db_config
+from db_config import get_db_config, migrate_requested, require_columns
 
 ALTER = """
 ALTER TABLE mtg_cards_v2 ADD COLUMN IF NOT EXISTS face_types text[];
@@ -62,9 +62,10 @@ def compute_types(type_line, card_faces_json):
 def main():
     conn = psycopg2.connect(**get_db_config())
     cur = conn.cursor()
-    cur.execute(ALTER)
-    conn.commit()
-    print("カラム追加（IF NOT EXISTS）完了")
+    # 列が在るか確かめるだけ（無ければ --migrate を促して止まる）。毎回 DDL を打つと
+    # 空振りでも ACCESS EXCLUSIVE を要求してロックの行列を作る。
+    require_columns(conn, "mtg_cards_v2", ("face_types",), ALTER,
+                    migrate=migrate_requested(), label="ALTER")
 
     cur.execute("SELECT id, type_line, card_faces_json FROM mtg_cards_v2")
     rows = cur.fetchall()

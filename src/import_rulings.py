@@ -25,7 +25,7 @@ Gatherer を直接スクレイプする必要はない（source='wotc' が公式
   - 原文の置き場は data/rulings/（Scryfall 配布物・リポジトリに含めない）
 
 使い方:
-  /mnt/new_hdd/my_rag_env/bin/python src/import_rulings.py \
+  python src/import_rulings.py \
       --file data/rulings/rulings-YYYYMMDD.jsonl.gz --version YYYY-MM-DD
 """
 import argparse
@@ -38,9 +38,9 @@ import ijson
 import psycopg2
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # 自分と同じ src/
-from db_config import DB_CONFIG
+from db_config import DATA_DIR, DB_CONFIG, ddl_cursor
 
-CARDS_BULK = '/mnt/new_hdd/all_cards_scryfall.json'
+CARDS_BULK = os.path.join(DATA_DIR, 'all_cards_scryfall.json')
 
 DDL = """
 CREATE TABLE IF NOT EXISTS card_rulings (
@@ -101,7 +101,8 @@ def main():
 
     conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
-    cur.execute(DDL)
+    with ddl_cursor(conn) as dcur:                  # DDL は lock_timeout つき
+        dcur.execute(DDL)
     # 名前→card_id の解決表（DB 側・一括）
     cur.execute('SELECT card_name, id FROM mtg_cards_v2')
     id_of = dict(cur.fetchall())
@@ -111,6 +112,7 @@ def main():
         name = names.get(r['oracle_id'])
         rows.append((r['oracle_id'], id_of.get(name), name, r['source'],
                      r.get('published_at'), r['comment'], args.version))
+    cur.execute("SET lock_timeout = '10s'")         # TRUNCATE も黙って待たない
     cur.execute('TRUNCATE card_rulings RESTART IDENTITY')
     cur.executemany(
         'INSERT INTO card_rulings (oracle_id, card_id, card_name, source,'

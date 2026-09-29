@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 使い方: run_one.sh "<cond>\t<idx>\t<card_name>"（1 行丸ごと）
-W=/tmp/claude-1003/-mnt-mtg-rag/25008f6c-85b1-4617-98c4-9498c6ec23e0/scratchpad
+W="${BENCH_WORK:-$(cd "$(dirname "$0")" && pwd)/work}"
 IFS=$'\t' read -r COND IDX CARD <<< "$1"
 OUT=$W/name_runs_xhigh/${COND}_${IDX}.json
 [ -s "$OUT" ] && exit 0

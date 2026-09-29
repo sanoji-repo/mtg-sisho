@@ -10,13 +10,13 @@
 #       -t で表を名指し＝拡張（pg_trgm）は dump に入らない → 復元側で CREATE EXTENSION する。
 # 注意: プレイヤー名は players 表（表指定に含めない）にだけあり、deck_list.player_name 列は廃止＝dump に名前は入らない。
 #       復元側の DROP COLUMN IF EXISTS は旧 dump 用の保険。dump は自分の公開サーバーの間（Tailscale 私有網）でしか動かさない＝再配布ではない。
-# 出力: /mnt/new_hdd/db_archives/sisho_public_YYYYMMDD.dump と .sha256
+# 出力: <データの置き場所>/db_archives/sisho_public_YYYYMMDD.dump と .sha256
 # 使い方: sh/make_public_dump.sh            （出力先は PUBLIC_DUMP_DIR で上書き可）
 set -u
-REPO=/mnt/mtg_rag
-DEST="${PUBLIC_DUMP_DIR:-/mnt/new_hdd/db_archives}"
+REPO="${REPO:-$(cd "$(dirname "$0")/.." && pwd)}"
+DEST="${PUBLIC_DUMP_DIR:-${MTG_DATA_DIR:-$REPO/data}/db_archives}"
 CONTAINER="${PGDUMP_CONTAINER:-pg18-primary}"
-PY=/mnt/new_hdd/my_rag_env/bin/python
+PY="${PYBIN:-python3}"
 STAMP=$(date +%Y%m%d)
 OUT="$DEST/sisho_public_${STAMP}.dump"
 # 公開サーバーに要る表（mcp_server.py が読む表＋describe で見せてよい表）。増やすときはここに足す
