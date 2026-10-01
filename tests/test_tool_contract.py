@@ -127,6 +127,18 @@ def test_tool_catalog_matches_registration():
     assert m.TOOL_CATALOG_LINE.startswith(f"【sisho の道具は {len(NOW['tool_order'])} 個。")
 
 
+def test_readme_lists_every_tool():
+    """README の道具の表は、登録した道具を全部載せ、数も合っている（draft_pack_stats を足した 9/21 に
+    README の表を直し忘れ、10 本のまま公開していた）。"""
+    import re
+    readme = open(os.path.join(os.path.dirname(__file__), "..", "README.md"), encoding="utf-8").read()
+    rows = re.findall(r"^\| `([a-z_]+)` \|", readme, flags=re.M)
+    assert rows == NOW["tool_order"] or sorted(rows) == sorted(NOW["tool_order"]), (
+        f"README の表（{rows}）と登録（{NOW['tool_order']}）がずれている")
+    n = len(NOW["tool_order"])
+    assert f"{n} ツール中 {n - 1} ツールがローカル PostgreSQL 直結" in readme, "README の道具の数の文が古い"
+
+
 def test_no_extra_tools():
     extra = sorted(set(NOW["tools"]) - set(SNAP["tools"]))
     assert not extra, f"snapshot に無い道具が増えている: {extra}（増やすなら snapshot を採り直す）"
