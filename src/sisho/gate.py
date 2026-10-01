@@ -4,12 +4,16 @@
 札ごとにレート制限を課す。身元は聞かない・名簿を持たない。
 """
 import asyncio
+import contextlib
 import datetime
+import fcntl
 import html
+import ipaddress
 import logging
 import os
 import re
 import secrets
+import tempfile
 import time
 
 from sisho.context import CURRENT_CLIENT_IP, CURRENT_FUDA
@@ -17,6 +21,44 @@ from sisho.paths import repo_path
 from sisho.ratelimit import RateLimiter, send_429
 
 _gate_log = logging.getLogger("uvicorn.error")
+
+
+_PER_RE = re.compile(r"[0-9]{1,6}")
+
+
+def _parse_fuda_line(line: str):
+    """fuda.tsv の 1 行を読む。札の事象として受け付けられる行なら (dt, 事象, 札, IP, 枠, メモ)、壊れた行なら None。
+
+    受け付けるのは**ちょうど 6 列**・時刻が読める・事象が issue/stop・発行の行は枠の欄が数字、の行だけ
+    （Codex のレビュー: 改行の無い最終行に次の行が連結すると 9 列の 1 行になり、以前は
+    先頭 6 列を切り出して「枠が数字でない→既定 60」で受け付けていた＝壊れた札が生き、新しい札が消えた）。
+    枠の欄は ASCII の数字 1〜6 桁だけ（str.isdigit は「²」も数字と言うのに int() は通らない＝台帳の 1 行で
+    門の起動と scrub が止まった・2026-10-01 Codex のレビュー 2 周目 S1）。読めない物はすべて None＝壊れた行。
+    """
+    cols = line.rstrip("\r\n").split("\t")
+    if len(cols) != 6:
+        return None
+    ts_s, ev_type, fuda, ip, per_s, memo = cols
+    if ev_type not in ("issue", "stop") or not fuda:
+        return None
+    per_ok = _PER_RE.fullmatch(per_s) is not None
+    if ev_type == "issue" and not per_ok:
+        return None
+    try:
+        dt = datetime.datetime.fromisoformat(ts_s)
+        if dt.tzinfo is None:
+            dt = dt.astimezone()
+    except Exception:
+        return None
+    return dt, ev_type, fuda, ip, (int(per_s) if per_ok else 60), memo
+
+
+def _looks_like_ip(s: str) -> bool:
+    try:
+        ipaddress.ip_address(s)
+        return True
+    except ValueError:
+        return False
 
 
 def short(fuda: str) -> str:
@@ -29,6 +71,8 @@ class FudaStore:
 
     1 行 1 事象（issue / stop）。最新の行が真。
     行形式: ISO時刻 \\t 事象 \\t 札 \\t IP \\t 分あたりの枠 \\t メモ
+    IP は発行の行だけに書く（直近 24 時間の発行数を数えるため）。古い行の IP は scrub_ips で空にする。
+    追記と書き換えは隣の .lock への flock で順番に通す（書き換えの最中の追記を失わない）。
     """
 
     def __init__(self, path: str, clock=time.monotonic, dt_now=None):
@@ -57,22 +101,13 @@ class FudaStore:
             self._last_size = st.st_size
             with open(self.path, "r", encoding="utf-8") as f:
                 for line in f:
-                    line = line.rstrip("\r\n")
-                    if not line:
+                    if not line.rstrip("\r\n"):
                         continue
-                    cols = line.split("\t")
-                    if len(cols) < 6:
+                    parsed = _parse_fuda_line(line)
+                    if parsed is None:
                         self.broken_lines += 1
                         continue
-                    ts_s, ev_type, fuda, ip, per_s, memo = cols[:6]
-                    try:
-                        dt = datetime.datetime.fromisoformat(ts_s)
-                        if dt.tzinfo is None:
-                            dt = dt.astimezone()
-                        per_min = int(per_s) if per_s.isdigit() else 60
-                    except Exception:
-                        self.broken_lines += 1
-                        continue
+                    dt, ev_type, fuda, ip, per_min, memo = parsed
                     if ev_type == "issue":
                         self.records[fuda] = {
                             "alive": True,
@@ -82,12 +117,10 @@ class FudaStore:
                             "memo": memo,
                         }
                         self.events.append((dt, "issue", fuda, ip))
-                    elif ev_type == "stop":
+                    else:
                         if fuda in self.records:
                             self.records[fuda]["alive"] = False
                         self.events.append((dt, "stop", fuda, ip))
-                    else:
-                        self.broken_lines += 1
             if self.broken_lines > 0:
                 _gate_log.warning("[gate] fuda.tsv に壊れた行 %d", self.broken_lines)
         except OSError as e:
@@ -115,16 +148,16 @@ class FudaStore:
             fuda = secrets.token_urlsafe(24)
         if per_min is None:
             per_min = int(os.environ.get("MCP_FUDA_PER_MIN", "60"))
+        if not (isinstance(per_min, int) and 0 <= per_min <= 999999):
+            # 台帳が読める範囲（ASCII 数字 1〜6 桁）でだけ発行する＝発行できたのに再起動で消える札を作らない（2 周目 S2）
+            raise ValueError(f"per_min は 0〜999999 の整数: {per_min!r}")
         memo_clean = " ".join((memo or "").split())
         now_dt = self._dt_now()
         if now_dt.tzinfo is None:
             now_dt = now_dt.astimezone()
         ts_s = now_dt.isoformat()
         try:
-            os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
-            fd = os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
-            with os.fdopen(fd, "a", encoding="utf-8") as f:
-                f.write(f"{ts_s}\tissue\t{fuda}\t{ip}\t{per_min}\t{memo_clean}\n")
+            self._append(f"{ts_s}\tissue\t{fuda}\t{ip}\t{per_min}\t{memo_clean}\n")
         except OSError as e:
             _gate_log.error("[gate] fuda.tsv への書き込み失敗 path=%s err=%s", self.path, e)
             raise
@@ -155,13 +188,9 @@ class FudaStore:
         if now_dt.tzinfo is None:
             now_dt = now_dt.astimezone()
         ts_s = now_dt.isoformat()
-        ip = rec.get("ip", "")
         per_min = str(rec.get("per_min", ""))
         try:
-            os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
-            fd = os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
-            with os.fdopen(fd, "a", encoding="utf-8") as f:
-                f.write(f"{ts_s}\tstop\t{fuda}\t{ip}\t{per_min}\t\n")
+            self._append(f"{ts_s}\tstop\t{fuda}\t\t{per_min}\t\n")
         except OSError as e:
             _gate_log.error("[gate] fuda.tsv への書き込み失敗 path=%s err=%s", self.path, e)
             raise
@@ -173,8 +202,83 @@ class FudaStore:
             self._last_size = st.st_size
         except OSError:
             pass
-        self.events.append((now_dt, "stop", fuda, ip))
+        self.events.append((now_dt, "stop", fuda, ""))
         return True
+
+    @contextlib.contextmanager
+    def _locked(self):
+        """隣の .lock に排他の flock をかける（追記と scrub_ips の書き換えを順番に通す）。"""
+        os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
+        fd = os.open(self.path + ".lock", os.O_WRONLY | os.O_CREAT, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            os.close(fd)
+
+    def _append(self, line: str) -> None:
+        with self._locked():
+            fd = os.open(self.path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o600)
+            with os.fdopen(fd, "r+b") as f:
+                # 最終行に改行が無ければ先に足す（途中で切れた行に新しい行を連結させない・2026-09-30 Codex のレビュー）
+                size = f.seek(0, os.SEEK_END)
+                if size > 0:
+                    f.seek(size - 1)
+                    if f.read(1) != b"\n":
+                        line = "\n" + line
+                f.write(line.encode("utf-8"))
+
+    def scrub_ips(self, days: float = 35) -> int:
+        """days 日より古い行の IP 列を空にする。空にした行の数を返す（0 ならファイルに触らない）。
+
+        濫用への対処に要るのは直近 24 時間の発行数だけ＝古い IP は持たない（本人裁定・約 5 週間で消去）。
+        壊れた行（_parse_fuda_line が受け付けない行＝札として数えない行）は、時刻に関係なく IP に見える列を
+        すべて空にする（Codex のレビュー: 以前は壊れた行を触らず、IP が無期限に残った）。
+        """
+        now = self._dt_now()
+        if now.tzinfo is None:
+            now = now.astimezone()
+        cutoff = now - datetime.timedelta(days=days)
+        with self._locked():
+            if not os.path.exists(self.path):
+                return 0
+            with open(self.path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            changed = 0
+            out = []
+            for line in lines:
+                body = line.rstrip("\r\n")
+                if body:
+                    cols = body.split("\t")
+                    parsed = _parse_fuda_line(body)
+                    if parsed is not None:
+                        hit = [3] if cols[3] and parsed[0] < cutoff else []
+                    else:
+                        # 4 列目（IP の欄）は中身に関係なく空に＝連結した行では「IP＋次の行の時刻」の一続きになり IP に見えない
+                        hit = [i for i, c in enumerate(cols) if c and (i == 3 or _looks_like_ip(c))]
+                    if hit:
+                        for i in hit:
+                            cols[i] = ""
+                        line = "\t".join(cols) + "\n"
+                        changed += 1
+                out.append(line)
+            if changed == 0:
+                return 0
+            d = os.path.dirname(os.path.abspath(self.path))
+            fd, tmp = tempfile.mkstemp(dir=d, prefix=".fuda.", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.writelines(out)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.chmod(tmp, 0o600)
+                os.replace(tmp, self.path)
+            except BaseException:
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp)
+                raise
+        self._load()
+        return changed
 
     def lookup(self, fuda: str) -> dict | None:
         """生きている札の情報を返す（死んでいる・未登録なら None）。"""
@@ -255,11 +359,24 @@ class GateASGI:
                  issue_limiter: RateLimiter, *, inner_path: str = "/mcp",
                  prefix: str = "/mcp/", issue_path: str = "/issue",
                  legacy_on: bool = True, public_base: str = "",
-                 allowed_origins: frozenset[str] = frozenset()):
+                 allowed_origins: frozenset[str] = frozenset(),
+                 probe_limiter: RateLimiter | None = None,
+                 contact_url: str = ""):
         self.app = app
         self.store = store
+        # limiter＝MCP 本体まで届く呼び出し（札・旧パス）の枠。probe_limiter＝DB に触らない口（発行ページ・
+        # 無い札や知らないパスへの探り・Origin で断った接続）の枠。総量を分けて、探りが利用者の総量を食えないようにする
+        # （C-6・2026-09-30 本人裁定）。省略時は limiter と同じ数字で別の窓を作る。
         self.limiter = limiter
+        if probe_limiter is None:
+            probe_limiter = RateLimiter(per_ip=limiter.per_ip, global_=limiter.global_,
+                                        window=limiter.window, exempt="", clock=limiter.clock)
+            probe_limiter.exempt = list(limiter.exempt)
+        self.probe_limiter = probe_limiter
         self.issue_limiter = issue_limiter
+        # 問い合わせの窓口（本人裁定・Google フォーム）。https のときだけ発行ページに出す。
+        # URL はコードに書かず環境変数で渡す＝自分で立てたサーバーに他人の窓口が出ない
+        self.contact_url = contact_url if contact_url.startswith("https://") else ""
         self.inner_path = inner_path
         self.prefix = prefix if prefix.endswith("/") else prefix + "/"
         self.issue_path = issue_path
@@ -279,21 +396,26 @@ class GateASGI:
         public_base = os.environ.get("MCP_PUBLIC_BASE", "")
         issue_path = os.environ.get("MCP_ISSUE_PATH", "/issue")
         allowed_origins = frozenset(o.strip() for o in os.environ.get("MCP_ALLOWED_ORIGINS", "").split(",") if o.strip())
+        contact_url = os.environ.get("MCP_CONTACT_URL", "").strip()
 
         if not public_base:
             _gate_log.warning("[gate] MCP_PUBLIC_BASE が空: 発行ページの URL は Host ヘッダから組む（公開サーバーでは必ず設定）")
 
         store = FudaStore(fuda_file)
         limiter = RateLimiter.from_env()
+        probe_limiter = RateLimiter(per_ip=limiter.per_ip,
+                                    global_=int(os.environ.get("MCP_PROBE_GLOBAL_MIN", str(limiter.global_))),
+                                    exempt=os.environ.get("MCP_RATE_EXEMPT", "127.0.0.0/8,100.64.0.0/10"))
         issue_limiter = RateLimiter(per_ip=issue_per_day, global_=issue_global_day,
                                     window=86400.0, exempt="")
         return cls(app, store, limiter, issue_limiter,
                    inner_path=inner_path, prefix=prefix,
                    issue_path=issue_path, legacy_on=legacy_on,
-                   public_base=public_base, allowed_origins=allowed_origins)
+                   public_base=public_base, allowed_origins=allowed_origins,
+                   probe_limiter=probe_limiter, contact_url=contact_url)
 
     async def _respond_404(self, send, ip: str | None = None) -> None:
-        """404。ip を渡したときは**探りとして IP の枠で数える**（指摘）。
+        """404。ip を渡したときは**探りとして IP の枠で数える**（指摘）。枠は probe_limiter（利用者の総量とは別）。
 
         無い札・知らないパスへの探りは DB に触らず軽いので、枠の外に置くと「無料で叩き放題の口」
         になる（旧 RateLimitASGI は全要求を IP で数えていた＝GCP の IP からの 404 連発が実例）。
@@ -301,7 +423,7 @@ class GateASGI:
         枠を超えた探りには 404 でなく 429 を返す（存在の情報は与えない・待ち秒だけ）。
         """
         if ip is not None:
-            ok, retry = self.limiter.check(ip)
+            ok, retry = self.probe_limiter.check(ip)
             if not ok:
                 msg = (f"混雑: 呼び出しが多すぎます（この接続元からの上限に達しました）。{retry} 秒待ってから"
                        "もう一度呼んでください。")
@@ -316,8 +438,8 @@ class GateASGI:
     async def _respond_403_origin(self, send, ip: str, origin: str) -> None:
         """Origin が許可リストに無い（MCP の Streamable HTTP の要件「不正な Origin は 403」）。
         DNS rebinding（ブラウザに別サイトから公開サーバーの口を叩かせる）への備え。Origin を送らない客（claude.ai・CLI）は対象外。
-        探りと同じく IP の枠で数える。Origin は秘密ではないので記録に残す（先頭 120 字）。"""
-        ok, retry = self.limiter.check(ip)
+        探りと同じく probe_limiter の IP の枠で数える。Origin は秘密ではないので記録に残す（先頭 120 字）。"""
+        ok, retry = self.probe_limiter.check(ip)
         if not ok:
             return await send_429(send, retry, f"混雑: 呼び出しが多すぎます。{retry} 秒待ってからもう一度呼んでください。")
         _gate_log.warning("[gate] origin 拒否 ip=%s origin=%s", ip, origin[:120])
@@ -326,6 +448,13 @@ class GateASGI:
                     "headers": [(b"content-type", b"text/plain; charset=utf-8"),
                                 (b"content-length", str(len(body)).encode())]})
         await send({"type": "http.response.body", "body": body})
+
+    def _contact_html(self) -> str:
+        """発行ページの問い合わせの一行（窓口が無ければ空）。"""
+        if not self.contact_url:
+            return ""
+        return (f'<p>困ったとき・不具合の報告: <a href="{html.escape(self.contact_url)}" '
+                'rel="noopener noreferrer">問い合わせフォーム</a></p>\n')
 
     def _issue_retry_after(self, ip: str | None) -> int:
         """発行の枠を超えたときの待ち秒＝直近 24 時間で最も古い issue 行が窓を出るまで。ip None は全体。"""
@@ -350,7 +479,7 @@ class GateASGI:
                 '<p>無くしたら、もう一度ここで発行できます</p>\n'
                 '<form method="post">\n'
                 '<button type="submit">発行する</button>\n'
-                '</form>\n</body>\n</html>'
+                '</form>\n' + self._contact_html() + '</body>\n</html>'
             ).encode("utf-8")
             headers = [
                 (b"content-type", b"text/html; charset=utf-8"),
@@ -455,6 +584,7 @@ class GateASGI:
                 f'<p>URL は合言葉と同じです。人に見せないでください</p>\n'
                 f'<p>無くしたら、もう一度ここで発行できます</p>\n'
                 f'<p>claude.ai の設定 → コネクタ → カスタムコネクタを追加、に貼る</p>\n'
+                + self._contact_html() +
                 f'</body>\n</html>'
             ).encode("utf-8")
             headers = [
@@ -491,7 +621,7 @@ class GateASGI:
                 return await self._respond_403_origin(send, ip, " , ".join(origins))
 
             if path.rstrip("/") == self.issue_path.rstrip("/"):
-                ok, retry = self.limiter.check(ip)     # 発行ページも IP の枠（60/分）で数える
+                ok, retry = self.probe_limiter.check(ip)     # 発行ページも探りと同じ IP の枠（60/分）で数える
                 if not ok:
                     return await send_429(send, retry, f"混雑: 呼び出しが多すぎます。{retry} 秒待ってからもう一度開いてください。")
                 return await self._handle_issue(scope, receive, send, ip)

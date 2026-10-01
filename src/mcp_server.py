@@ -17,7 +17,7 @@
   を課し、未知の鍵は 404（not found）で存在を漏らさない。旧パスは legacy の鍵として当面生かす。
 - 依存（mcp SDK 等）は requirements.txt。
 
-起動: python <リポジトリ>/src/mcp_server.py（依存は requirements.txt）（依存は requirements.txt）
+起動: python <リポジトリ>/src/mcp_server.py（依存は requirements.txt）
 """
 import os
 
@@ -106,10 +106,31 @@ server = MCPServer(
 # ＝契約試験が包み越しの inspect.signature と JSON Schema を snapshot と突き合わせている。
 # 入口の行（道具名と引数）は従来どおり道具の本体が先頭で書く。
 
+# 道具の一覧（本人裁定・#1408）。ChatGPT は道具を一度に全部は読み込まず 10 個だけ表に出し、
+# draft_pack_stats は「pack」で探すまで見えなかった（#1407）。表に出ない道具の説明文は読まれない＝
+# 必ず表に出る search_mtg_cards の説明文の頭に、名前と一言の一覧を置く。並びと名前は登録と同じであることを
+# 契約試験 tests/test_tool_contract.py が縫う（道具を足したらここも足す）。
+TOOL_CATALOG: tuple[tuple[str, str], ...] = (
+    ("search_mtg_cards", "カード検索"),
+    ("mtg_probability", "デッキの確率"),
+    ("find_combos", "コンボ"),
+    ("lookup_mtg_rule", "総合ルールの条文"),
+    ("get_card_rulings", "カードの公式裁定"),
+    ("find_partner_cards", "実デッキで一緒に使われるカード"),
+    ("draft_pack_stats", "ドラフトのパックの複数枚の 17Lands 統計を 1 回で"),
+    ("query_mtg_database", "読み取り専用 SQL"),
+    ("verify_answer", "答えのカード名の検査"),
+    ("describe_mtg_tables", "表と列の一覧"),
+    ("mtg_rag_health", "健全性と鮮度"),
+)
+TOOL_CATALOG_LINE = (
+    f"【sisho の道具は {len(TOOL_CATALOG)} 個。使いたい道具が手元の一覧に無ければ、正確な道具名で検索して読み込んでから呼ぶ】"
+    + "・".join(f"{n}（{d}）" for n, d in TOOL_CATALOG) + "。")
+
 # カード検索（素の一致検索＋17Lands 同伴）= sisho/tools/cards.py
 search_mtg_cards = server.tool(
     name="search_mtg_cards",
-    description=_tool_cards.DESCRIPTION)(observed(_tool_cards.search_mtg_cards))
+    description=TOOL_CATALOG_LINE + _tool_cards.DESCRIPTION)(observed(_tool_cards.search_mtg_cards))
 
 # 確率計算の入口 = sisho/tools/probability.py
 mtg_probability = server.tool(

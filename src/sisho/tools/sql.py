@@ -1,4 +1,5 @@
-"""sql.py — 自由 SQL の口 query_mtg_database とスキーマの窓 describe_mtg_tables。
+"""sql.py — 自由 SQL の口 query_mtg_database とスキーマの窓 describe_mtg_tables
+。
 
 登録（server.tool）は mcp_server.py 側。道具が 2 本あるので説明は道具ごとに
 QUERY_MTG_DATABASE_DESCRIPTION・DESCRIBE_MTG_TABLES_DESCRIPTION と名前を分ける。
@@ -189,7 +190,11 @@ _TABLE_NOTES = {
         "860 枚ほど）＝紙には存在しない。紙のカードの照会は WHERE NOT digital を付ける。"
         "name_display の「（日本語名未収録）」は Arena に日本語版はあるがこの DB がまだ持っていない印（「（日本語版なし）」とは別）。"
         "「（日本語名は未収録・発売前）」は発売前に先行収録したカード（NOT digital AND legalities->>'vintage' = 'not_legal'）＝"
-        "今はどのフォーマットでも使えない。発売日と set_type は mtg_sets を set_code で結合して見る。統率者セット（set_type='commander'）の新カードは"
+        "今はどのフォーマットでも使えない。新しいセットのカードはプレリリースの初日から使える（Scryfall もその日に legal にする）＝mtg_sets.released_at より前に legal になる週があるのは正常で、その日から発売前の印も外れる。"
+        "set_code は**最新の印刷のセット 1 つ**＝古いカードの再録も新しいセットの set_code になる（set_code = 'fra' には昔のカードが混ざる）。"
+        "あるセットに収録されたカードは set_codes（全収録セットの配列）で 'fra' = ANY(set_codes)。そのセットで初めて出たカードは、"
+        "set_codes の中にそのセットより前に発売されたセット（mtg_sets.released_at）が無いもの。"
+        "発売日と set_type は mtg_sets を set_code で結合して見る。統率者セット（set_type='commander'）の新カードは"
         "発売後もスタンダード・パイオニア・モダンでは使えない（統率者・レガシー・ヴィンテージ）。name_ja_src が wotc_gallery の日本語名は公式ギャラリー由来（発売前の仮・Scryfall の日本語版が入ると置き換わる）。"),
     "limited_color_stats": (
         "17Lands（集計元 Premier Draft・Bo1 ドラフト一般の物差し＝Quick Draft の問いにも使う）のセット × デッキの色組み合わせ（main_colors・例 'WU'）× splash（タッチ有無）の勝率。"

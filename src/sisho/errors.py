@@ -70,6 +70,7 @@ TEXT_PREFIXES: tuple[tuple[str, str], ...] = (
     ("SQL エラー:", DB_ERROR),                 # query
     ("health 失敗:", DB_ERROR),                # health
     ("エラー:", DB_ERROR),                     # describe
+    ("0 行（クエリは成功）", NO_MATCH),          # query（空振りを ok に隠さない・2026-09-30 本人裁定・返り値は変えない）
     ("該当なし", NO_MATCH),                    # lookup_mtg_rule
     ("裁定なし", NO_MATCH),                    # get_card_rulings
     ("共起なし", NO_MATCH),                    # find_partner_cards

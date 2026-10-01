@@ -119,6 +119,14 @@ def test_tool_contract(name):
     assert _cleandoc(got["doc"]) == _cleandoc(exp["doc"]), f"{name}: docstring は移動しても消さない・変えない"
 
 
+def test_tool_catalog_matches_registration():
+    """search_mtg_cards の説明文の頭の道具の一覧（TOOL_CATALOG）は、登録した道具の名前と並びに一致する
+    （道具を足したのに一覧が古いと、ChatGPT のように一部しか表に出さない客が見落とす）。"""
+    assert [n for n, _ in m.TOOL_CATALOG] == NOW["tool_order"], (
+        f"TOOL_CATALOG（{[n for n, _ in m.TOOL_CATALOG]}）と登録順（{NOW['tool_order']}）がずれている")
+    assert m.TOOL_CATALOG_LINE.startswith(f"【sisho の道具は {len(NOW['tool_order'])} 個。")
+
+
 def test_no_extra_tools():
     extra = sorted(set(NOW["tools"]) - set(SNAP["tools"]))
     assert not extra, f"snapshot に無い道具が増えている: {extra}（増やすなら snapshot を採り直す）"

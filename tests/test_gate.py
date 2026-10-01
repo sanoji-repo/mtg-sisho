@@ -562,6 +562,159 @@ def test_gate_asgi_issue_post_drains_body(tmp_path):
     assert len(receive_calls) == 3, f"receive() should have been called 3 times until more_body=False, but got {len(receive_calls)}"
 
 
+def test_fuda_store_stop_line_has_no_ip(tmp_path):
+    """停止の行には IP を書かない（使い道が無い）。発行の行には書く。"""
+    fuda_file = str(tmp_path / "fuda.tsv")
+    store = FudaStore(fuda_file)
+    fuda = store.issue("192.0.2.1")
+    assert store.stop(fuda) is True
+    with open(fuda_file, "r", encoding="utf-8") as f:
+        rows = [l.rstrip("\n").split("\t") for l in f]
+    assert [r[1] for r in rows] == ["issue", "stop"]
+    assert rows[0][3] == "192.0.2.1"
+    assert rows[1][3] == ""
+
+
+def test_fuda_store_scrub_ips(tmp_path):
+    """scrub_ips: days より古い行だけ IP を空にし、他の列・新しい行はそのまま。壊れた行は時刻に関係なく IP に見える列を空にする
+    （Codex のレビュー）。札の生死と直近の発行数は変わらない。"""
+    fuda_file = str(tmp_path / "fuda.tsv")
+    base_dt = datetime.datetime(2026, 9, 1, 12, 0, 0).astimezone()
+    mock_dt = MockTime(base_dt)
+    store = FudaStore(fuda_file, dt_now=mock_dt)
+    old = store.issue("192.0.2.1", memo="old one", per_min=30)
+    old2 = store.issue("192.0.2.9")
+    store.stop(old2)
+    mock_dt.now_dt = base_dt + datetime.timedelta(days=40)
+    new = store.issue("192.0.2.2", memo="new one")
+    with open(fuda_file, "a", encoding="utf-8") as f:
+        f.write("broken line\n")
+        f.write("bad-timestamp\tissue\tfuda_bad\t192.0.2.3\t60\tmemo\n")
+    with open(fuda_file, "r", encoding="utf-8") as f:
+        before = f.readlines()
+
+    assert store.scrub_ips(days=35) == 3          # old と old2 の発行行（old2 の停止行は元から空）＋時刻の読めない壊れた行
+    with open(fuda_file, "r", encoding="utf-8") as f:
+        after = f.readlines()
+    assert len(after) == len(before)
+    rows = [l.rstrip("\n").split("\t") for l in after]
+    assert rows[0][2] == old and rows[0][3] == "" and rows[0][4] == "30" and rows[0][5] == "old one"
+    assert rows[0][0] == before[0].split("\t")[0]
+    assert rows[1][2] == old2 and rows[1][3] == ""
+    assert rows[3][2] == new and rows[3][3] == "192.0.2.2"
+    assert after[4] == before[4]                  # IP の無い壊れた行は触らない
+    assert after[5] == "bad-timestamp\tissue\tfuda_bad\t\t60\tmemo\n"   # 壊れた行の IP は時刻に関係なく消す
+    assert oct(os.stat(fuda_file).st_mode & 0o777) == "0o600"
+    assert not [p for p in os.listdir(tmp_path) if p.endswith(".tmp")]
+
+    assert store.lookup(old) is not None and store.lookup(old)["ip"] == ""
+    assert store.lookup(old2) is None
+    assert store.lookup(new)["ip"] == "192.0.2.2"
+    assert store.issued_in("192.0.2.2") == 1
+    assert store.scrub_ips(days=35) == 0          # 二度目は何もしない
+    with open(fuda_file, "r", encoding="utf-8") as f:
+        assert f.readlines() == after
+
+
+def test_fuda_store_append_after_truncated_last_line(tmp_path):
+    """最終行に改行が無くても、次の発行は別の行になる＝再読込後も新しい札は生き、途中で切れた行の札は生き返らない
+    （Codex のレビューの再現: 以前は連結した 9 列の行を先頭 6 列で受け付けていた）。"""
+    fuda_file = str(tmp_path / "fuda.tsv")
+    old = (datetime.datetime.now().astimezone() - datetime.timedelta(days=40)).isoformat()
+    with open(fuda_file, "w", encoding="utf-8") as f:
+        f.write(f"{old}\tissue\t{'A' * 24}\t192.0.2.1\t60\tok\n")
+        f.write(f"{old}\tissue\t{'Q' * 24}\t192.0.2.2")          # 途中で切れた 4 列・改行なし
+    store = FudaStore(fuda_file)
+    assert store.lookup("Q" * 24) is None and store.broken_lines == 1
+    assert store.scrub_ips(days=35) == 2                            # 正しい古い行と、切れた行の IP
+    new = store.issue("192.0.2.9")
+    fresh = FudaStore(fuda_file)
+    assert fresh.lookup(new) is not None
+    assert fresh.lookup("Q" * 24) is None
+    assert fresh.lookup("A" * 24) is not None
+    with open(fuda_file, "r", encoding="utf-8") as f:
+        lines = f.read().splitlines()
+    assert len(lines) == 3 and lines[1] == f"{old}\tissue\t{'Q' * 24}\t"
+    assert "192.0.2" not in "".join(lines[:2])
+
+
+def test_fuda_store_rejects_joined_or_malformed_lines(tmp_path):
+    """札として受け付けるのはちょうど 6 列・発行の行は枠が数字の行だけ。連結した行・枠が数字でない発行は壊れた行。
+    壊れた行の IP は新しくても scrub で消える（札として数えないので持つ理由が無い）。"""
+    fuda_file = str(tmp_path / "fuda.tsv")
+    now = datetime.datetime.now().astimezone().isoformat()
+    joined = f"{now}\tissue\t{'Q' * 24}\t192.0.2.2{now}\tissue\t{'N' * 24}\t192.0.2.9\t60\t\n"
+    with open(fuda_file, "w", encoding="utf-8") as f:
+        f.write(joined)
+        f.write(f"{now}\tissue\t{'X' * 24}\t192.0.2.3\tabc\tmemo\n")
+        f.write(f"{now}\tissue\t{'G' * 24}\t192.0.2.4\t60\tgood\n")
+    store = FudaStore(fuda_file)
+    assert store.broken_lines == 2
+    assert store.lookup("Q" * 24) is None and store.lookup("N" * 24) is None and store.lookup("X" * 24) is None
+    assert store.lookup("G" * 24) is not None
+    assert store.scrub_ips(days=35) == 2
+    with open(fuda_file, "r", encoding="utf-8") as f:
+        text = f.read()
+    assert "192.0.2.2" not in text                # 連結で「IP＋時刻」になった 4 列目も消える
+    assert "192.0.2.9" not in text and "192.0.2.3" not in text and "192.0.2.4" in text
+
+
+def test_fuda_store_survives_unparsable_per_min(tmp_path):
+    """枠の欄が「数字に見えるが int() が通らない」行（上付きの ²・桁あふれ）でも、起動と scrub は止まらない
+    （Codex のレビュー 2 周目 S1: str.isdigit は ² を数字と言う）。その行は壊れた行＝札にならず IP は消える。"""
+    fuda_file = str(tmp_path / "fuda.tsv")
+    now = datetime.datetime.now().astimezone().isoformat()
+    with open(fuda_file, "w", encoding="utf-8") as f:
+        f.write(f"{now}\tissue\t{'A' * 24}\t192.0.2.1\t60\tok\n")
+        f.write(f"{now}\tissue\t{'B' * 24}\t192.0.2.2\t\u00b2\tsup\n")
+        f.write(f"{now}\tissue\t{'C' * 24}\t192.0.2.3\t{'9' * 4400}\thuge\n")
+        f.write(f"{now}\tstop\t{'A' * 24}\t\t\u00b2\t\n")          # 停止の行は枠を使わない＝受け付ける
+    store = FudaStore(fuda_file)
+    assert store.broken_lines == 2
+    assert store.lookup("B" * 24) is None and store.lookup("C" * 24) is None
+    assert store.lookup("A" * 24) is None                           # 停止が効いている
+    assert store.scrub_ips(days=35) == 2
+    with open(fuda_file, "r", encoding="utf-8") as f:
+        text = f.read()
+    assert "192.0.2.2" not in text and "192.0.2.3" not in text and "192.0.2.1" in text
+
+
+def test_fuda_store_issue_rejects_unreadable_per_min(tmp_path):
+    """台帳が読める範囲（0〜999999 の整数）でだけ発行する＝発行できたのに再読込で消える札を作らない（2 周目 S2）。"""
+    fuda_file = str(tmp_path / "fuda.tsv")
+    store = FudaStore(fuda_file)
+    for bad in (-1, 1000000):
+        with pytest.raises(ValueError):
+            store.issue("192.0.2.1", per_min=bad)
+    ok = store.issue("192.0.2.1", per_min=0)
+    assert FudaStore(fuda_file).lookup(ok)["per_min"] == 0
+    assert not os.path.exists(fuda_file) or open(fuda_file, encoding="utf-8").read().count("\n") == 1
+
+
+def test_fuda_store_scrub_waits_for_lock(tmp_path):
+    """追記は scrub と同じ .lock を取る＝書き換えの最中に来た発行は書き換えの後に足され、失われない。"""
+    import threading
+    fuda_file = str(tmp_path / "fuda.tsv")
+    base_dt = datetime.datetime(2026, 9, 1, 12, 0, 0).astimezone()
+    mock_dt = MockTime(base_dt)
+    store = FudaStore(fuda_file, dt_now=mock_dt)
+    store.issue("192.0.2.1")
+    mock_dt.now_dt = base_dt + datetime.timedelta(days=40)
+    other = FudaStore(fuda_file, dt_now=mock_dt)
+    done = []
+    with store._locked():
+        t = threading.Thread(target=lambda: done.append(other.issue("192.0.2.5")))
+        t.start()
+        t.join(0.3)
+        assert not done                           # 鍵を持っている間は追記が待つ
+    t.join(5)
+    assert done
+    assert store.scrub_ips(days=35) == 1
+    fresh = FudaStore(fuda_file, dt_now=mock_dt)
+    assert fresh.lookup(done[0])["ip"] == "192.0.2.5"
+    assert fresh.issued_in("192.0.2.5") == 1
+
+
 def test_bin_fuda_cli(tmp_path):
     """13. bin/fuda CLI の動作検証（issue, list, stop, list --all, 番兵'-'の不在）。"""
     import subprocess
@@ -610,6 +763,16 @@ def test_bin_fuda_cli(tmp_path):
     assert cols[5] == ""
     assert "-" not in cols
 
+    # 負の枠は CLI で断る（成功と言って再起動で消える札を作らない・2 周目 S2）
+    proc_neg = subprocess.run([sys.executable, bin_fuda, "--file", fuda_file, "issue", "--per-min", "-1"],
+                              capture_output=True, text=True, env=env)
+    assert proc_neg.returncode == 2 and "per_min" in proc_neg.stderr and "札: " not in proc_neg.stdout
+
+    # scrub-ip（新しい行しか無いので 0 行）
+    proc_scrub = subprocess.run([sys.executable, bin_fuda, "--file", fuda_file, "scrub-ip"],
+                                capture_output=True, text=True, check=True, env=env)
+    assert "IP を消した行: 0" in proc_scrub.stdout
+
 
 def test_gate_asgi_probes_are_rate_limited(tmp_path):
     """14. 探り（無い札・知らないパス・閉じた旧パス・発行ページ）は IP の枠で数える（指摘＝旧 RateLimitASGI の振る舞いの復元）。
@@ -657,6 +820,77 @@ def test_gate_asgi_probes_are_rate_limited(tmp_path):
         assert parse_response(sent)[0] == 200
     _, sent = asyncio.run(run_asgi_request(gate, "/issue", method="GET", client_ip=ip))
     assert parse_response(sent)[0] == 429
+
+
+def test_gate_asgi_probes_do_not_eat_user_total(tmp_path):
+    """C-6（本人裁定）: 探り・発行ページ・Origin 拒否は利用者と別の総量で数える。
+    多くの IP からの探りで探りの総量が埋まっても、札の呼び出しは通る。逆に利用者の総量が埋まっても発行ページは開く。"""
+    fuda_file = str(tmp_path / "fuda.tsv")
+    store = FudaStore(fuda_file)
+    fuda = store.issue("192.0.2.1")
+
+    async def inner_app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    clock = Clock(1000.0)
+    limiter = RateLimiter(per_ip=60, global_=5, clock=clock)
+    issue_limiter = RateLimiter(per_ip=3, global_=100, window=86400.0, exempt="", clock=clock)
+    gate = GateASGI(inner_app, store, limiter, issue_limiter, inner_path="/mcp", prefix="/mcp/",
+                    legacy_on=False, public_base="https://box.example")
+    assert gate.probe_limiter is not limiter and gate.probe_limiter.global_ == 5
+
+    # 5 つの IP から探りを 1 回ずつ＝探りの総量 5 が埋まる・6 つ目の IP は 429
+    for i in range(5):
+        _, sent = asyncio.run(run_asgi_request(gate, "/nothing", client_ip=f"203.0.113.{i + 1}"))
+        assert parse_response(sent)[0] == 404
+    _, sent = asyncio.run(run_asgi_request(gate, "/nothing", client_ip="203.0.113.99"))
+    assert parse_response(sent)[0] == 429
+    _, sent = asyncio.run(run_asgi_request(gate, "/mcp", client_ip="203.0.113.98",
+                                           headers={"origin": "https://evil.example"}))
+    assert parse_response(sent)[0] == 429       # Origin 拒否も探りの枠
+
+    # 利用者の総量は手つかず＝札の呼び出しは 5 回通る・6 回目で利用者の総量の 429
+    for _ in range(5):
+        _, sent = asyncio.run(run_asgi_request(gate, f"/mcp/{fuda}", client_ip="160.79.106.1"))
+        assert parse_response(sent)[0] == 200
+    _, sent = asyncio.run(run_asgi_request(gate, f"/mcp/{fuda}", client_ip="160.79.106.1"))
+    assert parse_response(sent)[0] == 429
+    assert len(limiter.total) == 5 and len(gate.probe_limiter.total) == 5
+
+    # 窓が滑って探りの枠だけ空いた状態: 利用者の総量が埋まっていても発行ページは開く
+    clock.t += 61
+    for _ in range(5):
+        asyncio.run(run_asgi_request(gate, f"/mcp/{fuda}", client_ip="160.79.106.1"))
+    _, sent = asyncio.run(run_asgi_request(gate, "/issue", method="GET", client_ip="203.0.113.50"))
+    assert parse_response(sent)[0] == 200
+
+
+def test_gate_asgi_issue_page_contact_link(tmp_path):
+    """問い合わせの窓口（MCP_CONTACT_URL）は https のときだけ発行ページの両方の画面に出す。無ければ出さない。"""
+    async def inner_app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    def make(contact):
+        clock = Clock(1000.0)
+        store = FudaStore(str(tmp_path / f"fuda_{len(contact)}.tsv"))
+        return GateASGI(inner_app, store, RateLimiter(per_ip=60, global_=300, clock=clock),
+                        RateLimiter(per_ip=3, global_=100, window=86400.0, exempt="", clock=clock),
+                        inner_path="/mcp", prefix="/mcp/", public_base="https://box.example", contact_url=contact)
+
+    url = "https://docs.google.com/forms/d/e/x/viewform?a=1&b=2"
+    gate = make(url)
+    for method in ("GET", "POST"):
+        _, sent = asyncio.run(run_asgi_request(gate, "/issue", method=method, client_ip="203.0.113.60"))
+        status, _, body = parse_response(sent)
+        assert status == 200
+        text = body.decode("utf-8")
+        assert 'href="https://docs.google.com/forms/d/e/x/viewform?a=1&amp;b=2"' in text, method
+        assert 'rel="noopener noreferrer"' in text
+    for bad in ("", "javascript:alert(1)", "http://plain.example/form"):
+        _, sent = asyncio.run(run_asgi_request(make(bad), "/issue", method="GET", client_ip="203.0.113.61"))
+        assert "問い合わせフォーム" not in parse_response(sent)[2].decode("utf-8"), bad
 
 
 def test_uvicorn_kwargs_disables_access_log():
@@ -956,9 +1190,9 @@ def test_gate_asgi_origin_allowlist(tmp_path, caplog):
 
 
 def test_gate_asgi_origin_rejections_count_against_ip(tmp_path):
-    """不正な Origin の連打も IP の枠で数える（枠を超えたら 429・存在の情報は与えない）。"""
+    """不正な Origin の連打も探りの IP の枠（probe_limiter）で数える（枠を超えたら 429・存在の情報は与えない）。"""
     gate, fuda, _ = _origin_gate(tmp_path)
-    gate.limiter = RateLimiter(per_ip=3, global_=300)
+    gate.probe_limiter = RateLimiter(per_ip=3, global_=300)
     statuses = [parse_response(asyncio.run(run_asgi_request(gate, f"/mcp/{fuda}", headers={"origin": "https://evil.example"}))[1])[0]
                 for _ in range(5)]
     assert statuses[:3] == [403, 403, 403] and statuses[3:] == [429, 429], statuses

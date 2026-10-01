@@ -80,7 +80,7 @@ def test_log_failure_does_not_kill_the_tool(monkeypatch):
 @pytest.mark.parametrize("result,expected", [
     ("普通の答え（テキスト）", "ok"),
     ('{"status": "ok", "cards": 32730}', "ok"),
-    ("0 行（クエリは成功）。", "ok"),
+    ("0 行（クエリは成功）。", "no_match"),    # SQL の空振りを ok に隠さない（2026-09-30 本人裁定）
     (errors.err_json(errors.NO_MATCH, "該当なし: x"), "no_match"),
     (errors.err_json(errors.OUT_OF_RANGE, "引数の範囲外: copies は 0〜deck_size"), "out_of_range"),
     ('{"error": "error_kind を載せ忘れた"}', "error"),

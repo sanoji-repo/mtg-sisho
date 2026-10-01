@@ -16,7 +16,10 @@
   検証済みの事実として返してしまう。
 - DB の例外を不在に丸めない。統計取得が主目的なので、障害を「統計が無い」と誤報しない。
 """
+import difflib
 import os
+import re
+import unicodedata
 
 from sisho import errors
 from sisho.db import LANE_LIGHT, _db
@@ -25,6 +28,77 @@ from sisho.toollog import _log_tool
 MAX_CARDS = int(os.environ.get("MCP_DRAFT_PACK_MAX", "20"))
 _FUZZY_CANDIDATES = 3          # 完全一致しなかった名前に添える候補の上限
 _SMALL_SAMPLE = 500            # これ未満の母数は数字がぶれる（実測: 標準偏差が 4.5 倍）
+_POOL_MIN_SCORE = 0.5          # セットの中の候補に出す点の下限（下の _pool_score）
+_POOL_STRONG = 0.85            # これ以上が強い候補。セットの中に強い候補が無ければ DB 全体も見る
+
+# 名前を比べる前に落とす文字（空白・句読点・括弧・記号）。画像から読んだ名前はカンマや中黒が抜けやすい
+_NAME_NOISE = re.compile(r"[\s,、・'’\"\-‐–—.:：/!！?？()（）「」『』《》]+")
+
+
+def _norm_name(s: str | None) -> str:
+    """比べるための名前（NFKC・小文字・空白と記号を落とす）。"""
+    return _NAME_NOISE.sub("", unicodedata.normalize("NFKC", s or "").lower())
+
+
+def _words(s: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKC", s or "").lower())
+
+
+def _has_run(words: list[str], run: list[str]) -> bool:
+    """run が words の中に、単語の切れ目を保ったまま続けて現れるか。"""
+    n = len(run)
+    return n > 0 and any(words[i:i + n] == run for i in range(len(words) - n + 1))
+
+
+def _pool_score(key: str, names: list[str]) -> float:
+    """入力 key とそのカードの名前たち（英語名・日本語名・面の名前）の近さ（0〜1）。
+
+    ChatGPT のドラフトの実測: 画像から読んだ名前のかけら（「いたずら屋」・「眠り いざない」・
+    カンマ抜けの「Greta Sweettooth Scourge」）が、pg_trgm の similarity > 0.3 ではセットの中で拾えなかった
+    （短いかけらと長い名前は全体どうしの似かたが低く出る）。セットのカードは数百枚なので Python で比べる:
+      1.0  空白と記号を落とすと同じ
+      0.9  入力が名前の一部（2 文字以上）
+      0.85 名前が入力の一部（読み取りで余計な字が付いた）
+      0.5〜0.8 空白で区切ったかけらのうち、名前に含まれる割合
+      それ以外は文字列の似かた（difflib の ratio）
+    候補は「未確認・完全一致ではない」として返すだけで、勝手に置き換えない（誤発動は有害の非対称）。
+
+    Codex のレビュー: 英語の一部一致は単語の切れ目で見る（「the」が「hear*th e*lemental」に
+    当たっていた）。記号を落として 3 文字以下の短い入力は、名前の一部のときだけ弱い候補（0.6）にして、
+    似かたの点では拾わない（「火花」が 1 字だけ共通の《苦花》に 0.5 で当たっていた）。
+    """
+    kn = _norm_name(key)
+    if not kn:
+        return 0.0
+    short = len(kn) <= 3
+    ascii_key = kn.isascii()
+    kwords = _words(key) if ascii_key else []
+    toks = ([w for w in kwords if len(w) >= 2] if ascii_key
+            else [t for t in (_norm_name(x) for x in key.split()) if len(t) >= 2])
+    best = 0.0
+    for name in names:
+        nn = _norm_name(name)
+        if not nn:
+            continue
+        if kn == nn:
+            return 1.0
+        nwords = _words(name) if ascii_key else []
+        inside = _has_run(nwords, kwords) if ascii_key else (len(kn) >= 2 and kn in nn)
+        if inside:
+            best = max(best, 0.6 if short else 0.9)
+            continue
+        if short:
+            continue
+        around = _has_run(kwords, nwords) if ascii_key else (len(nn) >= 2 and nn in kn)
+        if around:
+            best = max(best, 0.85)
+            continue
+        if len(toks) >= 2:
+            frac = sum((t in nwords) if ascii_key else (t in nn) for t in toks) / len(toks)
+            if frac:
+                best = max(best, 0.5 + 0.3 * frac)
+        best = max(best, difflib.SequenceMatcher(None, kn, nn).ratio())
+    return best
 
 _COLS = ("name_display", "rarity", "mana_cost", "type_line",
          "gih_wr", "gih_games", "alsa", "gp_wr", "oh_wr", "gd_wr", "ata")
@@ -137,29 +211,38 @@ def draft_pack_stats(cards: list[str], set: str | None = None) -> str:
 
     # 3) 完全一致しなかった名前だけ、プールに閉じた曖昧一致へ回す
     #    （実測: プールで絞ると候補がほぼ一意に落ちる。孤光→弧光のフェニックスは全体 30 候補→プール内 1）
+    #    プールは一度だけ読んで Python で比べる（_pool_score・2026-10-02 名前のかけらを拾えなかった直し）
     fuzzy: dict[str, list[str]] = {}
     elsewhere: dict[str, list[str]] = {}   # 指定セットの統計行は無いが DB には近い名前がある
+    ties: dict[str, int] = {}              # 候補の上限で切った所に残った同点の数
+    pool: list[tuple] | None = None
     for key in uniq:
         if key in exact:
             continue
-        cand = _db(
-            "SELECT c.name_display"
-            "  FROM mtg_cards_v2 c"
-            "  JOIN limited_card_stats s"
-            "    ON s.db_card_name = c.card_name AND s.expansion = %s AND s.event_type = 'PremierDraft'"
-            " WHERE (c.card_name %% %s OR c.japanese_name %% %s)"
-            "   AND greatest(similarity(c.card_name, %s),"
-            "                similarity(coalesce(c.japanese_name, ''), %s)) > 0.3"
-            " ORDER BY greatest(similarity(c.card_name, %s),"
-            "                   similarity(coalesce(c.japanese_name, ''), %s)) DESC"
-            " LIMIT %s",
-            # similarity( は関数比較で pg_trgm 索引に乗らない＝重い線で走らせる（既定）
-            (code, key, key, key, key, key, key, _FUZZY_CANDIDATES))
-        if cand:
-            fuzzy[key] = [r[0] for r in cand]
+        if pool is None:
+            pool = _db(
+                "SELECT DISTINCT c.name_display, c.card_name, c.japanese_name, c.name_en_front,"
+                "       c.name_en_back, c.name_ja_front, c.name_ja_back"
+                "  FROM mtg_cards_v2 c"
+                "  JOIN limited_card_stats s"
+                "    ON s.db_card_name = c.card_name AND s.expansion = %s AND s.event_type = 'PremierDraft'",
+                (code,), lane=LANE_LIGHT)
+        scored = sorted(((_pool_score(key, [x for x in r[1:] if x]), r[0]) for r in pool),
+                        key=lambda t: (-t[0], t[1]))
+        ok = [(sc, disp) for sc, disp in scored if sc >= _POOL_MIN_SCORE]
+        cand = [disp for _, disp in ok[:_FUZZY_CANDIDATES]]
+        if len(ok) > _FUZZY_CANDIDATES:
+            # 上限で切った所に同点が残るなら、名前の順で機械的に選んだことを隠さない
+            cut = ok[_FUZZY_CANDIDATES - 1][0]
+            more = sum(1 for sc, _ in ok[_FUZZY_CANDIDATES:] if sc == cut)
+            if more:
+                ties[key] = more
+        if cand and ok[0][0] >= _POOL_STRONG:
+            fuzzy[key] = cand
             continue
-        # プールで当たらなかったときだけ DB 全体を見る。「このセットに居ない」と
-        # 「DB のどこにも無い」は別の事実で、混ぜると実在するカードを「創作の疑い」と誤報する。
+        # セットの中に強い候補が無いときは DB 全体も見る（Codex のレビュー: WOE で「Lightnig Bolt」が
+        # セットの中の弱い《石断ちの稲妻》で止まり、DB 全体で一番近い《稲妻/Lightning Bolt》を伝えられなかった）。
+        # 「このセットに居ない」と「DB のどこにも無い」は別の事実で、混ぜると実在するカードを「創作の疑い」と誤報する。
         wide = _db(
             "SELECT c.name_display FROM mtg_cards_v2 c"
             " WHERE (c.card_name %% %s OR c.japanese_name %% %s)"
@@ -169,8 +252,9 @@ def draft_pack_stats(cards: list[str], set: str | None = None) -> str:
             "                   similarity(coalesce(c.japanese_name, ''), %s)) DESC"
             " LIMIT %s",
             (key, key, key, key, key, key, _FUZZY_CANDIDATES))
-        fuzzy[key] = []
-        elsewhere[key] = [r[0] for r in wide]
+        in_pool = {r[0] for r in pool}
+        fuzzy[key] = cand
+        elsewhere[key] = [r[0] for r in wide if r[0] not in in_pool]
 
     # 4) 入力順のまま、1 入力につき 1 件の結果に振り分ける
     table, unverified, not_in_pool, ambiguous, small = [], [], [], [], []
@@ -179,11 +263,11 @@ def draft_pack_stats(cards: list[str], set: str | None = None) -> str:
         if not hits:
             cand = fuzzy.get(key) or []
             if cand:
-                unverified.append((key, cand))
+                unverified.append((key, cand, elsewhere.get(key) or [], ties.get(key, 0)))
             elif elsewhere.get(key):
                 not_in_pool.append((key, "・".join(elsewhere[key]), False))
             else:
-                unverified.append((key, []))
+                unverified.append((key, [], [], 0))
             continue
         own = [c for c in hits if c.get("_own")]
         if own:                         # 自分の名前で当たった候補があるならそちらだけを見る
@@ -232,9 +316,14 @@ def _sections(unverified, not_in_pool, ambiguous, small, code) -> str:
     out = []
     if unverified:
         out.append(f"完全一致しなかった名前 {len(unverified)} 件（そのまま答えに書かない）:")
-        for key, cand in unverified:
+        for key, cand, outside, more in unverified:
             if cand:
-                out.append(f"  「{key}」 → 候補 {'・'.join(cand)}（曖昧一致・完全一致ではない）")
+                line = f"  「{key}」 → 候補 {'・'.join(cand)}（曖昧一致・完全一致ではない）"
+                if more:
+                    line += f"。ほかに同じ近さが {more} 件＝この名前では絞り切れない"
+                if outside:
+                    line += f"。{code} の外の近い名前 {'・'.join(outside)}（{code} の 17Lands 統計行なし）"
+                out.append(line)
             else:
                 out.append(f"  「{key}」 → DB のどのカード名にも一致しない"
                            "（未収録 または 創作の疑い）")

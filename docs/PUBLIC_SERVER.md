@@ -216,6 +216,7 @@ sudo ufw reload
 公開 URL を配る前の門。`src/mcp_server.py` の `_RateLimiter`（滑走窓 60 秒）と `_RateLimitASGI`（ASGI の外皮）で、uvicorn が `X-Forwarded-For` を client に解決した後の IP で数える（Funnel → `127.0.0.1:8765` 直結・前段の代理は無い）。
 
 - 既定: 接続元 IP ごと 60 回/分・全体 300 回/分。`.env` の `MCP_RATE_PER_IP_MIN`／`MCP_RATE_GLOBAL_MIN` で変更（0 で無効）。`MCP_RATE_EXEMPT`（既定 `127.0.0.0/8,100.64.0.0/10`）は数えない接続元（tailnet からの監視）。
+- 数える口は二つに分ける（2026-09-30）: MCP 本体まで届く呼び出し（札・旧パス）の枠と、DB に触らない口（発行ページ・無い札や知らないパスへの探り・`Origin` で断った接続）の枠。IP ごとの数字は同じで、全体の枠は別々に持つ＝探りがいくら来ても利用者の全体 300 回/分は減らない。探りの側の全体は `MCP_PROBE_GLOBAL_MIN`（既定は `MCP_RATE_GLOBAL_MIN` と同じ）。
 - 超過は HTTP 429・`Retry-After` ヘッダ・本文は JSON-RPC の error（日本語の理由つき＝呼び出し側の LLM に届く）。拒否した呼び出しは窓に数えない（`Retry-After` の値を正直に保つ）。
 - 記録: journal に `[rate] 429 ip=… reason=…` を IP ごと 1 分 1 行（洪水でログを埋めない）。
 - 前提: claude.ai の呼び出しは Anthropic の出口 IP 群（一つの会話でも 30 個ほどを回る）から来る。IP ごとの枠は「一人当たり」ではなく単一の直叩きを抑える粗い門で、公開サーバーを守る本命は全体の枠。同時実行は DB のスロット取り（5）が別に抑える。平常時の実測は IP ごと最大 8 回/分・全体 22 回/分。
@@ -246,6 +247,8 @@ sudo ufw reload
 | `MCP_LEGACY_PATH` | `1` | 旧パス（`MCP_HTTP_PATH` の値・秘密の長いパス）の有効化フラグ（`0` で旧パスを閉じる） |
 | `MCP_PUBLIC_BASE` | 空 | 空なら `Host` ヘッダだけから組む（`X-Forwarded-Host` は見ない）。公開サーバーでは必ず明示 |
 | `MCP_ISSUE_PATH` | `/issue` | 接続 URL 発行ページのパス |
+| `MCP_PROBE_GLOBAL_MIN` | `MCP_RATE_GLOBAL_MIN` と同じ | DB に触らない口（発行ページ・探り・Origin 拒否）の全体の 1 分間あたりの枠（利用者の全体の枠とは別に数える） |
+| `MCP_CONTACT_URL` | 空 | 問い合わせの窓口の URL。`https://` で始まるときだけ、発行ページの両方の画面にリンクを出す（空なら出さない） |
 | `MCP_COMBOS_PER_MIN` | `10` | 外部 API（Commander Spellbook）を守るための札ごとの 1 分間あたりの枠 |
 | `MCP_COMBOS_GLOBAL_MIN` | `60` | Commander Spellbook 照会の全体の 1 分間あたりの枠 |
 
@@ -259,6 +262,8 @@ sudo ufw reload
 - 事象: `issue`（発行）または `stop`（停止）
 - 札: 32 文字のランダム文字列（URL-safe）
 - メモ: 改行・タブを空白に潰したメモ文字列
+- IP: 発行の行だけに書く（停止の行は空）。使い道は発行元 IP ごとの 1 日の枠だけなので、35 日より古い行の IP は `bin/fuda scrub-ip` で空にする（下の「記録の保存期間」）。札として読めない壊れた行（6 列でない・時刻が読めない・発行の枠が数字でない）は札として数えず、IP の欄は古さに関係なく空にする
+- 追記の前に最終行の改行を確かめ、無ければ足してから書く（途中で切れた行に次の行を連結させない）
 
 ### 発行ページと bin/fuda の使い方
 
@@ -267,6 +272,20 @@ sudo ufw reload
   - 一覧表示: `bin/fuda list`（停止済みも含める場合は `--all`）
   - 手動発行: `bin/fuda issue [--memo "テスト用"]`（札の全文と、`MCP_PUBLIC_BASE` があれば完成 URL を表示）
   - 札の停止: `bin/fuda stop <札の先頭8字以上または全文>`（一意に定まらない場合は拒否）
+  - 古い IP の消去: `bin/fuda scrub-ip [--days 35]`（その日数より古い行の IP 列を空にする・札の生死と直近の発行数は変わらない。発行・停止と同じ `fuda.tsv.lock` で順番に通すので、動いている門と同時に打ってよい）
+
+### 記録の保存期間（約 5 週間にそろえる・2026-09-30）
+
+README の約束（道具の入力と接続元 IP は約 5 週間で消去）に合わせて、公開サーバーでは次の四つを設定する。
+
+| 記録 | 中に残るもの | 設定 |
+| --- | --- | --- |
+| 道具ログ `/var/log/mtg-sisho/*.log` | 道具の入力（先頭 `MCP_TOOL_LOG_MAX` 字）・札の先頭 8 字 | `/etc/logrotate.d/mtg-sisho` で週 1・`rotate 4` |
+| PostgreSQL のログ | 1 秒を超えた SQL の本文 | `/etc/logrotate.d/postgresql-common` の `rotate 10` を `rotate 4` に |
+| journal | 札の発行・Origin の拒否・429 のときの接続元 IP | `/etc/systemd/journald.conf.d/60-sisho-retention.conf` に `[Journal]` と `MaxRetentionSec=5week` を書き `systemctl restart systemd-journald` |
+| `fuda.tsv` | 発行の行の接続元 IP | `/etc/cron.d/mtg-sisho-fuda-scrub` に `17 4 * * * mcp cd /opt/mtg-sisho && MCP_FUDA_FILE=/var/log/mtg-sisho/fuda.tsv .venv/bin/python bin/fuda scrub-ip 2>&1 \| logger -t fuda-scrub` |
+
+発行ページを開いただけ（GET）のときと、通常の道具の呼び出しでは、接続元 IP をどこにも書かない。回数制限を数えるため、プロセスのメモリには接続元 IP を持つ（ファイルには書き出さない・再起動で消える）。窓は 60 秒だが、使い終わった IP の鍵は鍵の数が 5,000 を超えるまで掃除しないので、プロセスが動いている間は古い IP もメモリに残りうる。
 
 ### 旧パスの閉じ方と弱点
 

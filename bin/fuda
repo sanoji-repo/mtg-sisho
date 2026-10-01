@@ -39,6 +39,10 @@ def main():
     p_stop = subparsers.add_parser("stop", help="札を停止")
     p_stop.add_argument("target", help="停止する札の全文または先頭 8 字以上")
 
+    # scrub-ip
+    p_scrub = subparsers.add_parser("scrub-ip", help="古い行の IP 列を空にする（公開サーバーで毎日）")
+    p_scrub.add_argument("--days", type=float, default=35, help="これより古い行の IP を消す日数（既定: 35）")
+
     args = parser.parse_args()
     store = FudaStore(args.file)
 
@@ -58,6 +62,9 @@ def main():
     elif args.command == "issue":
         try:
             fuda = store.issue(ip="cli", memo=args.memo, per_min=args.per_min)
+        except ValueError as e:
+            sys.stderr.write(f"エラー: {e}\n")
+            sys.exit(2)
         except OSError as e:
             sys.stderr.write(f"エラー: 札を発行できませんでした: {e}\n")
             sys.exit(1)
@@ -90,6 +97,14 @@ def main():
             sys.stderr.write(f"エラー: 札を停止できませんでした: {e}\n")
             sys.exit(1)
         print(f"停止しました: {short(fuda_to_stop)} ({fuda_to_stop})")
+
+    elif args.command == "scrub-ip":
+        try:
+            n = store.scrub_ips(days=args.days)
+        except OSError as e:
+            sys.stderr.write(f"エラー: IP を消せませんでした: {e}\n")
+            sys.exit(1)
+        print(f"IP を消した行: {n}（{args.days:g} 日より古い行）")
 
 
 if __name__ == "__main__":
