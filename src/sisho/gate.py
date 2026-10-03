@@ -478,7 +478,7 @@ class GateASGI:
                 '<p>URL は合言葉と同じです。人に見せないでください</p>\n'
                 '<p>無くしたら、もう一度ここで発行できます</p>\n'
                 '<form method="post">\n'
-                '<button type="submit">発行する</button>\n'
+                '<button type="submit">発行する / Issue</button>\n'   # 英語の読み手向けにボタンだけ併記（2026-10-03 本人裁定）
                 '</form>\n' + self._contact_html() + '</body>\n</html>'
             ).encode("utf-8")
             headers = [

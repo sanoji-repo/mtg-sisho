@@ -888,6 +888,8 @@ def test_gate_asgi_issue_page_contact_link(tmp_path):
         text = body.decode("utf-8")
         assert 'href="https://docs.google.com/forms/d/e/x/viewform?a=1&amp;b=2"' in text, method
         assert 'rel="noopener noreferrer"' in text
+        if method == "GET":
+            assert '<button type="submit">発行する / Issue</button>' in text, "ボタンは日本語と英語の併記"
     for bad in ("", "javascript:alert(1)", "http://plain.example/form"):
         _, sent = asyncio.run(run_asgi_request(make(bad), "/issue", method="GET", client_ip="203.0.113.61"))
         assert "問い合わせフォーム" not in parse_response(sent)[2].decode("utf-8"), bad

@@ -1,30 +1,32 @@
 # Sisho（司書）
 
+[English](./README_en.md)
+
 Magic: The Gathering のデータを取り出すライブラリアンサービス（MCP サーバー）。
 
-カード（日本語名つき）・総合ルール・公式裁定・実デッキ統計を PostgreSQL に揃え、
+カード（日本語名つき）・総合ルール・公式裁定・実デッキ統計をデータベースに揃え、
 MCP（Model Context Protocol＝AI アシスタントが外部ツールを呼ぶための共通規格）のツールとして提供します。
 AI のあやふやな記憶や Web の孫引きに頼らず、手元の一次データから直接引けるようにするのが役目です。
 
 設定キーは `sisho` です。名前は MTG 公式日本語訳のカード名「Librarian（司書）」に由来します。
 
-(An MCP (Model Context Protocol) server that acts as a librarian for Magic: The Gathering data. It connects AI assistants directly to a local PostgreSQL database of cards with Japanese names, Comprehensive Rules, official rulings, and tournament deck statistics. Instead of relying on model memory or web searches, assistants retrieve verified primary data directly through standard tool calls.)
-
-| 文書 | 内容 |
+| 文書 | 対象・内容 |
 | --- | --- |
-| [docs/導入方法.md](./docs/導入方法.md) | 使う人向け。つないで最初の問いを投げるまで |
-| [docs/ENGINEERING.md](./docs/ENGINEERING.md) | 立てる・中を見る人向け。設計や構築の技術文書 |
+| [docs/導入方法.md](./docs/導入方法.md) | **利用者向け**。チャットツール（Claude / ChatGPT 等）への接続手順 |
+| [docs/SETUP.md](./docs/SETUP.md) | **サーバー構築者向け**。ローカルでの DB 構築やサーバー自作・運用の手順 |
+| [docs/ENGINEERING.md](./docs/ENGINEERING.md) | **技術者向け**。設計思想やアーキテクチャの解説 |
+| [hooks/README.md](./hooks/README.md) | **Claude Code 向け**。回答前のカード名強制検査（Stop フック） |
 
 ---
 
-## 何ができるか
+## 提供ツール一覧
 
-AI アシスタント（Claude Code・claude.ai のコネクタ等）にこのサーバーを接続すると、次のツールが利用できます。
+クライアントから利用可能なツールは以下の通りです。
 
 | ツール | 返すもの |
 | --- | --- |
 | `search_mtg_cards` | 名前（日本語/英語・部分一致）または本文のキーワードでカードを検索。並び順は名前一致優先、次に EDHREC 人気順。フォーマット指定で使用可能カードに絞り込み可能 |
-| `lookup_mtg_rule` | 総合ルール（Comprehensive Rules）を条番号または英語キーワードで引く。条文 3,317＋用語集 739 |
+| `lookup_mtg_rule` | 総合ルール（Comprehensive Rules）を条番号または英語キーワードで引く（用語集を含む）。 |
 | `get_card_rulings` | カードの公式裁定（Wizards of the Coast 発行）をカード名で引く |
 | `find_partner_cards` | そのカードと同じデッキに入りやすいカード（共起）を実デッキ集計から返す。フォーマット（Standard・Pioneer・Modern・Legacy・Premodern・Pauper・Vintage・Duel Commander・Commander・構築済み製品）ごとに数え、直近 90 日を優先して材料が少ないときだけ全期間へ広げる。60 枚構築ではサイドボードに何を置くかも引ける |
 | `draft_pack_stats` | ドラフトのパックなど、複数のカード（1〜20 枚）の 17Lands 統計（手札に来たときの勝率・ピックの早さほか）を 1 回でまとめて引く。名前が完全に一致しないときは、そのセットのカードから近い名前を候補として返す |
@@ -37,54 +39,24 @@ AI アシスタント（Claude Code・claude.ai のコネクタ等）にこの�
 
 11 ツール中 10 ツールがローカル PostgreSQL 直結（`find_combos` のみ外部 API 都度照会）で、LLM もベクトル検索も呼びません。主要ツールの応答は 1 秒未満です（ローカル実測。相方検索など重い集計や外部照会を除く）。
 
-AI によるカード名の勝手な翻訳を防ぐため、ツールの返り値は《日本語名/英語名》の完成形で返します。日本語版が無いカードは英語名のみ（日本語版無し）を返します。
+AI によるカード名の誤訳を防ぐため、ツールの返り値は《日本語名/英語名》の統一形式で返します。日本語版が無いカードは英語名のみ（日本語版なし）を返します。
 この「LLM へのプロンプト指示よりも返り値の構造で防ぐ」という方針と、その根拠になった測定結果は [docs/bench/README.md](./docs/bench/README.md) の要約と [DESIGN.md](./DESIGN.md) に記載しています。
-
----
-
-## 測定データ
-
-名前忠実度（42 問・Claude Opus）: MCP 有りは全 effort で 42/42、MCP 無しは最良でも 22/42 です。
-《日本語名/英語名》の書式適合（100 問 × 5 試行・Opus low）: 改変ゼロ回答 97/100（5 回目）です。
-測定の条件・回答原文・正直に書いておくこと・再測定の手順は [docs/bench/README.md](./docs/bench/README.md) に記載しています。
 
 ---
 
 ## データ
 
-件数の表は [DATA_MODEL.md](./DATA_MODEL.md) の冒頭にあります。
-
 このリポジトリにデータ本体は含まれていません。
 リポジトリに含まれるのは DB を構築・更新するためのスクリプト群と MCP サーバー実装です。
-データ出所ごとの取得マナーとライセンス・著作権表示は [docs/DATA_SOURCES.md](./docs/DATA_SOURCES.md) を参照してください。
+各テーブルの件数や構造は [DATA_MODEL.md](./DATA_MODEL.md) を、データの出所ごとの取得マナーとライセンス・著作権表示は [docs/DATA_SOURCES.md](./docs/DATA_SOURCES.md) を参照してください。
 
 ---
 
 ## 使い方
 
-- つないで使う（はじめての人向け）: [docs/導入方法.md](./docs/導入方法.md)
-- 自分で立てる: [docs/SETUP.md](./docs/SETUP.md)（前提条件・DB 構築・定期運用・MCP サーバーの登録）
-- Claude Code で回答前の強制検証: [hooks/README.md](./hooks/README.md)
-
-### クライアント別の対応状況と機能
-
-| 利用クライアント | 接続方式 | サーバーから伝達される情報 | 出力の強制検査（ガードレール） |
-| --- | --- | --- | --- |
-| claude.ai（無料プラン） | カスタムコネクタ 1 枠（公式サポートに「Free users are limited to one custom connector」と明記） | ツールの説明文と返り値のみ（`instructions` は無視される） | 不可 |
-| claude.ai（Pro 以上） | カスタムコネクタ | 同上 | 不可 |
-| Claude Code（Pro 以上） | stdio または HTTP 接続 | 説明文・返り値・`instructions` | 可能（[hooks/README.md](./hooks/README.md) の Stop フックを使用） |
-| 独自アプリケーション（API） | 任意の実装 | 全情報 | 可能（レスポンス受信後に検証・再生成を制御） |
+詳細な接続手順は冒頭の [docs/導入方法.md](./docs/導入方法.md) を参照してください。
 
 ---
-
-## 開発経緯・前身システムについて
-
-本プロジェクトの前身は、「日本語の自然文で MTG カードを柔軟に探す」ハイブリッド検索システム（ベクトル検索＋全文検索＋LLM クエリルーター＋人手採点による評価基盤）でした。
-しかし、2026-08 の実運用ログを分析したところ、AI アシスタントは自然言語検索ツールよりも SQL 実行ツールを圧倒的に多く利用しており（93 回の呼び出し中、SQL が 53 回・検索は 7 回）、
-LLM ルーターのオーバーヘッド（6〜86 秒）は DB 直結の高速性（65 ミリ秒）に見合わないことが判明しました。
-クライアント側に高性能な LLM が存在する構成においては、「自然文クエリの意図解釈はクライアント側 LLM に委ね、サーバー側は検証済みの一次データを極めて高速・正確に返すことに専念する」アプローチが合理的です。
-そう判断し、2026-08-21 に複雑な検索パイプラインを廃止しました。本リポジトリには軽量な MCP ツール群とデータ同期スクリプトのみを残す形へと再設計されています。
-※前身システムの評価基盤およびログ記録は別リポジトリ（非公開）に保存されています。
 
 ## ライセンス
 
@@ -94,12 +66,11 @@ Sisho is unofficial Fan Content permitted under the Fan Content Policy. Not appr
 
 リミテッド統計の元データは 17Lands（https://www.17lands.com/）の Public Datasets（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)）です。本プロジェクトが持つのはそこから派生した集計値であり、17Lands は本プロジェクトを承認・保証していません。
 
-## 運用上の制限
+## 利用上の注意
 
-- 公開口の回数制限: 接続 URL ごと 60 回/分・全体 300 回/分です（超えると、待つ秒数と理由を日本語のエラー文で返します）。詳細は [docs/PUBLIC_SERVER.md](./docs/PUBLIC_SERVER.md) を参照してください。
-- 入力の記録: この接続先に送られた道具の入力（検索語・SQL・カード名など）は、障害対応と品質改善のためサーバー側に記録します（約 5 週間で消去）。第三者には渡しません。
-- 接続元 IP の記録: 接続 URL を発行したとき、接続元の Web ページの検査（Origin）で接続を断ったとき、および接続元ごとの回数制限で断ったときに、接続元 IP を濫用への対処のため記録します（ログと発行の台帳から約 5 週間で消去）。接続 URL ごとの回数制限で断ったときは、IP ではなく URL の先頭 8 文字だけを記録します。発行ページを開いただけのときと、通常の道具の呼び出しでは IP を記録しません。
-- 答えの責任の所在: 答えの文章を作るのは利用者側の AI です。Sisho が返すのは一次データから引いた値で、その値は記録から確認できます。
-- 接続 URL は合言葉として扱ってください（URL は履歴やログに残ります。紛失した場合は発行ページで再取得してください）。
-- 道具が増えたとき: AI のアプリは、つないだときの道具の一覧を覚えたまま使います。新しい道具を使うには、コネクタの設定で更新する（付け直す）か、CLI なら起動し直してください。
-- 認証はありません。無保証の実験的な提供です。不具合の報告・要望・質問は[問い合わせフォーム](https://docs.google.com/forms/d/e/1FAIpQLSdiAwOzxL4aCORh-vy8lnG0vOFpW-_0FWAkVK0ofviURyqybQ/viewform)へ（返信先は任意）。技術的な報告は GitHub の Issues でも受け付けています。
+- **回数制限（レート制限）**: 接続 URL ごと 60 回/分・サーバー全体で 300 回/分です（超過時は HTTP 429 エラーを返します）。詳細は [docs/PUBLIC_SERVER.md](./docs/PUBLIC_SERVER.md) を参照してください。
+- **入力内容の記録**: 障害対応と品質改善のため、道具に送られた入力（検索語・SQL・カード名など）をサーバー側に記録します（約 5 週間で消去・第三者への提供は行いません）。
+- **接続元 IP の記録**: 通常の利用時や発行ページを開いただけのときは IP を記録しません。接続 URL の発行時、不正な接続元の拒否時、および接続元ごとの過度なアクセスの遮断時に限り、濫用防止のため接続元 IP を記録します（約 5 週間で消去）。
+- **免責事項**: 回答文を作成するのは利用者側の AI であり、Sisho は一次データを提供するツールです。事前のユーザー登録は不要ですが、無保証の実験的な提供となります。
+- **接続 URL の管理**: 発行された URL は合言葉（秘密鍵）として扱い、他人に共有しないでください。紛失時は発行ページで再取得できます。
+- **問い合わせ**: 不具合の報告・要望・質問は[問い合わせフォーム](https://docs.google.com/forms/d/e/1FAIpQLSdiAwOzxL4aCORh-vy8lnG0vOFpW-_0FWAkVK0ofviURyqybQ/viewform)（返信先は任意）または GitHub の Issues へお寄せください。
