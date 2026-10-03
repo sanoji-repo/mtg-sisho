@@ -18,7 +18,7 @@ card_faces_json の各面に Scryfall は cmc を持たない（mana_cost のみ
 mtg_cards_v2 にあるので外部ソース不要。
 
 使い方:
-    /mnt/new_hdd/my_rag_env/bin/python add_face_cmcs.py
+    python add_face_cmcs.py
 """
 import re
 import json

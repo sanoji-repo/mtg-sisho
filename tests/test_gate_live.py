@@ -2,7 +2,7 @@
 """test_gate_live.py — GateASGI と mcp SDK 実通信・contextvar 伝播の live 試験。
 
 DB が要る試験（VM で走らせる・@requires_db で印）。
-公開サーバーの設定（MCP_STATELESS=1）でしか保証していない（内部レビュー C-5）。
+公開サーバーの設定（MCP_STATELESS=1）でしか保証していない。
 """
 import asyncio
 import os

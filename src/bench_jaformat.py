@@ -16,8 +16,8 @@
 使い方:
   PYTHONPATH=src python src/bench_jaformat.py \
       --lineup sonnet:medium,sonnet:xhigh,opus:low \
-      --questions docs/me/bench/jaformat_questions.csv \
-      --out docs/me/bench/jaformat_20260822 --parallel 3
+      --questions docs/bench/jaformat_questions.csv \
+      --out docs/bench/jaformat_20260822 --parallel 3
   途中で止まっても同じコマンドで再開（完了済みの回答 JSON は飛ばす）。--score-only で採点だけ。
 """
 import argparse, csv, json, os, re, subprocess, sys, tempfile, collections, statistics
@@ -73,14 +73,14 @@ def load_names():
 ARCHETYPES: set = set()   # load_names で DB から読む（《Amulet Titan》のようなアーキタイプ名の《》入れは別勘定）
 BRACKET_RE = re.compile(r"《([^》]+)》")
 # 《X》の直後の括弧（初出の英語添え）。全角・半角両方・間に太字の ** や空白が挟まってもよい
-# 《》と括弧の間に太字の **・}}・採用数「34」などが最大 12 字挟まっても初出添えと見なす（1 便目の雑音対策）
+# 《》と括弧の間に太字の **・}}・採用数「34」などが最大 12 字挟まっても初出添えと見なす（1 回目の雑音対策）
 AFTER_PAREN_RE = re.compile(r"《[^》]+》[^《（(\n]{0,12}[（(][^）)]*[）)]")
 BOLD_RE = re.compile(r"\*\*([^*\n]+)\*\*")
 # *斜体*（アーキタイプ名）とその直後の括弧、「…」で括った呼び名（アーキタイプの引用）は裸名の対象外
 ITALIC_RE = re.compile(r"\*[^*\n]+\*[\s]*(?:[（(][^）)]*[）)])?")
 QUOTE_RE = re.compile(r"「[^」\n]{1,40}」")
 # 裸日本語名の除外: ゲーム用語と同じ字面のカード名（煙試験で「生け贄」「フラッシュバック」を拾った）
-JA_STOP = {"ショック", "巻き添え", "レベルアップ", "ナズグル",   # 1 便目: ショックランド・普通の語・能力語・部族名
+JA_STOP = {"ショック", "巻き添え", "レベルアップ", "ナズグル",   # 1 回目: ショックランド・普通の語・能力語・部族名
            "フラッシュバック", "トランプル", "生け贄", "破壊不能", "打ち消し", "呪禁", "瞬速", "警戒", "飛行",
            "速攻", "接死", "絆魂", "威迫", "到達", "護法", "占術", "変身", "追放", "死亡", "召集", "探査", "続唱",
            "親和", "奇跡", "反復", "予見", "待機", "変容", "超過", "明滅", "接合", "倍増", "転生", "消術",

@@ -53,7 +53,7 @@ def _has_run(words: list[str], run: list[str]) -> bool:
 def _pool_score(key: str, names: list[str]) -> float:
     """入力 key とそのカードの名前たち（英語名・日本語名・面の名前）の近さ（0〜1）。
 
-    ChatGPT のドラフトの実測: 画像から読んだ名前のかけら（「いたずら屋」・「眠り いざない」・
+    実際のドラフトでの実測: 画像から読んだ名前のかけら（「いたずら屋」・「眠り いざない」・
     カンマ抜けの「Greta Sweettooth Scourge」）が、pg_trgm の similarity > 0.3 ではセットの中で拾えなかった
     （短いかけらと長い名前は全体どうしの似かたが低く出る）。セットのカードは数百枚なので Python で比べる:
       1.0  空白と記号を落とすと同じ
@@ -63,7 +63,7 @@ def _pool_score(key: str, names: list[str]) -> float:
       それ以外は文字列の似かた（difflib の ratio）
     候補は「未確認・完全一致ではない」として返すだけで、勝手に置き換えない（誤発動は有害の非対称）。
 
-    Codex のレビュー: 英語の一部一致は単語の切れ目で見る（「the」が「hear*th e*lemental」に
+    英語の一部一致は単語の切れ目で見る（「the」が「hear*th e*lemental」に
     当たっていた）。記号を落として 3 文字以下の短い入力は、名前の一部のときだけ弱い候補（0.6）にして、
     似かたの点では拾わない（「火花」が 1 字だけ共通の《苦花》に 0.5 で当たっていた）。
     """
@@ -211,7 +211,7 @@ def draft_pack_stats(cards: list[str], set: str | None = None) -> str:
 
     # 3) 完全一致しなかった名前だけ、プールに閉じた曖昧一致へ回す
     #    （実測: プールで絞ると候補がほぼ一意に落ちる。孤光→弧光のフェニックスは全体 30 候補→プール内 1）
-    #    プールは一度だけ読んで Python で比べる（_pool_score・2026-10-02 名前のかけらを拾えなかった直し）
+    #    プールは一度だけ読んで Python で比べる（_pool_score。名前のかけらを拾えるように）
     fuzzy: dict[str, list[str]] = {}
     elsewhere: dict[str, list[str]] = {}   # 指定セットの統計行は無いが DB には近い名前がある
     ties: dict[str, int] = {}              # 候補の上限で切った所に残った同点の数
@@ -240,7 +240,7 @@ def draft_pack_stats(cards: list[str], set: str | None = None) -> str:
         if cand and ok[0][0] >= _POOL_STRONG:
             fuzzy[key] = cand
             continue
-        # セットの中に強い候補が無いときは DB 全体も見る（Codex のレビュー: WOE で「Lightnig Bolt」が
+        # セットの中に強い候補が無いときは DB 全体も見る（WOE で「Lightnig Bolt」が
         # セットの中の弱い《石断ちの稲妻》で止まり、DB 全体で一番近い《稲妻/Lightning Bolt》を伝えられなかった）。
         # 「このセットに居ない」と「DB のどこにも無い」は別の事実で、混ぜると実在するカードを「創作の疑い」と誤報する。
         wide = _db(

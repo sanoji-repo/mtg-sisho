@@ -2,7 +2,7 @@
 """手配置のデータフロー図。標準ライブラリのみ。
 BOXES=(x,y,w,h,parent); EDGES=(source,target,kind,points)。
 TEXT=(owner,x,baseline,value,size,bold)。座標はこのファイルで編集。
-実行すると隣に flow.svg と validation.txt を保存する。
+実行すると隣に flow.svg と flow_validation.txt を保存する。
 文字領域は幅を仮定した予約領域。実フォントの描画測定ではない。
 """
 from pathlib import Path
@@ -282,5 +282,5 @@ if __name__ == '__main__':
     content = svg()
     directory = Path(__file__).resolve().parent
     (directory/'flow.svg').write_text(content, encoding='utf-8')
-    (directory/'validation.txt').write_text(report, encoding='utf-8')
+    (directory/'flow_validation.txt').write_text(report, encoding='utf-8')
     print(report)

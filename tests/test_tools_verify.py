@@ -121,7 +121,7 @@ def test_verify_card_without_japanese_stays_english():
 
 
 def test_verify_protects_italics_and_parentheses():
-    """*斜体*（アーキタイプ名）の中との中は触らない——書き換えでも報告でも。"""
+    """*斜体*（アーキタイプ名）の中と丸括弧の中は触らない——書き換えでも報告でも。"""
     # 《》の中は従来どおり完成形へ直す。保護域の中の同じ語は巻き添えにしない。
     assert _fixed("（太陽の指輪）と《Lightning Bolt》。") == "（太陽の指輪）と《稲妻/Lightning Bolt》。"
     assert "「太陽の指輪」" not in v("（太陽の指輪）と《Lightning Bolt》。"), "括弧の中は報告もしない"
@@ -489,7 +489,7 @@ if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
 
-# ─── マナ・コストの照合（claude.ai のドラフト補助で 3 マナを 2 マナと言った事故を止める検査）────
+# ─── マナ・コストの照合（3 マナのカードを 2 マナと言うような取り違えを止める検査）────
 
 def _head(text):
     return v(text).split(MARK, 1)[0]
@@ -677,7 +677,7 @@ def test_bracketed_name_with_spaces_is_actually_fixed():
 
 
 def test_candidate_lookup_is_capped_for_many_unknowns(monkeypatch):
-    """未確認が多い答案で、候補の照会を直列に積み上げない（別モデルのレビューで指摘）。
+    """未確認が多い答案で、候補の照会を直列に積み上げない（レビューでの指摘）。
 
     候補は 1 件ずつ similarity 走査を掛けるので、20 件あれば 20 回走る。verify は
     答えを出す前に必ず通す道具なので、送信全体を待たせる。名前の列挙自体は全件残す。

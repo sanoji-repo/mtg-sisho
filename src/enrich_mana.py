@@ -13,12 +13,12 @@
 - 数える: 起動型能力（コスト: Add）・呪文の効果文（儀式）・常在/付与型・
   **自身の ETB 誘発**（Dockside/Prosperous Innkeeper＝ドロー側の規約が draw で
   「ETB 内は数える」と引いた線の写し）・
-  **マナ倍化**（tap for mana → add an additional 型。裁定①=2: ドローの倍化=1 と
+  **マナ倍化**（tap for mana → add an additional 型。採点（評価用の正解データの段階・2＝本業／1＝おまけ）は 2: ドローの倍化=1 と
   非対称だが、マナはリソースそのものなので倍化した瞬間に加速が成立する）
 - 数えない（おまけ＝採点は 1 でも列は False 側・draw 前例と同じ写像）:
   - 死亡時・被破壊時などの誘発報酬（Greedy Freebooter・Shambling Ghast）
-  - 唱えるたび/攻撃時/ターン起点等の繰り返し誘発（裁定②=1: Birgi・Neheb）
-  - 他者の死亡等・盤面依存の報酬（裁定③=1: Pitiless Plunderer・Revel in Riches）
+  - 唱えるたび/攻撃時/ターン起点等の繰り返し誘発（採点は 1: Birgi・Neheb）
+  - 他者の死亡等・盤面依存の報酬（採点は 1: Pitiless Plunderer・Revel in Riches）
 
 **第二の判定＝量（定義は不変）**:
 本業のマナ文について net-mana = 出すマナ − 払うマナ −（土地なら 1）> 0 のみ TRUE。
@@ -73,7 +73,7 @@ def _is_trigger(sent: str) -> bool:
 ETB_SELF_RE = re.compile(r"\bthis (creature|artifact|permanent|enchantment|land)"
                          r" enters\b|(?<!an )(?<!a )\benters the battlefield\b",
                          re.I)
-# マナ倍化（裁定①）。3 つの oracle テンプレを拾う:
+# マナ倍化。3 つの oracle テンプレを拾う:
 #   旧: 「Whenever ~ is tapped for mana, … adds …」（Mana Flare・Wild Growth）
 #   新: 「Whenever a land's ability causes you to add … , add …」（Caged Sun 現行文）
 #   共通: 「adds? (an) additional …」（additional の語があれば倍化の証拠）
@@ -199,7 +199,7 @@ def parse_mana_boost(oracle: str, mana_cost: str, type_line: str):
         found_any = True
 
         # ── 第一の判定: 文脈 ──
-        # 倍化（裁定①）は文脈より先に判定する: High Tide は「Until end of
+        # 倍化は文脈より先に判定する: High Tide は「Until end of
         # turn, whenever …」で始まり誘発頭に見えないが、倍化文なら文脈不問で
         # 本業＆量の判定も免除（増分がそのまま正）
         if DOUBLER_RE.search(sent):

@@ -38,7 +38,7 @@ GRANT SELECT (id, deck_name, set_code, source, created_at, tournament_name, tour
 -- 17Lands 集計（03_vm_add_limited_card_stats.sql で足した分。lab17.card_stats から public.limited_card_stats へ統合済み。ここが正本）
 GRANT SELECT ON public.limited_card_stats TO sisho_repl;
 GRANT SELECT ON public.limited_color_stats, public.limited_matchup_stats, public.limited_format_stats, public.limited_card_rank_stats, public.limited_card_pick_stats TO sisho_repl;
-GRANT SELECT ON public.mtg_sets TO sisho_repl;  -- 2026-09-03 セット一覧（発売日順の最新セット・draft_set の解決）
+GRANT SELECT ON public.mtg_sets TO sisho_repl;  -- セット一覧（発売日順の最新セット・draft_set の解決）
 
 ALTER TABLE public.mtg_cards_v2_nonlegal REPLICA IDENTITY FULL;
 

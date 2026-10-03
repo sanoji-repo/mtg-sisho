@@ -11,7 +11,7 @@
 # 芯となる規則:
 #   - 後処理は成否に関わらず必ず実行（; であって && でない）。
 #     fix_deck_links は card_id NULL のみ充填・recompute は全再構築＝どちらも
-#     冪等なので、部分取得で死んだ夜でも安全に走れる（異常終了で踏んだ教訓）。
+#     冪等なので、部分取得で死んだ夜でも安全に走れる。
 #   - ランナー自体の二重起動は flock で防止。
 #   - recompute は並行ランナー間で共有ロックにより直列化
 #     （card_format_strength / edh_card_strength の TRUNCATE 衝突回避）。
@@ -23,7 +23,7 @@
 #     mtgtop8:<FORMAT>:<meta>     例 mtgtop8:MO:339
 #     moxfield:<brackets>:<per>   例 moxfield:2,3,4,5:300
 #     mtgo:<YYYY-MM|cur>:<formats|all>  例 mtgo:cur:all（今月分・全構築形式）
-#   例（並行 2 便・レーンごとに別プロセスで起動する）:
+#   例（並行 2 本・レーンごとに別プロセスで起動する）:
 #     nohup sh/nightly_scrape.sh mtgtop8:ST:341 mtgtop8:PI:340 &
 #     nohup sh/nightly_scrape.sh moxfield:2,3,4,5:300 &
 #

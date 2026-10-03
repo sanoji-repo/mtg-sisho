@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """draft_pack_stats の名前の候補。
 
-ChatGPT のクイックドラフト（WOE）で、画像から読んだ名前のかけらがセットの中で拾えなかった
+クイックドラフト（WOE）の実地テストで、画像から読んだ名前のかけらがセットの中で拾えなかった
 （「いたずら屋」にセットの外の 2 枚を出し、WOE の《錠前破りのいたずら屋/Picklock Prankster》を出せない）。
 セットの中の候補を先に出すこと・候補は未確認のまま置き換えないことを確かめる。
 _pool_score は DB に触らない。draft_pack_stats の試験は DB（読み取り）に触る。
@@ -30,7 +30,7 @@ def test_pool_score_ranks():
 
 
 def test_pool_score_short_and_word_boundaries():
-    """2026-10-02 Codex のレビュー: 短い入力は名前の一部のときだけ弱い候補・英語は単語の切れ目で見る。"""
+    """短い入力は名前の一部のときだけ弱い候補・英語は単語の切れ目で見る。"""
     assert d._pool_score("火花", ["Bitterblossom", "苦花"]) == 0.0, "1 字だけ共通の短い名前を拾わない"
     assert d._pool_score("火花", ["Sparkspitter", "火花吐き"]) == 0.6, "短い入力は名前の一部でも弱い候補どまり"
     assert d._pool_score("the", ["Hearth Elemental", "かまどの精"]) == 0.0, "単語の途中には当たらない"

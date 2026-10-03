@@ -30,10 +30,10 @@ def _parse_fuda_line(line: str):
     """fuda.tsv の 1 行を読む。札の事象として受け付けられる行なら (dt, 事象, 札, IP, 枠, メモ)、壊れた行なら None。
 
     受け付けるのは**ちょうど 6 列**・時刻が読める・事象が issue/stop・発行の行は枠の欄が数字、の行だけ
-    （Codex のレビュー: 改行の無い最終行に次の行が連結すると 9 列の 1 行になり、以前は
+    （改行の無い最終行に次の行が連結すると 9 列の 1 行になり、以前は
     先頭 6 列を切り出して「枠が数字でない→既定 60」で受け付けていた＝壊れた札が生き、新しい札が消えた）。
     枠の欄は ASCII の数字 1〜6 桁だけ（str.isdigit は「²」も数字と言うのに int() は通らない＝台帳の 1 行で
-    門の起動と scrub が止まった・2026-10-01 Codex のレビュー 2 周目 S1）。読めない物はすべて None＝壊れた行。
+    門の起動と scrub が止まった）。読めない物はすべて None＝壊れた行。
     """
     cols = line.rstrip("\r\n").split("\t")
     if len(cols) != 6:
@@ -144,12 +144,12 @@ class FudaStore:
     def issue(self, ip: str, memo: str = "", per_min: int | None = None) -> str:
         """新しい札を発行して TSV に追記する。"""
         fuda = secrets.token_urlsafe(24)
-        while fuda.startswith("-"):     # 先頭の - は argparse がオプションと読む＝bin/fuda stop に渡せない（Opus C-12）
+        while fuda.startswith("-"):     # 先頭の - は argparse がオプションと読む＝bin/fuda stop に渡せない
             fuda = secrets.token_urlsafe(24)
         if per_min is None:
             per_min = int(os.environ.get("MCP_FUDA_PER_MIN", "60"))
         if not (isinstance(per_min, int) and 0 <= per_min <= 999999):
-            # 台帳が読める範囲（ASCII 数字 1〜6 桁）でだけ発行する＝発行できたのに再起動で消える札を作らない（2 周目 S2）
+            # 台帳が読める範囲（ASCII 数字 1〜6 桁）でだけ発行する＝発行できたのに再起動で消える札を作らない
             raise ValueError(f"per_min は 0〜999999 の整数: {per_min!r}")
         memo_clean = " ".join((memo or "").split())
         now_dt = self._dt_now()
@@ -220,7 +220,7 @@ class FudaStore:
         with self._locked():
             fd = os.open(self.path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o600)
             with os.fdopen(fd, "r+b") as f:
-                # 最終行に改行が無ければ先に足す（途中で切れた行に新しい行を連結させない・2026-09-30 Codex のレビュー）
+                # 最終行に改行が無ければ先に足す（途中で切れた行に新しい行を連結させない）
                 size = f.seek(0, os.SEEK_END)
                 if size > 0:
                     f.seek(size - 1)
@@ -231,9 +231,9 @@ class FudaStore:
     def scrub_ips(self, days: float = 35) -> int:
         """days 日より古い行の IP 列を空にする。空にした行の数を返す（0 ならファイルに触らない）。
 
-        濫用への対処に要るのは直近 24 時間の発行数だけ＝古い IP は持たない（本人裁定・約 5 週間で消去）。
+        濫用への対処に要るのは直近 24 時間の発行数だけ＝古い IP は持たない（約 5 週間で消去）。
         壊れた行（_parse_fuda_line が受け付けない行＝札として数えない行）は、時刻に関係なく IP に見える列を
-        すべて空にする（Codex のレビュー: 以前は壊れた行を触らず、IP が無期限に残った）。
+        すべて空にする（以前は壊れた行を触らず、IP が無期限に残った）。
         """
         now = self._dt_now()
         if now.tzinfo is None:
@@ -289,7 +289,7 @@ class FudaStore:
         return None
 
     def issued_in(self, ip: str | None, seconds: float = 86400) -> int:
-        """直近 seconds 秒間の発行回数。ip を指定すればその IP・None なら全体（内部レビュー B-10）。"""
+        """直近 seconds 秒間の発行回数。ip を指定すればその IP・None なら全体。"""
         self.reload_if_changed()
         now = self._dt_now()
         if now.tzinfo is None:
@@ -365,8 +365,8 @@ class GateASGI:
         self.app = app
         self.store = store
         # limiter＝MCP 本体まで届く呼び出し（札・旧パス）の枠。probe_limiter＝DB に触らない口（発行ページ・
-        # 無い札や知らないパスへの探り・Origin で断った接続）の枠。総量を分けて、探りが利用者の総量を食えないようにする
-        # （C-6・2026-09-30 本人裁定）。省略時は limiter と同じ数字で別の窓を作る。
+        # 無い札や知らないパスへの探り・Origin で断った接続）の枠。総量を分けて、探りが利用者の総量を食えないようにする。
+        # 省略時は limiter と同じ数字で別の窓を作る。
         self.limiter = limiter
         if probe_limiter is None:
             probe_limiter = RateLimiter(per_ip=limiter.per_ip, global_=limiter.global_,
@@ -374,7 +374,7 @@ class GateASGI:
             probe_limiter.exempt = list(limiter.exempt)
         self.probe_limiter = probe_limiter
         self.issue_limiter = issue_limiter
-        # 問い合わせの窓口（本人裁定・Google フォーム）。https のときだけ発行ページに出す。
+        # 問い合わせの窓口（Google フォーム）。https のときだけ発行ページに出す。
         # URL はコードに書かず環境変数で渡す＝自分で立てたサーバーに他人の窓口が出ない
         self.contact_url = contact_url if contact_url.startswith("https://") else ""
         self.inner_path = inner_path
@@ -478,7 +478,7 @@ class GateASGI:
                 '<p>URL は合言葉と同じです。人に見せないでください</p>\n'
                 '<p>無くしたら、もう一度ここで発行できます</p>\n'
                 '<form method="post">\n'
-                '<button type="submit">発行する / Issue</button>\n'   # 英語の読み手向けにボタンだけ併記（2026-10-03 本人裁定）
+                '<button type="submit">発行する / Issue</button>\n'   # 英語の読み手向けにボタンだけ併記
                 '</form>\n' + self._contact_html() + '</body>\n</html>'
             ).encode("utf-8")
             headers = [
@@ -528,8 +528,8 @@ class GateASGI:
                 await send({"type": "http.response.body", "body": body})
                 return
 
-            # TSV の永続記録から直近 24 時間の発行枠を検査（IP ごと・全体とも＝再起動で消えない・Opus B-1/B-10）。
-            # issue_limiter は数値（per_ip・global_）の置き場で、メモリの deque は使わない（失敗した発行で枠が痩せない・C-14）
+            # TSV の永続記録から直近 24 時間の発行枠を検査（IP ごと・全体とも＝再起動で消えない）。
+            # issue_limiter は数値（per_ip・global_）の置き場で、メモリの deque は使わない（失敗した発行で枠が痩せない）
             per_ip, global_ = self.issue_limiter.per_ip, self.issue_limiter.global_
             over_ip = bool(per_ip) and self.store.issued_in(ip, 86400) >= per_ip
             over_all = bool(global_) and self.store.issued_in(None, 86400) >= global_

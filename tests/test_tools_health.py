@@ -90,7 +90,7 @@ def test_health_survives_missing_limited_table(monkeypatch):
 
 
 def test_health_distinguishes_unreachable_from_zero(monkeypatch):
-    """照会できなかったときは 0 でなく null（別モデルのレビューで指摘）。
+    """照会できなかったときは 0 でなく null（レビューでの指摘）。
 
     以前はタイムアウトも権限不備も draft_stat_sets=0 にして status: ok を返していたので、
     「本当に 17Lands が 0 件」と「引けなかった」が利用者から区別できなかった。

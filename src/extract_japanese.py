@@ -235,10 +235,13 @@ def run():
                 continue
             cur.execute("UPDATE mtg_cards_v2 SET japanese_oracle_text = %s WHERE id = %s AND japanese_oracle_text IS DISTINCT FROM %s",
                         (ja_text, card_id, ja_text))
+            # 発売前に公式ギャラリーから入れた仮の名前（出所 wotc_gallery）は、Scryfall の日本語版が
+            # 同じ名前でも出所を scryfall に付け替える（値が同じだと仮の印のまま残るため）。
             for i, col in enumerate(("front", "back")[:len(faces_ja)]):
                 if faces_ja[i]:
                     cur.execute(f"UPDATE mtg_cards_v2 SET name_ja_{col} = %s, name_ja_src_{col} = 'scryfall'"
-                                f" WHERE id = %s AND name_ja_{col} IS DISTINCT FROM %s AND coalesce(name_ja_src_{col}, '') <> 'manual'",
+                                f" WHERE id = %s AND (name_ja_{col} IS DISTINCT FROM %s OR name_ja_src_{col} = 'wotc_gallery')"
+                                f" AND coalesce(name_ja_src_{col}, '') <> 'manual'",
                                 (faces_ja[i], card_id, faces_ja[i]))
             updated += 1
             if updated % BATCH_COMMIT == 0:

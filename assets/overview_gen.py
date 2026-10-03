@@ -60,11 +60,11 @@ text('gate', 70, 495, 'レート制限：滑走 60 秒窓（既定値）', 15, T
 text('gate', 70, 523, '接続元 IP：60 回/分　・　全体：300 回/分　・　札：60 回/分', 15)
 text('gate', 70, 551, 'find_combos：札ごと 10 回/分', 15)
 text('gate', 70, 581, '日次の上限は札の発行だけ：IP 3 回/日・全体 100 回/日', 15)
-text('mcp', 70, 699, 'MCP サーバー ｜ 道具は 10 個', 20, True)
-text('local', 86, 763, 'DB 内で完結する 9 個', 18, True)
+text('mcp', 70, 699, 'MCP サーバー ｜ 道具は 11 個', 20, True)
+text('local', 86, 763, 'DB 内で完結する 10 個', 18, True)
 text('local', 86, 793, 'カード・総合ルール・公式裁定（3）', 14)
 text('local', 86, 819, '共起（1）・SQL 実行／スキーマ（2）', 14)
-text('local', 86, 845, '回答文のカード名照合（1）', 14)
+text('local', 86, 845, '回答文のカード名照合（1）・ドラフト統計（1）', 14)
 text('local', 86, 871, '確率の厳密計算（1）・DB 健全性（1）', 14)
 text('combo', 442, 763, '外部照会 1 個', 17, True)
 text('combo', 442, 793, 'find_combos', 15, True)
@@ -193,7 +193,7 @@ SVG の XML 構文・外部参照なし・スクリプトなし: PASS
 設計上の注記:
 公開サーバー・MCP サーバーの包含枠は接続線が横切る仕様。
 双方向矢印は要求・応答を一本にまとめたもの。片方向はログ記録。
-9 個の道具は DB 内で完結。find_combos も名前の変換・照合に DB を利用。
+10 個の道具は DB 内で完結。find_combos も名前の変換・照合に DB を利用。
 道具ログの結果は成功・エラーであり、結果本文の保存を意味しない。
 制限値は指定された既定値を掲載し、全設定を網羅する表ではない。
 外部 API の URL は文字列としてのみ掲載し、取得・埋め込みはしない。
@@ -203,7 +203,7 @@ SVG の XML 構文・外部参照なし・スクリプトなし: PASS
 def svg():
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" font-family="{FONT}" role="img" aria-labelledby="title desc">',
            '<title id="title">mtg_sisho 全体図：問いの解釈は利用者側の AI、サーバーは事実を返す</title>',
-           '<desc id="desc">利用者は言語モデルを持つ AI アシスタントに質問する。確認済みクライアントは Claude Code、claude.ai のカスタムコネクタ、ChatGPT の開発者モードのカスタムコネクタ。門は札の発行・検査とレート制限を行う。MCP の道具は 10 個あり、9 個は PostgreSQL 18 内で完結。readonly_ai で読み取り、検索・照合・計算を行う。外部 API に出るのは find_combos だけで、https://backend.commanderspellbook.com/find-my-combos に都度照会する。この道具もカード名照合に DB を使う。道具ログには入力と成功・エラー、計時を記録。双方向矢印は要求と応答、片方向矢印はログ記録。</desc>',
+           '<desc id="desc">利用者は言語モデルを持つ AI アシスタントに質問する。確認済みクライアントは Claude Code、claude.ai のカスタムコネクタ、ChatGPT の開発者モードのカスタムコネクタ。門は札の発行・検査とレート制限を行う。MCP の道具は 11 個あり、10 個は PostgreSQL 18 内で完結。readonly_ai で読み取り、検索・照合・計算を行う。外部 API に出るのは find_combos だけで、https://backend.commanderspellbook.com/find-my-combos に都度照会する。この道具もカード名照合に DB を使う。道具ログには入力と成功・エラー、計時を記録。双方向矢印は要求と応答、片方向矢印はログ記録。</desc>',
            '<defs><marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse" viewBox="0 0 9 8"><path d="M0 0 L9 4 L0 8 Z" fill="#48566b"/></marker></defs>',
            f'<rect width="{W}" height="{H}" fill="#ffffff"/>']
     for n, (x, y, w, h, _) in BOXES.items():
@@ -234,5 +234,5 @@ if __name__ == '__main__':
     content = svg()
     directory = Path(__file__).resolve().parent
     (directory/'overview.svg').write_text(content, encoding='utf-8')
-    (directory/'validation.txt').write_text(report, encoding='utf-8')
+    (directory/'overview_validation.txt').write_text(report, encoding='utf-8')
     print(report)

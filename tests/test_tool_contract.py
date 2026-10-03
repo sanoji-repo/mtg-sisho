@@ -8,7 +8,7 @@ snapshot と突き合わせて確かめる。
 
 snapshot（tests/snapshots/tools.json）は **分割前の main の実物**から採った。
 採り直しは `python tests/test_tool_contract.py --update`（内容を変えたい正当な理由が
-あるときだけ・その理由を WORKLOG に書くこと）。
+あるときだけ・その理由をコミットメッセージに書くこと）。
 
 DB 依存の注意: search_mtg_cards と query_mtg_database の description は起動時に DB から
 読んだ収録セット一覧（_SETS_HEAD／_SETS_BLURB）を埋め込む＝環境で変わる。
@@ -128,8 +128,8 @@ def test_tool_catalog_matches_registration():
 
 
 def test_readme_lists_every_tool():
-    """README の道具の表は、登録した道具を全部載せ、数も合っている（draft_pack_stats を足した 9/21 に
-    README の表を直し忘れ、10 本のまま公開していた）。"""
+    """README の道具の表は、登録した道具を全部載せ、数も合っている（draft_pack_stats を足したときに
+    README の表を直し忘れ、10 本のまま公開していたことがある）。"""
     import re
     readme = open(os.path.join(os.path.dirname(__file__), "..", "README.md"), encoding="utf-8").read()
     rows = re.findall(r"^\| `([a-z_]+)` \|", readme, flags=re.M)

@@ -9,10 +9,9 @@ from sisho.names import (_like_exact, ambiguous_hint, candidate_label, card_cand
 from sisho.toollog import _log_tool
 
 
-# ─── ローカル DB 直結の道具 ───
-# 試作サーバーは VM に住んでいるので、mtg_rules / card_rulings（ローカルのみ・
-# Aurora 未搬入）に直接手が届く。恒久版ではこの 2 本のデータを搬入 or 焼き込みする
-# （工程表 v0 の 1 番・Aurora/イメージ/VPS の裁定とセット）。読み取り専用クエリのみ。
+# ─── DB 直結の道具 ───
+# mtg_rules / card_rulings は開発側の DB から公開サーバーへ論理レプリケーションで届く
+# （sh/sisho_repl/01・02 の publication と subscription に入っている）。読み取り専用クエリのみ。
 
 
 LOOKUP_MTG_RULE_DESCRIPTION = (

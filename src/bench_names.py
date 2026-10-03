@@ -10,8 +10,8 @@
 
 使い方:
   python src/bench_names.py --model opus --efforts low,medium,high,xhigh,max --conds on,off \
-      --questions docs/me/name_fidelity_20260821/name_questions.csv \
-      --out docs/me/bench/names_opus_20260821 --parallel 4
+      --questions docs/bench/name_fidelity_20260821/name_questions.csv \
+      --out docs/bench/names_opus_20260821 --parallel 4
   途中で止まっても同じコマンドで再開（完了済みの回答 JSON は飛ばす）。
 """
 import argparse, csv, json, os, re, subprocess, sys, tempfile, collections, statistics

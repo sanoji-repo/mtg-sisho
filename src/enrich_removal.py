@@ -29,10 +29,10 @@ def strip_reminder(t):
 def castable_oracle(oracle_text, card_faces_json):
     """役割列の導出に使うテキスト＝「手札から唱えられる面」だけの oracle。
     規則は face_cmcs/face_types と同一（mana_cost 非空の面のみ・全面空なら表面
-    フォールバック）。前提の明示（design-premise）:
+    フォールバック）。前提の明示:
     従来は全文（裏面込み）をパースしており、変身カードの唱えられない裏面にしか無い
-    destroy/exile が役割タグに混ざって機構ゲートを通していた（指摘・
-    Elesh Norn の destroy=裏面英雄譚 III 章のみ、で実証）。単面カードは従来どおり全文
+    destroy/exile が役割タグに混ざって機構ゲートを通していた
+    （Elesh Norn の destroy=裏面英雄譚 III 章のみ、で実証）。単面カードは従来どおり全文
     ＝導出結果も不変。全面 castable（split/adventure/MDFC）は ' // ' 連結＝oracle_text
     と同形＝これも不変。"""
     faces = card_faces_json or []

@@ -4,13 +4,13 @@
 「Opus low は日本語の問いに《正式な日本語名》で答える」を数字にする。手で 1000 問は書けないので、
 型（テンプレート）× DB の実体（アーキタイプ・カード・統率者候補）で機械生成する。
 
-型は 10 種（今日の 10 問のカテゴリを保つ: 複数枚の日本語名・土地名・読点入り・日本語版なし・両面・
+型は 10 種（最初に手で書いた 10 問のカテゴリを保つ: 複数枚の日本語名・土地名・読点入り・日本語版なし・両面・
 英語名で問う・裸の日本語名で問う・合法性・フォーマット横断）。seed 固定で同じ問題集が再現する。
-100 問ずつ切り出す: --offset 0 --n 100 → 1 便目、--offset 100 → 2 便目。
+100 問ずつ切り出す: --offset 0 --n 100 → 1 回目、--offset 100 → 2 回目。
 
 使い方:
-  PYTHONPATH=src /mnt/new_hdd/my_rag_env/bin/python src/gen_jaformat_questions.py \
-      --n 100 --offset 0 --out docs/me/bench/jaformat_1000/questions_001.csv
+  PYTHONPATH=src python src/gen_jaformat_questions.py \
+      --n 100 --offset 0 --out docs/bench/jaformat_1000/questions_001.csv
 """
 import argparse, csv, random
 

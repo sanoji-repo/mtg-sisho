@@ -14,11 +14,11 @@
    （Whenever you draw ...,）は先頭コンマまで落としてから残りを数える（Sheoldred が
    浮かない・除去の「注釈テキスト除去」の教訓の写し）。注釈（括弧）は先に除去。
 2. 主語の向き: draw の直前文脈に opponent がいる命令（each/target opponent draws）は
-   相手に引かせる行為＝自分のドローでないから数えない（P2 precision 優先）。
+   相手に引かせる行為＝自分のドローでないから数えない（precision 優先）。
    each player draws / target player draws は自分も引ける・自分を選べる＝数える
    （ホイール・Blue Sun's Zenith 型）。
 3. 可変（X 等）は draw_x に分離し、枚数ゲートでは「OR draw_x」で満たす扱い
-   （モードの裁定「選択2枚でも2枚引けることはひける」の同族＝X=N を選べば引ける）。
+   （モードで「2 枚引く」を選べるカードは 2 枚引けると数えるのと同じ考え方＝X=N を選べば引ける）。
 4. 面選定は castable_oracle（face_cmcs / removal と同一規則＝手札から唱えられる面）。
 5. 複数の draw 命令は合算せず max（ETB 1枚＋死亡時 1枚 は「2枚引く」ではない）。
 """
@@ -35,7 +35,7 @@ NUM = {'a': 1, 'an': 1, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
        'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15, 'twenty': 20}
 
 # 命令形/自分主語の draw。additional は Sylvan Library（draw two additional cards）用、
-# up to は Truce 系（draw up to two ＝選べば引ける＝モードの裁定の同族）
+# up to は Truce 系（draw up to two ＝選べば引ける＝モードの扱いの同族）
 DRAW_RE = re.compile(
     r"\bdraws?\s+(?:up to\s+)?(a|an|one|two|three|four|five|six|seven|eight|"
     r"nine|ten|eleven|twelve|thirteen|fourteen|fifteen|twenty|x|that many|\d+)"

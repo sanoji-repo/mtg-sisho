@@ -106,8 +106,8 @@ server = MCPServer(
 # ＝契約試験が包み越しの inspect.signature と JSON Schema を snapshot と突き合わせている。
 # 入口の行（道具名と引数）は従来どおり道具の本体が先頭で書く。
 
-# 道具の一覧（本人裁定・#1408）。ChatGPT は道具を一度に全部は読み込まず 10 個だけ表に出し、
-# draft_pack_stats は「pack」で探すまで見えなかった（#1407）。表に出ない道具の説明文は読まれない＝
+# 道具の一覧。ChatGPT は道具を一度に全部は読み込まず 10 個だけ表に出し、
+# draft_pack_stats は「pack」で探すまで見えなかった。表に出ない道具の説明文は読まれない＝
 # 必ず表に出る search_mtg_cards の説明文の頭に、名前と一言の一覧を置く。並びと名前は登録と同じであることを
 # 契約試験 tests/test_tool_contract.py が縫う（道具を足したらここも足す）。
 TOOL_CATALOG: tuple[tuple[str, str], ...] = (

@@ -152,6 +152,6 @@ if __name__ == '__main__':
     report = validate()
     content = svg()
     output = Path(__file__).resolve().parent
-    (output / 'er.svg').write_text(content, encoding='utf-8')
-    (output / 'validation.txt').write_text(report, encoding='utf-8')
+    (output / 'er_core.svg').write_text(content, encoding='utf-8')
+    (output / 'er_core_validation.txt').write_text(report, encoding='utf-8')
     print(report)

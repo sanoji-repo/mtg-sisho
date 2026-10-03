@@ -97,7 +97,7 @@ def test_search_two_faced_card_faces():
     assert c["name_display"] == "《厚かましい借り手/Brazen Borrower》", "name_display は表面固定"
     assert [x["en"] for x in c["faces"]] == ["Brazen Borrower", "Petty Theft"], "faces は表→裏"
     assert [x["display"] for x in c["faces"]] == [
-        "《厚かましい借り手/Brazen Borrower》", "《些細な盗み/Petty Theft》"], "面ごとの完成形（表の日本語名と裏の英語名を接がない・2026-08-31）"
+        "《厚かましい借り手/Brazen Borrower》", "《些細な盗み/Petty Theft》"], "面ごとの完成形（表の日本語名と裏の英語名を接がない）"
     assert c["matched_face"] == "back" and c["face_display"] == "《些細な盗み/Petty Theft》", (
         "裏面で当たったことと、その面の完成形")
 
@@ -270,8 +270,8 @@ if __name__ == "__main__":
 def test_draft_set_marks_which_cards_are_in_that_set():
     """draft_set を渡したら、どのカードがそのセットに入っているかを返り値に書く。
 
-    由来（ChatGPT での実地テスト）: 画像から読んだ名前が曖昧なとき、
-    ChatGPT は「聖遺」のような部分文字列で引いていた。draft_set='LCI' は
+    由来（実地テスト）: 画像から読んだ名前が曖昧なとき、
+    クライアントは「聖遺」のような部分文字列で引いていた。draft_set='LCI' は
     **検索を絞らない**（17Lands 統計を添えるセットの指定）ので、別セットのカードが
     EDHREC 人気順で並び、唯一の LCI 収録カードは 5 番目に沈んでいた。しかも返り値に
     収録セットが無いため、どれがそのセットかを**クライアントが判断できなかった**。

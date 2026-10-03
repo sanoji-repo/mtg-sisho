@@ -341,8 +341,8 @@ def test_default_lane_is_heavy(fake_db_lanes):
 LIGHT_LANE_FORBIDDEN = (
     ("deck_cards", "1,376 万行の表"),
     ("deck_list", "43 万行の表"),
-    ("jsonb_object_keys", "全行の jsonb 展開（9/12 に公開サーバーで 10 秒 timeout した形）"),
-    ("similarity(", "関数比較は pg_trgm 索引に乗らない（#850）"),
+    ("jsonb_object_keys", "全行の jsonb 展開（公開サーバーで 10 秒 timeout した形）"),
+    ("similarity(", "関数比較は pg_trgm 索引に乗らない"),
     ("COUNT(*) FROM mtg_cards_v2", "全表 COUNT（公開サーバーでは冷えると桁が変わる）"),
 )
 

@@ -263,7 +263,7 @@ def extract_decks(data: dict, info: dict) -> tuple[str, str | None, list[dict]]:
         loginid = str(d.get("loginid") or "")
         # deck_name の鍵: League は同一プレイヤーが同日に複数 5-0 することがある →
         # 行ごとに一意な loginplayeventcourseid を優先（無ければ loginid）。順位引きは loginid
-        deck_key = str(d.get("loginplayeventcourseid") or loginid)   # 大会型は loginid のまま（初回本走と同じ鍵）
+        deck_key = str(d.get("loginplayeventcourseid") or loginid)   # 大会型は loginid のまま（初回の一括取得と同じ鍵）
         cards: list[tuple[str, int, str]] = []
         for c in d.get("main_deck") or []:
             attrs = c.get("card_attributes") or {}
@@ -372,8 +372,8 @@ def run(months, limit: int | None, dry_run: bool, include_limited: bool,
             continue
         print(f"[{y}-{m:02d}] 大会ページ {len(names)} 件（取得済み URL {len(done)}）", flush=True)
         if not names:
-            # 一覧が取れない月は「失敗」として呼び出し元に返す（cron 便は行列の行を残して翌日やり直す）。
-            # の cron で空の 200 が 2 連続→ 0 件で正常終了→ 行が消えた事故の再発防止
+            # 一覧が取れない月は「失敗」として呼び出し元に返す（cron ジョブは行列の行を残して翌日やり直す）。
+            # 過去に cron で空の 200 が 2 連続→ 0 件で正常終了→ 行が消えた事故の再発防止
             empty_months.append(f"{y}-{m:02d}")
             continue
         for site in names:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""手配置の配置図。標準ライブラリのみ。隣に deploy.svg / validation.txt を生成。
+"""手配置の配置図。標準ライブラリのみ。隣に deploy.svg / deploy_validation.txt を生成。
 
 BOXES: (x, y, width, height, parent)。TEXT: (owner, x, baseline, value, size, bold)。
 EDGES: (source, target, kind, points)。kind は flow / request / connect。
@@ -293,5 +293,5 @@ if __name__ == '__main__':
     content = svg()
     directory = Path(__file__).resolve().parent
     (directory/'deploy.svg').write_text(content, encoding='utf-8')
-    (directory/'validation.txt').write_text(report, encoding='utf-8')
+    (directory/'deploy_validation.txt').write_text(report, encoding='utf-8')
     print(report)

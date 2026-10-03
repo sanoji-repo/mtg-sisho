@@ -5,7 +5,7 @@
 
 ## 全体図
 
-![mtg_sisho 全体図。利用者が AI アシスタントに質問し、AI アシスタントが MCP で公開サーバーの門を通り、10 個の道具が PostgreSQL 18 を読み取り専用の役割で読む。外部 API へ出るのは find_combos だけ。](../assets/overview.svg)
+![mtg_sisho 全体図。利用者が AI アシスタントに質問し、AI アシスタントが MCP で公開サーバーの門を通り、11 個の道具が PostgreSQL 18 を読み取り専用の役割で読む。外部 API へ出るのは find_combos だけ。](../assets/overview.svg)
 
 図の元は `assets/overview_gen.py`（標準ライブラリだけの生成脚本）です。箱の座標と折れ線の通り道がその中にあり、走らせると SVG と座標の検証結果を作り直します。
 

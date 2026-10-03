@@ -12,7 +12,7 @@ ALTER TABLE public.mtg_cards_v2
   ADD COLUMN IF NOT EXISTS name_en_back  text,
   ADD COLUMN IF NOT EXISTS name_ja_front text,
   ADD COLUMN IF NOT EXISTS name_ja_back  text,
-  ADD COLUMN IF NOT EXISTS name_ja_src_front text,   -- D9: 出所（scryfall / whisper / manual / rule_a / legacy）
+  ADD COLUMN IF NOT EXISTS name_ja_src_front text,   -- 出所（scryfall / whisper / manual / rule_a / legacy）
   ADD COLUMN IF NOT EXISTS name_ja_src_back  text;
 CREATE INDEX IF NOT EXISTS mtg_cards_v2_name_en_back_idx ON public.mtg_cards_v2 (name_en_back);
 CREATE INDEX IF NOT EXISTS mtg_cards_v2_name_ja_back_idx ON public.mtg_cards_v2 (name_ja_back);

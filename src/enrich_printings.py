@@ -16,7 +16,7 @@
     ストリームで舐める＝メモリに全部載せない。
   - 行数は 31,635 のまま＝**過去の重複排除（オラクル単位 1 行）は崩さない**。
     印刷履歴が属性として増えるだけ（set_codes を配列で持つ）。
-  - 既存の text[] 列（front_keywords 等）と同型＝非正規化が正（裁定）。
+  - 既存の text[] 列（front_keywords 等）と同型＝非正規化が正。
   - 冪等: 値が変わる行だけ UPDATE。バルクを新版に差し替えて再実行すれば追いつく。
 
 使い方:
@@ -73,7 +73,7 @@ def main():
     dsets: dict[str, set] = {}
     ja_img: dict[str, tuple] = {}      # name -> (released_at, url)
     n_lines = 0
-    # 行単位の読みをやめて ijson のストリームにする。新しい便は
+    # 行単位の読みをやめて ijson のストリームにする。今の取り込みは
     # JSONL.gz を「改行なしの JSON 配列」に包み直すため、旧実装（1 行 1 カード前提の
     # for line in f）は 2.9GB を一行として丸読みし OOM Killed になった（実測）。
     # ijson.items(f, "item") は配列形式でも 1 行 1 カードを [ ] で包んだ形式でも同じに

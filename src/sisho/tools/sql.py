@@ -1,5 +1,4 @@
 """sql.py — 自由 SQL の口 query_mtg_database とスキーマの窓 describe_mtg_tables
-。
 
 登録（server.tool）は mcp_server.py 側。道具が 2 本あるので説明は道具ごとに
 QUERY_MTG_DATABASE_DESCRIPTION・DESCRIBE_MTG_TABLES_DESCRIPTION と名前を分ける。

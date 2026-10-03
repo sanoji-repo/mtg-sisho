@@ -193,7 +193,7 @@ if __name__ == "__main__":
 def test_null_is_distinguishable_from_empty_string():
     """NULL と空文字を同じ空欄で返さない（掟「不在は NULL・番兵禁止」）。
 
-    別モデルのレビューで指摘: SELECT NULL::text, ''::text が両方とも空欄になり、
+    レビューでの指摘: SELECT NULL::text, ''::text が両方とも空欄になり、
     利用者は「値が無い」のか「空の値がある」のかを区別できなかった。
     """
     out = q("-- NULL と空文字の区別\nSELECT NULL::text AS absent, ''::text AS empty")

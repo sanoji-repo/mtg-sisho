@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dbq — 読み取り専用の DB 照会（readonly_ai ロール経由・2026-07-14）
+# dbq — 読み取り専用の DB 照会（readonly_ai ロール経由）
 # 書き込み系 SQL は PostgreSQL の権限（GRANT SELECT のみ）が拒否する＝構造的に無害。
 # 引数はすべて 1 本の SQL として -c に渡す（ユーザー/接続先の切替余地なし）。
 # 用例: bin/dbq "SELECT count(*) FROM mtg_cards_v2"

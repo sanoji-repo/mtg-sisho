@@ -13,7 +13,7 @@
 #   管理ユーザーのパスワードは PGPASSWORD（未設定なら .pgpass か trust に任せる）。
 #   readonly_ai のパスワードは DB_PASS_ROAI（必須・無ければ中止）。
 # 使い方: DB_PASS_ROAI=... PUBLIC_CONTAINER=pg18-primary PGUSER=devuser PGPASSWORD=... \
-#           sh/restore_public_dump.sh /mnt/new_hdd/db_archives/sisho_public_20260823.dump rag_sisho
+#           sh/restore_public_dump.sh <dump のパス>/sisho_public_YYYYMMDD.dump rag_sisho
 set -u
 DUMP="${1:?dump ファイル}"; DB="${2:-rag_sisho}"
 JOBS="${RESTORE_JOBS:-2}"

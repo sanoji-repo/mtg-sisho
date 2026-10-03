@@ -356,7 +356,7 @@ def test_gate_asgi_issue_page(tmp_path):
     assert status_put == 405
     assert hdr_put.get("content-length") == str(len(b"Method Not Allowed"))
 
-    # MCP_PUBLIC_BASE が空の場合は X-Forwarded-Host を見ず Host ヘッダから組む（B-2）
+    # MCP_PUBLIC_BASE が空の場合は X-Forwarded-Host を見ず Host ヘッダから組む
     gate_no_base = GateASGI(inner_app, store, limiter,
                             RateLimiter(per_ip=3, global_=100, window=86400.0, exempt="", clock=clock),
                             inner_path="/mcp", prefix="/mcp/", public_base="")
@@ -576,8 +576,8 @@ def test_fuda_store_stop_line_has_no_ip(tmp_path):
 
 
 def test_fuda_store_scrub_ips(tmp_path):
-    """scrub_ips: days より古い行だけ IP を空にし、他の列・新しい行はそのまま。壊れた行は時刻に関係なく IP に見える列を空にする
-    （Codex のレビュー）。札の生死と直近の発行数は変わらない。"""
+    """scrub_ips: days より古い行だけ IP を空にし、他の列・新しい行はそのまま。壊れた行は時刻に関係なく IP に見える列を空にする。
+    札の生死と直近の発行数は変わらない。"""
     fuda_file = str(tmp_path / "fuda.tsv")
     base_dt = datetime.datetime(2026, 9, 1, 12, 0, 0).astimezone()
     mock_dt = MockTime(base_dt)
@@ -618,7 +618,7 @@ def test_fuda_store_scrub_ips(tmp_path):
 
 def test_fuda_store_append_after_truncated_last_line(tmp_path):
     """最終行に改行が無くても、次の発行は別の行になる＝再読込後も新しい札は生き、途中で切れた行の札は生き返らない
-    （Codex のレビューの再現: 以前は連結した 9 列の行を先頭 6 列で受け付けていた）。"""
+    （以前は連結した 9 列の行を先頭 6 列で受け付けていた）。"""
     fuda_file = str(tmp_path / "fuda.tsv")
     old = (datetime.datetime.now().astimezone() - datetime.timedelta(days=40)).isoformat()
     with open(fuda_file, "w", encoding="utf-8") as f:
@@ -661,7 +661,7 @@ def test_fuda_store_rejects_joined_or_malformed_lines(tmp_path):
 
 def test_fuda_store_survives_unparsable_per_min(tmp_path):
     """枠の欄が「数字に見えるが int() が通らない」行（上付きの ²・桁あふれ）でも、起動と scrub は止まらない
-    （Codex のレビュー 2 周目 S1: str.isdigit は ² を数字と言う）。その行は壊れた行＝札にならず IP は消える。"""
+    （str.isdigit は ² を数字と言う）。その行は壊れた行＝札にならず IP は消える。"""
     fuda_file = str(tmp_path / "fuda.tsv")
     now = datetime.datetime.now().astimezone().isoformat()
     with open(fuda_file, "w", encoding="utf-8") as f:
@@ -680,7 +680,7 @@ def test_fuda_store_survives_unparsable_per_min(tmp_path):
 
 
 def test_fuda_store_issue_rejects_unreadable_per_min(tmp_path):
-    """台帳が読める範囲（0〜999999 の整数）でだけ発行する＝発行できたのに再読込で消える札を作らない（2 周目 S2）。"""
+    """台帳が読める範囲（0〜999999 の整数）でだけ発行する＝発行できたのに再読込で消える札を作らない。"""
     fuda_file = str(tmp_path / "fuda.tsv")
     store = FudaStore(fuda_file)
     for bad in (-1, 1000000):
@@ -763,7 +763,7 @@ def test_bin_fuda_cli(tmp_path):
     assert cols[5] == ""
     assert "-" not in cols
 
-    # 負の枠は CLI で断る（成功と言って再起動で消える札を作らない・2 周目 S2）
+    # 負の枠は CLI で断る（成功と言って再起動で消える札を作らない）
     proc_neg = subprocess.run([sys.executable, bin_fuda, "--file", fuda_file, "issue", "--per-min", "-1"],
                               capture_output=True, text=True, env=env)
     assert proc_neg.returncode == 2 and "per_min" in proc_neg.stderr and "札: " not in proc_neg.stdout
@@ -823,7 +823,7 @@ def test_gate_asgi_probes_are_rate_limited(tmp_path):
 
 
 def test_gate_asgi_probes_do_not_eat_user_total(tmp_path):
-    """C-6（本人裁定）: 探り・発行ページ・Origin 拒否は利用者と別の総量で数える。
+    """探り・発行ページ・Origin 拒否は利用者と別の総量で数える。
     多くの IP からの探りで探りの総量が埋まっても、札の呼び出しは通る。逆に利用者の総量が埋まっても発行ページは開く。"""
     fuda_file = str(tmp_path / "fuda.tsv")
     store = FudaStore(fuda_file)
@@ -896,7 +896,7 @@ def test_gate_asgi_issue_page_contact_link(tmp_path):
 
 
 def test_uvicorn_kwargs_disables_access_log():
-    """15. A-1: uvicorn.run に渡す引数に access_log=False が含まれ、札の全文が journal に流れない。"""
+    """15. uvicorn.run に渡す引数に access_log=False が含まれ、札の全文が journal に流れない。"""
     from mcp_server import _uvicorn_kwargs
     kw = _uvicorn_kwargs(8765, "info")
     assert kw.get("access_log") is False
@@ -906,7 +906,7 @@ def test_uvicorn_kwargs_disables_access_log():
 
 
 def test_gate_asgi_issue_csrf_sec_fetch_site(tmp_path):
-    """16. B-7: /issue の POST は Sec-Fetch-Site: cross-site なら 403、same-origin または無しなら 200。C-8: /issue/ 末尾スラッシュも受ける。"""
+    """16. /issue の POST は Sec-Fetch-Site: cross-site なら 403、same-origin または無しなら 200。/issue/ 末尾スラッシュも受ける。"""
     fuda_file = str(tmp_path / "fuda.tsv")
     store = FudaStore(fuda_file)
     async def dummy(scope, receive, send): pass
@@ -937,7 +937,7 @@ def test_gate_asgi_issue_csrf_sec_fetch_site(tmp_path):
     ))
     assert parse_response(sent_none)[0] == 200
 
-    # 4. 末尾スラッシュ /issue/ も受け付ける (C-8)
+    # 4. 末尾スラッシュ /issue/ も受け付ける
     _, sent_slash = asyncio.run(run_asgi_request(
         gate, "/issue/", method="GET", client_ip="203.0.113.4"
     ))
@@ -945,10 +945,10 @@ def test_gate_asgi_issue_csrf_sec_fetch_site(tmp_path):
 
 
 def test_gate_asgi_from_env_warns_empty_public_base(tmp_path, monkeypatch, caplog):
-    """17. B-2: MCP_PUBLIC_BASE が空のとき起動時に警告を出す。"""
+    """17. MCP_PUBLIC_BASE が空のとき起動時に警告を出す。"""
     import logging
     monkeypatch.delenv("MCP_PUBLIC_BASE", raising=False)
-    monkeypatch.setenv("MCP_FUDA_FILE", str(tmp_path / "f.tsv"))     # 環境の実ファイルを読まない（内部レビュー C-15）
+    monkeypatch.setenv("MCP_FUDA_FILE", str(tmp_path / "f.tsv"))     # 環境の実ファイルを読まない
     async def dummy(scope, receive, send): pass
     with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
         GateASGI.from_env(dummy)
@@ -956,9 +956,9 @@ def test_gate_asgi_from_env_warns_empty_public_base(tmp_path, monkeypatch, caplo
 
 
 def test_combos_legacy_per_ip_rate_limit(monkeypatch, caplog):
-    """18. B-4: 旧パス (CURRENT_FUDA="legacy") の find_combos は CURRENT_CLIENT_IP ごとに数える。
+    """18. 旧パス (CURRENT_FUDA="legacy") の find_combos は CURRENT_CLIENT_IP ごとに数える。
     片方の IP が 10 回枠を使い切っても、もう片方の IP は通る。
-    C-1: 札の拒否ログが [gate] 429 fuda= になる。"""
+    札の拒否ログが [gate] 429 fuda= になる。"""
     import logging
 
     def fake_post(payload):
@@ -991,7 +991,7 @@ def test_combos_legacy_per_ip_rate_limit(monkeypatch, caplog):
         CURRENT_CLIENT_IP.reset(token_ip1)
         CURRENT_FUDA.reset(token_fuda)
 
-    # C-1: 札の拒否ログが [gate] 429 fuda= で記録されることの確認
+    # 札の拒否ログが [gate] 429 fuda= で記録されることの確認
     with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
         token_fuda2 = CURRENT_FUDA.set("tokn1234")
         try:
@@ -1003,13 +1003,13 @@ def test_combos_legacy_per_ip_rate_limit(monkeypatch, caplog):
 
 
 def test_fuda_store_errors_and_permissions(tmp_path, monkeypatch, caplog):
-    """19. B-5: 読めないパスで _load が空で起動し caplog に error。壊れた行で warning。
-    C-4: 新規作成時のパーミッションが 0o600 (umask 0o022 下でも)。
+    """19. 読めないパスで _load が空で起動し caplog に error。壊れた行で warning。
+    新規作成時のパーミッションが 0o600 (umask 0o022 下でも)。
     書き込み先が無いときの POST が 503。"""
     import logging
     import stat
 
-    # 1. C-4: 新規作成後の stat が 0o600
+    # 1. 新規作成後の stat が 0o600
     old_umask = os.umask(0o022)
     try:
         fuda_file = str(tmp_path / "fuda_perm.tsv")
@@ -1020,7 +1020,7 @@ def test_fuda_store_errors_and_permissions(tmp_path, monkeypatch, caplog):
     finally:
         os.umask(old_umask)
 
-    # 2. B-5: 読めないパス（ディレクトリを path に渡すなど）で error ログ
+    # 2. 読めないパス（ディレクトリを path に渡すなど）で error ログ
     unreadable_dir = str(tmp_path / "unreadable_dir")
     os.makedirs(unreadable_dir, exist_ok=True)
     with caplog.at_level(logging.ERROR, logger="uvicorn.error"):
@@ -1028,7 +1028,7 @@ def test_fuda_store_errors_and_permissions(tmp_path, monkeypatch, caplog):
         assert len(store_bad.records) == 0
     assert any("[gate] fuda.tsv を読めない" in r.message for r in caplog.records)
 
-    # 3. B-5: 壊れた行で warning ログ
+    # 3. 壊れた行で warning ログ
     broken_file = str(tmp_path / "broken.tsv")
     with open(broken_file, "w", encoding="utf-8") as f:
         f.write("bad\tline\n")
@@ -1038,7 +1038,7 @@ def test_fuda_store_errors_and_permissions(tmp_path, monkeypatch, caplog):
         assert store_broken.broken_lines == 2
     assert any("[gate] fuda.tsv に壊れた行 2" in r.message for r in caplog.records)
 
-    # 4. B-5: 書き込み先が無い（OSError）ときの POST が 503 HTML + Retry-After: 60
+    # 4. 書き込み先が無い（OSError）ときの POST が 503 HTML + Retry-After: 60
     def fail_open(*args, **kwargs):
         raise OSError("Permission denied (test)")
 
@@ -1058,7 +1058,7 @@ def test_fuda_store_errors_and_permissions(tmp_path, monkeypatch, caplog):
 
 
 def test_uvicorn_kwargs_defined_before_main():
-    """20. B-9: _uvicorn_kwargs の定義が __main__ ブロックより前にある（後ろだと HTTP 起動が NameError＝Opus A-3）。
+    """20. _uvicorn_kwargs の定義が __main__ ブロックより前にある（後ろだと HTTP 起動が NameError）。
     実行せず ast で行番号を比べる。"""
     import ast
     src_path = os.path.join(os.path.dirname(__file__), "..", "src", "mcp_server.py")
@@ -1070,8 +1070,8 @@ def test_uvicorn_kwargs_defined_before_main():
 
 
 def test_server_http_startup_smoke(tmp_path):
-    """21. B-9: 本物の起動経路（python src/mcp_server.py http <port>）で uvicorn が待ち受けに入り /issue が 200 を返す。
-    import 経路だけの試験では A-3（定義順の NameError）を捕まえられなかった。DB は要らない（起動と発行ページだけ）。"""
+    """21. 本物の起動経路（python src/mcp_server.py http <port>）で uvicorn が待ち受けに入り /issue が 200 を返す。
+    import 経路だけの試験では定義順の NameError を捕まえられなかった。DB は要らない（起動と発行ページだけ）。"""
     import subprocess, socket, time, urllib.request
     src_path = os.path.join(os.path.dirname(__file__), "..", "src", "mcp_server.py")
     with socket.socket() as s_:
@@ -1108,7 +1108,7 @@ def test_server_http_startup_smoke(tmp_path):
 
 
 def test_issue_global_daily_limit_from_tsv(tmp_path):
-    """22. B-10: 全体の 1 日の枠も TSV の issue 行で数える（再起動で消えない）。新しい IP でも 429。25 時間前なら 200。"""
+    """22. 全体の 1 日の枠も TSV の issue 行で数える（再起動で消えない）。新しい IP でも 429。25 時間前なら 200。"""
     import datetime as _dt
     fuda_file = str(tmp_path / "fuda.tsv")
     now = _dt.datetime.now().astimezone()
@@ -1139,7 +1139,7 @@ def test_issue_global_daily_limit_from_tsv(tmp_path):
 
 
 def test_issue_never_starts_with_dash(tmp_path, monkeypatch):
-    """23. C-12: 先頭が - の札は引き直す（argparse がオプションと読んで bin/fuda stop に渡せない）。"""
+    """23. 先頭が - の札は引き直す（argparse がオプションと読んで bin/fuda stop に渡せない）。"""
     import sisho.gate as gate_mod
     draws = iter(["-" + "a" * 31, "-" + "b" * 31, "c" * 32])
     monkeypatch.setattr(gate_mod.secrets, "token_urlsafe", lambda n: next(draws))
