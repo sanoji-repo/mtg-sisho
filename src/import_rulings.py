@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-import_rulings.py — Scryfall 経由の公式裁定（Gatherer rulings）の搬入（新設）
+import_rulings.py — Scryfall 経由の公式裁定（Gatherer rulings）の搬入
 ================================================================================
 目的: カード個別の公式裁定を DB に置き、ルール問題の回答で「裁定の有無」まで
 裏取りできるようにする（閃光×クローン調査で「裁定テーブル不在＝裏取り不能」と

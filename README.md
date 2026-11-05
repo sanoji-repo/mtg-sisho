@@ -15,7 +15,6 @@ AI のあやふやな記憶や Web の孫引きに頼らず、手元の一次デ
 | [docs/導入方法.md](./docs/導入方法.md) | **利用者向け**。チャットツール（Claude / ChatGPT 等）への接続手順 |
 | [docs/SETUP.md](./docs/SETUP.md) | **サーバー構築者向け**。ローカルでの DB 構築やサーバー自作・運用の手順 |
 | [docs/ENGINEERING.md](./docs/ENGINEERING.md) | **技術者向け**。設計思想やアーキテクチャの解説 |
-| [hooks/README.md](./hooks/README.md) | **Claude Code 向け**。回答前のカード名強制検査（Stop フック） |
 
 ---
 

@@ -14,7 +14,6 @@ The server configuration key is `sisho`. The name comes from 司書 (*shisho*), 
 | [docs/導入方法.md](./docs/導入方法.md) | **For Users**: Detailed connection guide *(Japanese)* |
 | [docs/SETUP.md](./docs/SETUP.md) | **For Builders**: Local DB setup and self-hosting / operations guide *(Japanese)* |
 | [docs/ENGINEERING.md](./docs/ENGINEERING.md) | **For Developers**: Design philosophy and architectural details *(Japanese)* |
-| [hooks/README.md](./hooks/README.md) | **For Claude Code Users**: Stop hook for automated card name verification *(Japanese)* |
 
 ---
 
@@ -57,7 +56,7 @@ For table schemas and row counts, see [DATA_MODEL.md](./DATA_MODEL.md). For data
 2. **Connect to your AI client**:
    - **claude.ai**: Go to **Settings** → **Connectors** → **Add Custom Connector**, enter `sisho` as the name, and paste your URL. (Works across browser, desktop, and mobile apps).
    - **ChatGPT**: Requires a paid subscription (Plus, Pro, Business, Enterprise, or Education; web only, not available on Free). In **Settings** → **Security and login**, enable **Developer mode**. Open the **Plugins** screen, click the plus (+) button to add an MCP app, enter a name and description (e.g., `sisho`), paste your URL into the **Connection** field, check the acknowledgment box, and create the app. UI labels may vary.
-   - **Claude Code (CLI)**: Run `claude mcp add --transport http sisho <YOUR_URL>`.
+   - **Claude Code (CLI)**: Run `claude mcp add --transport http sisho <YOUR_URL>`. An optional Stop hook that checks card names before each answer is described in [hooks/README.md](./hooks/README.md) *(Japanese)*.
 
 For full step-by-step documentation in Japanese, see [docs/導入方法.md](./docs/導入方法.md).
 

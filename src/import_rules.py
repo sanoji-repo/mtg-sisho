@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-import_rules.py — MTG 総合ルール（Comprehensive Rules）の搬入（新設）
+import_rules.py — MTG 総合ルール（Comprehensive Rules）の搬入
 ================================================================================
 目的: Agentic RAG の参照資料として、総合ルールの条文と用語集を DB に構造化して置く。
 狙い: 用語集やルール文をエージェントが参照して、より正確に答えられるようにする。
