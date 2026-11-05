@@ -8,12 +8,12 @@
 文言の物差し（境目は正確に・想定外は素通し）:
   - 境目（道具が入力を解釈する場所）の error は「何が分からなかったか」と「次に何を試すか」を両方書く。
   - 想定外の例外は「失敗しました」に丸めず、生の例外文（PostgreSQL のエラー文など）を先頭 200〜400 字そのまま載せる。
-    ただし道具が**投げた**例外は扱いを改めた: 客には「サーバー側の失敗」と再試行の案内だけを返し、
-    生の文（DB の宛先・例外の型）はジャーナルに残す（sisho/backstage.py）。道具が自分で**返す**エラー文は従来どおり。
+    ただし道具が**投げた**例外は、客には「サーバー側の失敗」と再試行の案内だけを返し、
+    生の文（DB の宛先・例外の型）はジャーナルに残す（sisho/backstage.py）。道具が自分で**返す**エラー文は上のとおり生の文を載せる。
   - 「該当なし」（引けたが無い）と「入力が不明・不正」は、文言も error_kind も分ける。
 
 いま `error_kind` を実際に載せているのは **返り値がもともと JSON の道具**
-（search_mtg_cards・mtg_probability・find_combos）だけ。返り値がテキストの道具
+（search_mtg_cards・mtg_probability・find_combos・draft_pool）だけ。返り値がテキストの道具
 （lookup_mtg_rule・get_card_rulings・find_partner_cards・query_mtg_database・
 describe_mtg_tables・verify_answer・mtg_rag_health）は**返り値の形を変えない**ので名前は載せていない
 （クライアントの読み方が変わるので、載せるなら別に設計を見直す）。ただし棚卸しの上ではテキストの道具の error にも
@@ -38,6 +38,7 @@ UPSTREAM_UNREACHABLE = "upstream_unreachable"   # 外部 API（Commander Spellbo
 RATE_LIMITED = "rate_limited"                   # 外部 API を守るための接続用の鍵ごとの枠
 DB_ERROR = "db_error"                           # DB からの例外（生の例外文を素通しする）
 SCHEMA_REJECTED = "schema_rejected"             # SDK の引数検証で弾かれた（道具の本体に届いていない・sisho/backstage.py が記録）
+INVALID_CODE = "invalid_code"                   # 状態を持ち回るコード（draft_pool のドラフトコード）の形が壊れている
 
 #: 名前 → 意味（報告と試験のための一覧。ここに無い名前を返り値に載せない）
 KINDS: dict[str, str] = {
@@ -56,6 +57,7 @@ KINDS: dict[str, str] = {
     RATE_LIMITED: "外部 API を守るための接続用の鍵ごとの枠（指定秒数待って呼び直す）",
     DB_ERROR: "DB からの例外（生の例外文を先頭 200〜400 字そのまま載せる）",
     SCHEMA_REJECTED: "SDK の引数検証で弾かれた＝道具の本体に届いていない（引数の名前と型を説明どおりに）",
+    INVALID_CODE: "持ち回りのコードが読めない（reason に壊れ方・前に返ったコードに戻るか、最初から取り込み直す）",
 }
 
 
@@ -79,7 +81,7 @@ TEXT_PREFIXES: tuple[tuple[str, str], ...] = (
     ("表名に使えない", INVALID_IDENTIFIER),      # describe
     ("スキーマ名に使えない", INVALID_IDENTIFIER),  # describe
     ("order_by が不正", UNKNOWN_OPTION),        # find_partner_cards
-    ("format が不正", UNKNOWN_OPTION),          # find_partner_cards（scope は format に置き換えた）
+    ("format が不正", UNKNOWN_OPTION),          # find_partner_cards
     ("relation が不正", UNKNOWN_OPTION),        # find_partner_cards
     ("relation='side' は", UNKNOWN_OPTION),     # find_partner_cards（サイドの関係が無いフォーマット）
     ("set が不正", UNKNOWN_OPTION),             # draft_pack_stats

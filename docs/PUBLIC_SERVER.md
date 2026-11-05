@@ -225,6 +225,7 @@ sudo ufw reload
 ## 確率計算の SQL 関数（2026-09-04）
 
 `sql/prob_functions.sql` を開発側と公開サーバーの両方で流す（論理レプリケーションは関数を運ばない・`CREATE OR REPLACE` で冪等）。公開サーバーは `scp` → `/tmp` → `chmod 644` → `sudo -u postgres psql -d rag_sisho -v ON_ERROR_STOP=1 -f /tmp/prob_functions.sql`。`readonly_ai` は既定の PUBLIC EXECUTE で呼べる。新しい公開サーバーを作るときは dump の後にこのファイルを流す（dump は表だけ）。
+共起から相方を読む `sql/partner_functions.sql`（`mtg_card_partners`）は公開サーバーには流さない（重く、客の SQL の 10 秒の打ち切りにかかる・開発側の分析用）。
 
 ## 索引（2026-09-04）
 

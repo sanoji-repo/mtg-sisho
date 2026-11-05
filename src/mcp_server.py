@@ -19,6 +19,7 @@
 
 起動: python <リポジトリ>/src/mcp_server.py（依存は requirements.txt）
 """
+import logging
 import os
 
 from mcp.server import MCPServer
@@ -34,6 +35,7 @@ from sisho.tools import combos as _tool_combos
 from sisho.tools import draft as _tool_draft
 from sisho.tools import health as _tool_health
 from sisho.tools import partners as _tool_partners
+from sisho.tools import pool as _tool_pool
 from sisho.tools import probability as _tool_probability
 from sisho.tools import rules as _tool_rules
 from sisho.tools import sql as _tool_sql
@@ -118,6 +120,7 @@ TOOL_CATALOG: tuple[tuple[str, str], ...] = (
     ("get_card_rulings", "カードの公式裁定"),
     ("find_partner_cards", "実デッキで一緒に使われるカード"),
     ("draft_pack_stats", "ドラフトのパックの複数枚の 17Lands 統計を 1 回で"),
+    ("draft_pool", "ドラフトの確定ピックを数えて、プール・マナカーブ・色・役割を返す（状態はコードで持ち回る）"),
     ("query_mtg_database", "読み取り専用 SQL"),
     ("verify_answer", "答えのカード名の検査"),
     ("describe_mtg_tables", "表と列の一覧"),
@@ -160,7 +163,12 @@ draft_pack_stats = server.tool(
     name="draft_pack_stats",
     description=_tool_draft.DESCRIPTION)(observed(_tool_draft.draft_pack_stats))
 
-# 自由 SQL の口（発案）= sisho/tools/sql.py
+# ドラフトの確定ピックを数える = sisho/tools/pool.py
+draft_pool = server.tool(
+    name="draft_pool",
+    description=_tool_pool.DESCRIPTION)(observed(_tool_pool.draft_pool))
+
+# 自由 SQL の口 = sisho/tools/sql.py
 query_mtg_database = server.tool(
     name="query_mtg_database",
     description=_tool_sql.QUERY_MTG_DATABASE_DESCRIPTION)(observed(_tool_sql.query_mtg_database))
@@ -207,9 +215,9 @@ _names = _tool_verify._names
 _JA_STOP = _tool_verify._JA_STOP
 
 
-# レート制限（配布前の門）は sisho/ratelimit.py へ切り出した。
-# 旧名 _RateLimiter／_RateLimitASGI で届くように冒頭で別名輸入している（切り出し先の公開名は
-# RateLimiter／RateLimitASGI）。設計の経緯と実測値はそちらの注記に丸ごと移してある。
+# レート制限（公開前の門）の実装は sisho/ratelimit.py（公開名は RateLimiter／RateLimitASGI）。
+# 内部の名前 _RateLimiter／_RateLimitASGI でも届くように冒頭で別名輸入している。
+# 設計の根拠と実測値は sisho/ratelimit.py の注記にある。
 
 
 def _uvicorn_kwargs(port: int, log_level: str) -> dict:
@@ -217,8 +225,13 @@ def _uvicorn_kwargs(port: int, log_level: str) -> dict:
 
     uvicorn の既定のアクセスログは要求行＝パス＝接続用の鍵の全文を書く。
     受付の [gate] ログと道具ログで観測は足りる。
-    内部レビューの指摘による。
+
+    ログの水準は INFO 以上だけを受ける（DEBUG・TRACE では SDK と uvicorn が要求の本文や長さを記録する経路がある＝
+    draft_pool のカード名・ドラフトコードがログに残りうる）。
+    下げようとしたら起動しない。
     """
+    if log_level.lower() not in ("info", "warning", "error", "critical"):
+        raise SystemExit(f"ログの水準 {log_level} では起動しない（INFO 以上だけ）")
     return {
         "host": "127.0.0.1",
         "port": port,
@@ -226,6 +239,22 @@ def _uvicorn_kwargs(port: int, log_level: str) -> dict:
         "timeout_graceful_shutdown": 3,
         "access_log": False,
     }
+
+
+#: 起動の前に実効の水準を確かめる記録係（SDK・SSE・uvicorn・HTTP の部品・sisho）。どれかが DEBUG なら、
+#: 根（root）が INFO でもその記録係は要求の本文を記録できる
+_WATCHED_LOGGERS = ("", "mcp", "sse_starlette", "uvicorn", "uvicorn.error", "uvicorn.access",
+                    "starlette", "httpx", "httpcore", "sisho")
+
+
+def _check_logger_levels() -> None:
+    """見張る記録係の実効の水準がどれも INFO 以上かを確かめ、下なら起動しない。
+
+    呼ぶのは http の起動（uvicorn.run の直前）だけ。stdio の起動では検査しない。
+    """
+    low = [n or "root" for n in _WATCHED_LOGGERS if logging.getLogger(n).getEffectiveLevel() < logging.INFO]
+    if low:
+        raise SystemExit(f"記録係 {'・'.join(low)} の水準が INFO より下なので起動しない")
 
 
 if __name__ == "__main__":
@@ -272,6 +301,7 @@ if __name__ == "__main__":
         # 答案検査の名前の辞書を起動の裏で作っておく（最初の客に作らせない・失敗しても最初の呼び出しで作る）
         import threading
         threading.Thread(target=_tool_verify.warm, daemon=True).start()
+        _check_logger_levels()
         uvicorn.run(app, **kw)
     else:
         server.run("stdio")

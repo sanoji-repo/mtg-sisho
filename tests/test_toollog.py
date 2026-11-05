@@ -50,7 +50,7 @@ def test_entry_line_shape_is_unchanged_and_exit_line_follows():
     rows = _lines()
     assert len(rows) == 2, f"1 呼び出し＝入口 1 行＋出口 1 行（{rows}）"
     entry, end = rows
-    # 入口: 時刻・道具名・引数の JSON・札（末尾に札を追加）
+    # 入口: 時刻・道具名・引数の JSON・接続用の鍵（末尾の列）
     assert len(entry) == 4 and entry[1] == "find_combos"
     assert json.loads(entry[2]) == {"n": 0, "commanders": None, "limit": 10}
     # 出口: 時刻・end・道具名・outcome・所要秒・DB 回数・DB 秒・接続用の鍵
@@ -284,8 +284,7 @@ def test_counters_do_not_mix_between_concurrent_tools():
 def test_counters_do_not_mix_between_concurrent_coroutines():
     """集計器は contextvars＝同一スレッドで交互に進む二つのコルーチンでも混ざらない
     （asyncio の Task は生成時に context を複製する）。今日の道具は同期関数でスレッド分離だが、
-    async 道具を足しても同じ器で数えられることの担保。threading.local だとこの試験は落ちる
-    （外部レビューの指摘で、死んだコードを削って実際にコルーチンを走らせる形に）。"""
+    async 道具を足しても同じ器で数えられることの担保。threading.local だとこの試験は落ちる"""
     import asyncio
 
     async def amany():
@@ -337,7 +336,7 @@ def test_every_registered_tool_is_wrapped():
     tools = m.server._tool_manager.list_tools()
     unwrapped = [t.name for t in tools if not hasattr(t.fn, "__wrapped__")]
     assert not unwrapped, f"包まれていない道具: {unwrapped}"
-    assert len(tools) == 11   # draft_pack_stats を含めて 11 本
+    assert len(tools) == 12   # draft_pack_stats と draft_pool を含めて 12 本
 
 
 @pytest.mark.parametrize("name", [

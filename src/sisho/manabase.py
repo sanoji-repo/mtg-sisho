@@ -13,6 +13,7 @@ from math import prod
 
 from sisho import errors
 from sisho.db import LANE_HEAVY, LANE_LIGHT, _db
+from sisho.names import ambiguous_hint, lookup_card_with_face, trgm_display_candidates
 
 BIT = {"W": 1, "U": 2, "B": 4, "R": 8, "G": 16, "C": 32}
 _SYM = re.compile(r"\{([^}]+)\}")
@@ -62,33 +63,22 @@ def parse_cost(cost: str):
     return pips, generic, twobrid, notes
 
 
-_COLS = ("card_name, name_display, type_line, produced_mana, mana_cost, card_faces_json,"
+# 末尾 5 列（name_en_front … digital）の位置は names.lookup_card_with_face が読む＝足す列はその前に置く
+_COLS = ("card_name, name_display, type_line, produced_mana, mana_cost, card_faces_json, layout,"
          " name_en_front, name_ja_front, name_en_back, name_ja_back, digital")
 
 
 def _lookup(name: str):
-    """カード名（正式名・日本語名・面の名前）を完全一致で引く。紙のカードを先に。戻り値 (行, 当たった面 0/1/None)。"""
-    n = (name or "").strip()
-    rows = _db(f"SELECT {_COLS} FROM mtg_cards_v2"
-               " WHERE card_name = %s OR japanese_name = %s OR name_en_front = %s OR name_ja_front = %s"
-               "    OR name_en_back = %s OR name_ja_back = %s"
-               " ORDER BY digital, (card_name = %s OR name_en_front = %s OR name_ja_front = %s) DESC LIMIT 1",
-               (n,) * 9, lane=LANE_LIGHT)
-    if not rows:
-        return None, None
-    r = rows[0]
-    if r[8] and n in (r[8], r[9]) and n not in (r[0], r[6], r[7]):
-        return r, 1          # 裏面の名前で当たった
-    if r[8] and n in (r[6], r[7]):
-        return r, 0          # 両面カードの表面の名前で当たった
-    return r, None
+    """カード名（正式名・日本語名・面の名前）を完全一致で引く。戻り値 (行, 当たった面 0/1/None)。
+
+    現在はどこからも呼ばれていない（_resolve_lands・_resolve_spell は曖昧の候補も要るので
+    lookup_card_with_face を直に呼ぶ）。"""
+    r, face, _amb = lookup_card_with_face(name, _COLS, _db=_db)
+    return r, face
 
 
 def _candidates(name: str) -> list[str]:
-    rows = _db("SELECT name_display FROM mtg_cards_v2 WHERE card_name %% %s OR japanese_name %% %s"
-               " ORDER BY greatest(similarity(card_name, %s), similarity(coalesce(japanese_name, ''), %s)) DESC LIMIT 3",
-               (name, name, name, name))   # 重い線（similarity の並べ替えは索引に乗らないため）
-    return [r[0] for r in rows]
+    return trgm_display_candidates(name, 3, _db=_db)
 
 
 def _no_match(name: str, what: str) -> str:
@@ -96,6 +86,42 @@ def _no_match(name: str, what: str) -> str:
     return errors.err_json(errors.NO_MATCH, f"{what}「{name}」が DB に無い（名前は一字違いでも当たらない）。"
                            + (f"近い候補: {'・'.join(c)}。正しい名前で呼び直す" if c else "英語名で呼び直す"),
                            candidates=c)
+
+
+def _ambiguous(name: str, what: str, amb: list[str]) -> str:
+    return errors.err_json(
+        errors.OUT_OF_RANGE,
+        f"{what}「{name}」: {ambiguous_hint(amb)}",
+        candidates=amb,
+    )
+
+
+def _check_land_playable(type_line: str | None, faces_raw, face: int | None, layout: str | None) -> tuple[bool, str]:
+    """そのカード（または指定面）が手札から直接土地としてプレイできるか。
+
+    面を選んで置けるのは layout = modal_dfc（両面とも表として使える）だけ。transform・flip・meld などの裏面は
+    変身・反転した後の姿で、手札から置けるのは表面だけ。見分けは Scryfall の layout で行う（本文の語で推測しない）。"""
+    faces = faces_raw if isinstance(faces_raw, list) else (json.loads(faces_raw) if faces_raw else [])
+    if len(faces) >= 2:
+        if layout == "modal_dfc":
+            if face is not None and face < len(faces):
+                ft = faces[face].get("type_line") or ""
+                if "Land" not in ft:
+                    return False, f"指定された面「{faces[face].get('name') or ''}」は土地ではない（タイプ行: {ft}）"
+                return True, ""
+            if any("Land" in (f.get("type_line") or "") for f in faces[:2]):
+                return True, ""
+            return False, f"タイプ行: {type_line or ''}"
+        ft0 = faces[0].get("type_line") or ""
+        if face == 1:
+            fname = faces[1].get("name") or ""
+            return False, f"裏面「{fname}」は表面（{ft0}）から変わった後の姿で、手札から直接土地として置けない"
+        if "Land" not in ft0:
+            return False, f"表面のタイプ行: {ft0}"
+        return True, ""
+    if "Land" not in (type_line or ""):
+        return False, f"タイプ行: {type_line or ''}"
+    return True, ""
 
 
 def _resolve_lands(lands):
@@ -111,11 +137,17 @@ def _resolve_lands(lands):
         name, cnt = str(row["name"]), row["count"]
         if not isinstance(cnt, int) or cnt < 0:
             return None, errors.err_json(errors.OUT_OF_RANGE, f"「{name}」の count は 0 以上の整数")
-        r, _face = _lookup(name)
+        r, _face, amb = lookup_card_with_face(name, _COLS, _db=_db)
+        if amb:
+            return None, _ambiguous(name, "土地", amb)
         if r is None:
             return None, _no_match(name, "土地")
-        if "Land" not in (r[2] or ""):
-            return None, errors.err_json(errors.OUT_OF_RANGE, f"{r[1]} は土地ではない（タイプ行: {r[2]}）。lands には土地だけを入れる")
+        ok_land, land_reason = _check_land_playable(r[2], r[5], _face, r[6])
+        if not ok_land:
+            return None, errors.err_json(
+                errors.OUT_OF_RANGE,
+                f"{r[1]} は手札から置ける土地ではない（{land_reason}）。lands には手札から置ける土地だけを入れる",
+            )
         prod_given = row.get("produces")
         if prod_given is not None:
             letters = [str(x).upper() for x in (prod_given if isinstance(prod_given, list) else [prod_given])]
@@ -123,6 +155,10 @@ def _resolve_lands(lands):
                 return None, errors.err_json(errors.OUT_OF_RANGE, f"「{name}」の produces は W・U・B・R・G・C の一覧（例: [\"G\", \"R\"]）")
             src = "指定"
         else:
+            # 色はカード全体の produced_mana。面の名前で渡されても面の色に絞らない＝両面とも土地の modal_dfc
+            # （Riverglide Pathway // Lavaglide Pathway 等）はデュアルランドと同じ扱い。Pathway は置いたときに
+            # 面を決めて以後その色＝一枚で両方の色を別のターンに出す場面では少し甘いが、それを承知で
+            # デッキ作りの数え方に合わせる
             letters = list(r[3] or [])
             if not letters:
                 return None, errors.err_json(
@@ -139,7 +175,9 @@ def _resolve_spell(spell, mana_cost):
         return None, str(mana_cost), None
     if not spell:
         return None, None, errors.err_json(errors.EMPTY_QUERY, "spell（呪文のカード名）か mana_cost（例: \"{1}{G}{G}\"）のどちらかを渡す")
-    r, face = _lookup(str(spell))
+    r, face, amb = lookup_card_with_face(str(spell), _COLS, _db=_db)
+    if amb:
+        return None, None, _ambiguous(str(spell), "呪文", amb)
     if r is None:
         return None, None, _no_match(str(spell), "呪文")
     cost = r[4] or ""

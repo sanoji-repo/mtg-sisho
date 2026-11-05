@@ -120,6 +120,25 @@ def test_find_combos_mocked(monkeypatch):
     assert "Commander Spellbook" in d["source"] and "前提" in d["note"], "出典と注記"
 
 
+def test_find_combos_does_not_send_ambiguous_names(monkeypatch):
+    """1 枚に決まらないと分かった名前（main・commanders のどちらでも）は Spellbook に送らず、候補を返す。"""
+    def fake_db(sql, params=None, lane=None):
+        if "FROM mtg_cards_v2" in sql and "name_ja_front = ANY" not in sql:
+            # 列: card_name, japanese_name, name_en_front, name_en_back, name_ja_back, digital
+            return [("A // Same", None, "A", "Same", None, False), ("B // Same", None, "B", "Same", None, False)]
+        return []
+
+    calls = []
+    monkeypatch.setattr(combos, "_db", fake_db)
+    monkeypatch.setattr(combos, "_spellbook_post", lambda payload: calls.append(payload) or FAKE)
+    for main, cmds in ((["Same", "Thassa's Oracle"], None), (["Thassa's Oracle"], ["Same"])):
+        d = json.loads(f(main, cmds, 10))
+        assert d["error_kind"] == "out_of_range", d
+        assert d["ambiguous_names"] == {"Same": ["A // Same", "B // Same"]}
+        assert "照会していない" in d["error"]
+    assert calls == [], "曖昧な名前を外へ送った"
+
+
 def test_find_combos_live(request):
     """--live オプション指定時のみ Commander Spellbook を 1 回だけ実呼び"""
     if not request.config.getoption("--live"):
@@ -134,4 +153,4 @@ def test_find_combos_live(request):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    raise SystemExit(pytest.main([__file__, "-v", *sys.argv[1:]]))

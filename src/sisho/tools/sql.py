@@ -1,21 +1,25 @@
-"""sql.py — 自由 SQL の口 query_mtg_database とスキーマの窓 describe_mtg_tables
+"""sql.py — 自由 SQL の口 query_mtg_database とスキーマの窓 describe_mtg_tables。
 
 登録（server.tool）は mcp_server.py 側。道具が 2 本あるので説明は道具ごとに
 QUERY_MTG_DATABASE_DESCRIPTION・DESCRIBE_MTG_TABLES_DESCRIPTION と名前を分ける。
-先頭コメントのタグ（#セット記号）の解決は search 側の道具（sisho/tools/cards.py の
-_resolve_draft_set・_archetype_lines）を借りる＝セットの解決は 1 箇所に置く。
+先頭コメントのタグ（#セット記号）の解決は sisho/limited.py の _resolve_draft_set・_archetype_lines を借りる
+＝セットの解決は 1 箇所に置く（cards.py・draft.py と共有）。
 """
 from sisho.db import DBBusy, LANE_HEAVY, LANE_LIGHT, _db, _db_readonly
-from sisho.names import face_display
+from sisho.limited import (
+    _archetype_lines,
+    _limited_sets_note as _impl_limited_sets_note,
+    _resolve_draft_set,
+)
+from sisho.names import display_map_for_en_names, preview_unavailable_note
 from sisho.sets_blurb import _SETS_BLURB
 from sisho.toollog import TOOL_LOG_MAX, _log_tool
-from sisho.tools.cards import _archetype_lines, _resolve_draft_set
 
 
 # ─── 自由 SQL の口（エージェント自身が SQL を叩く路線）───
-# 鞘は三重: (1) readonly_ai ロールと (2) statement_timeout 10 秒は sisho/db.py の
-# _db_readonly（原文の注記もそちらへ一緒に移した）・(3) 入口で SELECT/WITH 以外と複文を
-# 拒否＋行数・セル長の上限で応答を制限（コンテキスト爆発防止）は下の query_mtg_database。
+# 鞘は三重: (1) readonly_ai ロールと (2) statement_timeout 10 秒は sisho/db.py の _db_readonly、
+# (3) 入口で SELECT/WITH 以外と複文を拒否＋行数・セル長の上限で応答を制限（コンテキスト爆発防止）は
+# 下の query_mtg_database が担う。
 
 
 QUERY_MTG_DATABASE_DESCRIPTION = ("【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】"
@@ -56,7 +60,7 @@ def query_mtg_database(sql: str, max_rows: int = 30) -> str:
     # 先頭コメントのタグ（全ての SQL にコメントを付けてもらい、届いたら Python を一つ通す・読むだけで書き換えない）
     import re as _re
     _m = _re.match(r"\s*--[^\n]*?#([A-Za-z0-9_\-]{2,40})", sql)
-    tag_set = _resolve_draft_set(_m.group(1).strip()) if _m else None
+    tag_set = _resolve_draft_set(_m.group(1).strip(), _db=_db) if _m else None
     # 先頭のコメント行は判定と実行から剥がす（コメントはタグであって SQL の一部でない）
     sql = "\n".join(ln for ln in sql.splitlines() if not ln.lstrip().startswith("--")) if sql.lstrip().startswith("--") else sql
 
@@ -97,7 +101,7 @@ def query_mtg_database(sql: str, max_rows: int = 30) -> str:
     lines += [" | ".join(cell(v) for v in r) for r in rows]
     note = f"\n（{len(rows)} 行返却・上限 {max_rows}）" + ja_note
     if tag_set:
-        note += _archetype_lines(tag_set)
+        note += _archetype_lines(tag_set, _db=_db)
     return "\n".join(lines) + note
 
 
@@ -110,13 +114,12 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
     列名で推測せず値で判定（card_name_a / pname / 別名付き列でも効く）。
     日本語版なしは「日本語版なし」と明示（NULL と未一致を区別する）。
 
-    入口の「列名が *_display で終わる列が一つでもあれば全停止」を撤去した。
-    クライアントが `SELECT count(*) AS foo_display` のように無関係な列名を付けた瞬間、結果中のカード名列への
-    同伴が丸ごと消えていた（実測）＝構造で塞いだはずの穴が名前の付け方で開く。
-    判定は列名でなく値・行ごとに置き換える:
+    「列名が `*_display` で終わる列があれば全停止」のような列名ベースの判定にすると、クライアントが
+    `SELECT count(*) AS foo_display` と別名を付けた瞬間にカード名列への同伴が丸ごと消えるため、
+    判定は列名でなく値・行ごとに行う:
       (a) その列のカード名の完成形が**同じ行の別の列に既にある**（`SELECT card_name, name_display` 型）なら添えない
       (b) 添える列名（`<列>_display`）が既に結果にあるなら添えない（衝突を作らない）
-      (c) それ以外のカード名列には従来どおり右隣に添える。
+      (c) それ以外のカード名列には右隣に添える。
     """
     str_cols = [i for i in range(len(cols))
                 if any(isinstance(r[i], str) and r[i] for r in rows)]
@@ -126,21 +129,13 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
     if not cands:
         return cols, rows, ""
     try:
-        hits = _db(
-            "SELECT card_name, name_display, name_en_front, name_en_back, name_ja_back, digital,"
-            " (NOT digital AND legalities->>'vintage' = 'not_legal') FROM mtg_cards_v2"
-            " WHERE card_name = ANY(%s) OR name_en_front = ANY(%s) OR name_en_back = ANY(%s)",
-            (cands, cands, cands), lane=LANE_LIGHT)
+        ja_of, pnotes = display_map_for_en_names(cands, back_as_face=True, _db=_db)
     except Exception:
         return cols, rows, ""
-    # 正式名・表面名は表面の完成形（name_display）、裏面名はその面の完成形。裏面名が本物のカード名と同じ（prepare）なら本物が勝つ
-    ja_of: dict[str, str] = {}
-    for en, label, enf, enb, jab, dg, pv in hits:
-        ja_of[en] = label
-        ja_of[enf] = label
-    for en, label, enf, enb, jab, dg, pv in hits:
-        if enb:
-            ja_of.setdefault(enb, face_display(enb, jab, bool(dg), bool(pv)))
+    unavailable = preview_unavailable_note(pnotes)
+    unavailable = f"\n（{unavailable}）" if unavailable else ""
+    if not ja_of:
+        return cols, rows, unavailable
     # 列ごとに「その列の値の過半がカード名」なら名前列と見なす（数字混じりの雑多な列を避ける）
     lower_cols = {c.lower() for c in cols}
     name_cols = []
@@ -158,7 +153,7 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
             continue
         name_cols.append(i)
     if not name_cols:
-        return cols, rows, ""
+        return cols, rows, unavailable
     new_cols, new_rows = [], []
     for i, c in enumerate(cols):
         new_cols.append(c)
@@ -172,14 +167,13 @@ def _attach_japanese_names(cols: list[str], rows: list[tuple]) -> tuple[list[str
                 nr.append(ja_of.get(v) if isinstance(v, str) else None)
         new_rows.append(tuple(nr))
     note = ("\n（カード名の列に _display＝完成形《日本語名/英語名》を同伴。日本語で答えるときはこの文字列を一字も変えずに使い、"
-            "自分で訳さない・組み立てない・略さない（2 回目以降も完成形）。「英語名（日本語版なし）」「英語名（日本語名未収録）」もそのまま書く）")
+            "自分で訳さない・組み立てない・略さない（2 回目以降も完成形）。「英語名（日本語版なし）」「英語名（日本語名未収録）」もそのまま書く）") + unavailable
     return new_cols, new_rows, note
 
 
 # 表ごとの注記（出典・列の意味）。返り値に載せる＝クライアントに確実に届くのは返り値だけ
 # （MCP の返り値は自己完結させる）。変わる事実（収録セット一覧）は固定文にせず実測で添える。
-# 以前は一覧が relname だけだった（スキーマ落ち）→ public 以外の表は「スキーマ名.表名」で返す。
-# 17Lands 集計も同時に limited_card_stats → public.limited_card_stats に統合（設計判断・表 1 枚に別スキーマは不要）。
+# public 以外のスキーマの表は「スキーマ名.表名」で返す（relname だけだとスキーマ名が落ちて引けないため）。
 _TABLE_NOTES = {
     "mtg_cards_v2": (
         "カード本体。**名前の正本は面の列** name_en_front／name_en_back／name_ja_front／name_ja_back（両面カードは 2 面・単面カードは back が NULL）。"
@@ -231,22 +225,7 @@ def _ident(s: str) -> str:
 
 
 def _limited_sets_note() -> str:
-    """limited_card_stats の収録セットを実測で一行に（無いセットを書かないための一覧）。表が無ければ空文字。"""
-    try:
-        _, srows = _db_readonly(
-            "SELECT expansion, event_type, count(*) FROM limited_card_stats"
-            " GROUP BY 1, 2 ORDER BY 2, 1", 200)
-    except Exception:
-        return ""
-    if not srows:
-        return ""
-    by_ev: dict[str, list[str]] = {}
-    for exp, ev, n in srows:
-        by_ev.setdefault(ev, []).append(f"{exp}({n})")
-    parts = [f"{ev}: " + "・".join(v) for ev, v in by_ev.items()]
-    return ("  収録セット（expansion 列の値・括弧はカード数・実測）: " + "／".join(parts)
-            + "。ここに無いセットは持っていない（無いものは書かない）。event_type は集計元の名前（PremierDraft）＝"
-            "Bo1 ドラフト一般（Quick Draft を含む）の物差しとして使う。")
+    return _impl_limited_sets_note(_db_readonly=_db_readonly)
 
 
 
@@ -291,7 +270,7 @@ def describe_mtg_tables(table_name: str | None = None) -> str:
         # _ident は使えない文字を黙って捨てるので、`deck-list` は `decklist` に化けて
         # 「テーブルなし: deck-list」＝「そんな表は無い」と嘘をつく（実際は表名の書き方の問題）。
         # 無害化そのものは残す（_db_readonly はプレースホルダを受けない＝文字種で守る鞘）。
-        # 返り値の形はテキストのまま（この道具はもともとテキストを返す・error_kind は
+        # 返り値の形はテキストのまま（この道具はテキストを返す・error_kind は
         # sisho/errors.py の INVALID_IDENTIFIER＝棚卸し上の名前で、返り値には載せない）。
         if tbl != tbl_in or sch != sch_in:
             bad = tbl_in if tbl != tbl_in else sch_in

@@ -15,7 +15,7 @@
   pick_number は 0 始まりなので +1 して 1 始まりに揃える。
 
 使い方: python src/lab17_trial.py --set LCI --event PremierDraft [--dir data/17lands] [--no-db] [--migrate] [--out 道]
-出力: public.limited_card_stats（冪等= (expansion, event_type, card_name) で UPSERT）と logs/17lands_trial_YYYYMMDD.md
+出力: public.limited_card_stats（冪等= (expansion, event_type, card_name) で UPSERT）と $L17_REPORT_DIR（既定 logs/17lands）の 17lands_trial_YYYYMMDD.md
 生の gz は事前に置いておく（取得は sh/lab17_import_sets.sh が S3 の公開ファイルから行う）。
 表と列を作るのは --migrate のときだけ（通常運転では DDL を打たない）。
 """
@@ -27,10 +27,11 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(__file__))
 from db_config import ddl_cursor, missing_columns   # noqa: E402（置き場所を足した後に読む）
 
-# 置き場所はリポジトリ直下から解く（作者の開発環境の絶対パスを使わない）。
-# 生の gz は data/17lands（.gitignore 済み）・報告は logs/（同じく）。
+# 置き場所は配備先に依存しないよう、リポジトリ直下から解く。
+# 生の gz は $L17_DIR（既定 $MTG_DATA_DIR/17lands・MTG_DATA_DIR の既定は data/・.gitignore 済み）・
+# 報告は $L17_REPORT_DIR（既定 $LOG_DIR/17lands・LOG_DIR の既定は logs/・同じく）。
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-L17_DIR = os.environ.get("L17_DIR", os.path.join(_REPO_ROOT, "data", "17lands"))
+L17_DIR = os.environ.get("L17_DIR", os.path.join(os.environ.get("MTG_DATA_DIR", os.path.join(_REPO_ROOT, "data")), "17lands"))
 
 GAME_PREFIXES = ("opening_hand_", "drawn_", "tutored_", "deck_", "sideboard_")
 
@@ -129,7 +130,7 @@ def draft_stats(path: str, chunksize: int = 50000) -> pd.DataFrame:
                 elif carry_vec is not None:
                     # 境界がちょうどパックの切れ目に当たった場合＝持ち越した尻尾は
                     # もう続きが来ないので、ここで確定させる。これを忘れると境界ごとに
-                    # 1 パック黙って消えた（レビューの指摘・合成 CSV で再現:
+                    # 1 パック黙って消える（合成 CSV で再現:
                     # 同じ 4 行をチャンク 4 と 2 で読むとパック 2 → 1・ALSA 1.5 → 2.0）
                     sum_last += carry_vec; n_seen += (carry_vec > 0); n_packs += 1
                 carry_key = carry_vec = None
@@ -154,7 +155,7 @@ def main() -> int:
     ap.add_argument("--min-games", type=int, default=500)
     ap.add_argument("--migrate", action="store_true",
                     help="表と列を作る（通常運転では DDL を打たない）")
-    ap.add_argument("--out", default=None, help="報告の書き出し先（既定は logs/17lands_trial_<日付>.md）")
+    ap.add_argument("--out", default=None, help="報告の書き出し先（既定は $L17_REPORT_DIR＝$LOG_DIR/17lands の 17lands_trial_<日付>.md）")
     a = ap.parse_args()
     gpath = f"{a.dir}/game_data_public.{a.set}.{a.event}.csv.gz"
     dpath = f"{a.dir}/draft_data_public.{a.set}.{a.event}.csv.gz"
@@ -194,9 +195,21 @@ def main() -> int:
         # "?" を「非 ASCII 1 文字」として正式名（完全名・表面名）に当て、一意に決まるときだけ採る（誤帰属より取り逃し）。
         import re
         cand_pairs = [(n_, n_) for n_ in names] + list(front.items())
+        lower_names = {n_.lower(): n_ for n_ in names}
+        lower_front = {fr.lower(): full for fr, full in front.items()}
+        # 17lands 側の表記揺れを Scryfall（mtg_cards_v2）正本名へ寄せる（取り込み側だけで寄せる）:
+        # 1. 大文字・小文字の差（DMU: "Sol'kanar the Tainted" → "Sol'Kanar the Tainted"）
+        # 2. Scryfall 側に A- 別カードが存在しないアルケミー名（HBG: "A-Baba Lysaga, Night Witch", "A-Monster Manual"）
         def resolve(n: str) -> tuple[str | None, str]:
             if n in names: return n, "exact"
             if n in front: return front[n], "front"
+            nl = n.lower()
+            if nl in lower_names: return lower_names[nl], "exact"
+            if nl in lower_front: return lower_front[nl], "front"
+            if n.startswith("A-"):
+                stripped = n[2:]
+                if stripped in names: return stripped, "exact"
+                if stripped in front: return front[stripped], "front"
             if "?" in n:
                 pat = re.compile("^" + re.escape(n).replace(r"\?", r"[^\x00-\x7F]") + "$")
                 hits = sorted({full for cand, full in cand_pairs if pat.match(cand)})
@@ -235,8 +248,8 @@ def main() -> int:
     # 報告（生の数字を残す）
     stamp = dt.date.today().strftime("%Y%m%d")
     # 器（sh/lab17_import_sets.sh）とファイル名でやり取りすると、日付を双方で
-    # 別々に求めるので午前 0 時に食い違う。明示的に受け取れるようにした
-    out = a.out or os.path.join(os.environ.get("L17_REPORT_DIR", os.path.join(_REPO_ROOT, "logs")),
+    # 別々に求めると午前 0 時に食い違う。そのため日付を外から明示的に受け取れるようにしている
+    out = a.out or os.path.join(os.environ.get("L17_REPORT_DIR", os.path.join(os.environ.get("LOG_DIR", os.path.join(_REPO_ROOT, "logs")), "17lands")),
                                 f"17lands_trial_{stamp}.md")
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     top = df[df["gih_games"] >= a.min_games].sort_values("gih_wr", ascending=False)

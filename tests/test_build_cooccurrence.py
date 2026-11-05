@@ -55,3 +55,7 @@ def test_correct_population_passes():
 def test_broken_population_is_stopped(label, decks, counts, pairs, field):
     r = run(decks, counts, pairs)
     assert not r["ok"] and r[field] == 1, (label, r)
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__, "-v", *sys.argv[1:]]))

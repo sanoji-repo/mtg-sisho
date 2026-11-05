@@ -3,10 +3,10 @@ scrape_mtgo.py — Magic Online 公式デッキリスト（mtgo.com/decklists）
 =====================================================================================
 非商用の利用にかぎる。
 
-権利の検査（実施）:
+権利の検査:
   - 運営は Daybreak Games。利用規約（2026 年 7 月 13 日版）に自動アクセス／スクレイプを
     名指しで禁じる条項は無し（「bot」はウイルス等と並ぶ投稿・送信禁止物の文脈）。
-    13(f) 商用利用禁止＝本プロジェクトは非商用（AWS 公開 API は同日退役）。
+    13(f) 商用利用禁止＝本プロジェクトは非商用。
   - robots.txt は 404（不在）。間隔 2 秒・User-Agent 明示＝mtgtop8 と同じ礼儀。
   - WotC ファン・コンテンツ・ポリシーの非商用範囲内。
 
@@ -47,6 +47,7 @@ import psycopg2.extras
 import requests
 
 from db_config import DB_CONFIG, connect_scrape, read_cursor
+import player_hook
 
 BASE_URL = "https://www.mtgo.com"
 REQUEST_INTERVAL = 2.0
@@ -171,6 +172,8 @@ def list_month(year: int, month: int) -> list[str] | None:
     # CDN でなく mtgo.com 側の作り。こちらが叩いた後、数秒〜数分で本物に変わる（実測）。冷えた古い月は
     # 初回から本物。→ URL の形を変えつつ、間隔を 10→30→60→120 秒と伸ばして最大 5 回（最悪 3.7 分）。
     # それでも空なら [] を返し、呼び出し元が行を末尾へ回す。
+    # 実測: 2024/06 は 0→336 本が 2 秒後に本物／2026-05 は 5 回の連打（37 秒）が全部空で、2 分半後に本物。
+    # 2 秒 × 5 の連打は当たらなかった＝間隔を伸ばすのが効く。
     base = f"{BASE_URL}/decklists/{year}/{month:02d}"
     variants = [base, base + "/", base + "/", lambda: f"{base}/?r={int(time.time())}", lambda: f"{base}?r={int(time.time())}"]
     waits = [10, 30, 60, 120]
@@ -234,7 +237,9 @@ def norm_card_name(name: str) -> str:
 
 
 def extract_decks(data: dict, info: dict) -> tuple[str, str | None, list[dict]]:
-    """→ (event_name, event_date, [ {loginid, placement, cards:[(name,count,board)]} ])"""
+    """→ (event_name, event_date, [ {loginid, player, placement, cards:[(name,count,board)]} ])
+
+    player は引き当ての口に渡すためだけに読む（save_event の注記を参照）。"""
     is_league = "publish_date" in data
     if is_league:
         event_name = data.get("name") or info["event_part"] or "League"
@@ -292,8 +297,8 @@ def extract_decks(data: dict, info: dict) -> tuple[str, str | None, list[dict]]:
             cards.append((norm_card_name(name), qty, sb_board))
         if not cards:
             continue
-        # プレイヤー名（d["player"]）は取らない（下の設計判断の注記を参照）
-        decks.append({"loginid": loginid, "deck_key": deck_key,
+        player = d.get("player") or None   # 引き当ての口に渡すためだけ（save_event の注記を参照）
+        decks.append({"loginid": loginid, "deck_key": deck_key, "player": player,
                       "placement": rank_by_login.get(loginid), "cards": cards})
     return event_name, event_date, decks
 
@@ -316,22 +321,23 @@ def save_event(conn, info: dict, event_name: str, event_date: str | None,
     with conn.cursor() as cur:
         for d in decks:
             unique_name = f"mtgo_{info['site_name']}_{d['deck_key']}"
-            # 設計判断: この取り込みはプレイヤー名を持たない。deck_list に
-            # player_name 列は無く、名前を隔離する players 表は開発側だけに置く。
+            # プレイヤー名: 名前は引き当ての口（src/player_hook.py）にだけ渡す。口が空（公開の既定）なら
+            # 名前はその場で捨て、deck_list に player_id の列も書かない。口が開発側の引き当てを指すときだけ
+            # players 表へ・deck_list には player_id だけ。重複のデッキでも引き当ては INSERT の前に済ませる。
             # ただし deck_name には出所側のキー（loginplayeventcourseid・無ければ
-            # loginid）が重複判定のために残る＝「名前を持たない」であって「出所側の
-            # 識別子が一切無い」ではない。
-            cur.execute("""
-                INSERT INTO deck_list
-                    (deck_name, set_code, source, tournament_name, tournament_date,
-                     placement, format_name, source_url,
-                     tournament_event_id, archetype)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
-                ON CONFLICT (deck_name) DO NOTHING
-                RETURNING id
-            """, (unique_name, info["format_key"][:10], info["source"], event_name,
-                  event_date, d["placement"], info["format_name"],
-                  url, info["event_id"]))
+            # loginid）が重複判定のために残る＝名前そのものは deck_list に書かないが、
+            # 出所側の識別子が一切無いわけではない。このキーは公開側へ渡るときに
+            # 落とす（sh/sisho_repl/24_box_scrub_mtgo_key.sql・DATA_MODEL.md）。
+            player_id = player_hook.resolve_player(cur, info["source"], d.get("player"))
+            cols, vals = player_hook.deck_columns(
+                ["deck_name", "set_code", "source", "tournament_name", "tournament_date",
+                 "placement", "format_name", "source_url", "tournament_event_id", "archetype"],
+                [unique_name, info["format_key"][:10], info["source"], event_name,
+                 event_date, d["placement"], info["format_name"], url, info["event_id"], None],
+                player_id)
+            cur.execute(
+                f"INSERT INTO deck_list ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))})"
+                " ON CONFLICT (deck_name) DO NOTHING RETURNING id", vals)
             row = cur.fetchone()
             if row is None:
                 dup += 1
@@ -373,7 +379,7 @@ def run(months, limit: int | None, dry_run: bool, include_limited: bool,
         print(f"[{y}-{m:02d}] 大会ページ {len(names)} 件（取得済み URL {len(done)}）", flush=True)
         if not names:
             # 一覧が取れない月は「失敗」として呼び出し元に返す（cron ジョブは行列の行を残して翌日やり直す）。
-            # 過去に cron で空の 200 が 2 連続→ 0 件で正常終了→ 行が消えた事故の再発防止
+            # 空の 200 が連続した月を 0 件の正常終了と扱うと、行列の行が消えてその月を取りこぼすため
             empty_months.append(f"{y}-{m:02d}")
             continue
         for site in names:

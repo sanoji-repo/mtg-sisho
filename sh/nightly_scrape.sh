@@ -11,7 +11,7 @@
 # 芯となる規則:
 #   - 後処理は成否に関わらず必ず実行（; であって && でない）。
 #     fix_deck_links は card_id NULL のみ充填・recompute は全再構築＝どちらも
-#     冪等なので、部分取得で死んだ夜でも安全に走れる。
+#     冪等なので、部分取得で死んだ夜でも安全に走れる（途中で落ちても後処理を飛ばさないため）。
 #   - ランナー自体の二重起動は flock で防止。
 #   - recompute は並行ランナー間で共有ロックにより直列化
 #     （card_format_strength / edh_card_strength の TRUNCATE 衝突回避）。
@@ -38,7 +38,7 @@ REPO="${REPO:-$(cd "$(dirname "$0")/.." && pwd)}"
 PY="${PYBIN:-python3}"
 STAMP=$(date +%Y%m%d_%H%M)
 LANE="${NIGHTLY_LANE:-lane_$$}"
-LOGDIR="${NIGHTLY_LOGDIR:-$REPO/logs}"
+LOGDIR="${NIGHTLY_LOGDIR:-${LOG_DIR:-$REPO/logs}}"
 REPORT=$LOGDIR/nightly_report_${STAMP}_${LANE}.md
 LOCK=/tmp/nightly_scrape_${LANE}.lock
 RECOMPUTE_LOCK=/tmp/recompute_strength.lock
@@ -65,13 +65,14 @@ for job in "$@"; do
         > "$joblog" 2>&1
       rc=$? ;;
     moxfield)
+      # Moxfield の検索は 1 つの問い合わせで上位 1 万件（100 件 × 100 ページ）までしか見せない＝100 ページを超える分は空振り
       timeout 6h "$PY" src/scrape_moxfield.py --sample-by-bracket \
-        --brackets "$a" --per-bracket "$b" --max-pages 300 \
+        --brackets "$a" --per-bracket "$b" --max-pages 100 \
         > "$joblog" 2>&1
       rc=$? ;;
     mtgo)
       # mtgo:<YYYY-MM|cur>:<formats または all>  例 mtgo:cur:all ／ mtgo:2026-07:standard,modern
-      # 取得済み URL は自動スキップ＝毎晩同じ指定で差分だけ取る（新設）
+      # 取得済み URL は自動スキップ＝毎晩同じ指定で差分だけ取る
       m="$a"; [ "$m" = "cur" ] && m=$(date +%Y-%m)
       fopt=""; [ -n "$b" ] && [ "$b" != "all" ] && fopt="--formats $b"
       timeout 3h "$PY" src/scrape_mtgo.py --month "$m" $fopt \

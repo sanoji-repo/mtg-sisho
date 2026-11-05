@@ -10,6 +10,7 @@ import os
 from sisho import errors
 from sisho.context import CURRENT_CLIENT_IP, CURRENT_FUDA
 from sisho.db import LANE_LIGHT, _db
+from sisho.names import display_map_for_en_names, preview_unavailable_note, resolve_names_to_en_ex
 from sisho.ratelimit import RateLimiter
 from sisho.toollog import _log_tool
 
@@ -36,18 +37,22 @@ def _spellbook_post(payload: dict) -> dict:
         return json.loads(r.read().decode("utf-8"))
 
 
-def _display_map(names: list[str]) -> dict[str, str]:
-    """英語名 → 完成形 name_display（DB に無い名前は「英語名（DB 未収録）」）。"""
+def _display_map_ex(names: list[str]) -> tuple[dict[str, str], str]:
+    """英語名（正式名・表面名・裏面名）→ 完成形 name_display（DB に無い名前は「英語名（DB 未収録）」）と、
+    発売状態の照会に失敗したときの注記（無ければ空文字・注記を捨てず返り値まで運ぶ）。"""
     out = {n: f"{n}（DB 未収録）" for n in names}
     if not names:
-        return out
+        return out, ""
     try:
-        for cn, nd in _db("SELECT card_name, name_display FROM mtg_cards_v2 WHERE card_name = ANY(%s)", (names,),
-                          lane=LANE_LIGHT):
-            out[cn] = nd
+        out, pnotes = display_map_for_en_names(names, fallback_suffix="（DB 未収録）", _db=_db)
     except Exception:
-        pass
-    return out
+        return out, ""
+    return out, preview_unavailable_note(pnotes)
+
+
+def _display_map(names: list[str]) -> dict[str, str]:
+    """表示だけを返す口（注記の要らない呼び手と試験用）。find_combos の本筋は _display_map_ex を使う。"""
+    return _display_map_ex(names)[0]
 
 
 
@@ -87,18 +92,25 @@ def find_combos(card_names: list[str], commanders: list[str] | None = None, limi
         return errors.err_json(
             errors.RATE_LIMITED,
             f"コンボ検索の回数が多すぎます（この接続 URL は 1 分に {_COMBOS_PER_MIN} 回まで）。{retry} 秒待ってから呼び直す")
-    # 日本語名 → 英語名（DB）。英語名はそのまま。見つからない名前はそのまま送る（Spellbook 側で無視される）
+    # 日本語名・表面名・裏面名 → 英語正式名（DB）。曖昧な名前は勝手に 1 枚目に確定しない。
+    # 見つからない名前はそのまま送る（Spellbook 側で無視される）
     resolved: dict[str, str] = {}
+    ambiguous: dict[str, list[str]] = {}
     try:
-        rows = _db("SELECT card_name, japanese_name, name_ja_front FROM mtg_cards_v2"
-                   " WHERE card_name = ANY(%s) OR japanese_name = ANY(%s) OR name_ja_front = ANY(%s)",
-                   (names + cmds, names + cmds, names + cmds), lane=LANE_LIGHT)
-        for cn, ja, jaf in rows:
-            resolved[cn] = cn
-            if ja: resolved[ja] = cn
-            if jaf: resolved[jaf] = cn
+        resolved, ambiguous = resolve_names_to_en_ex(names + cmds, _db=_db)
     except Exception:
+        # DB が落ちても英語名だけで Spellbook は引ける＝入力のまま続ける（日本語名は unresolved_names に出る）。
+        # 照会できなかったことは返り値に載せていない
         pass
+    if ambiguous:
+        # 1 枚に決まらないと分かった名前は外へ送らない（送ると Spellbook がどちらかで照会し、結果に「いま組める」が付く）。
+        # どの入力がどのカードたちに当たったかを返して呼び直させる
+        listed = "／".join(f"「{k}」→ {'・'.join(v)}" for k, v in ambiguous.items())
+        return errors.err_json(
+            errors.OUT_OF_RANGE,
+            f"1 枚に決まらない名前がある（同じ名前のカードが複数）: {listed}。"
+            "どれかの英語の正式名（両面は 表 // 裏）で呼び直す。Commander Spellbook には照会していない",
+            ambiguous_names=ambiguous)
     en_main = [resolved.get(n, n) for n in names]
     en_cmd = [resolved.get(n, n) for n in cmds]
     unresolved = [n for n in names + cmds if n not in resolved and not n.isascii()]
@@ -117,12 +129,14 @@ def find_combos(card_names: list[str], commanders: list[str] | None = None, limi
         for c in (res.get(key) or [])[:limit]:
             for u in c.get("uses") or []:
                 all_names.add((u.get("card") or {}).get("name", ""))
-    disp = _display_map(sorted(n for n in all_names if n))
+    disp, disp_note = _display_map_ex(sorted(n for n in all_names if n))
     out: dict = {"source": "Commander Spellbook（https://commanderspellbook.com/・公開 API・照会時点の内容）",
                  "input": {"main": en_main, "commanders": en_cmd},
                  "note": ("前提（prerequisites）は原文のまま。前提付きのコンボは書かれた条件が揃わないと成立しない＝『2 枚で成立』と書かない。"
                           "bracket タグは参考（正確性に欠ける実例あり・断定しない）。人気（popularity）は Spellbook 側の集計。"
                           "答えには出典「Commander Spellbook」と各コンボの URL を添える。カード名は uses_display の完成形をそのまま書く")}
+    if disp_note:
+        out["display_note"] = disp_note
     if unresolved:
         out["unresolved_names"] = unresolved
         out["unresolved_note"] = "DB で英語名に直せなかった名前（綴りを search_mtg_cards で確認して呼び直す）"

@@ -107,4 +107,4 @@ def test_probability_return_schema():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    raise SystemExit(pytest.main([__file__, "-v", *sys.argv[1:]]))

@@ -175,8 +175,8 @@ def test_search_limited_stats_elsewhere():
 def test_search_valid_formats_covers_arena_formats():
     """legalities の鍵の一覧を実測で採り、Arena の形式の集合と突き合わせる。
 
-    実測: explorer だけ legalities に鍵が無く、ARENA_FORMATS に入ったままだった。
-    後に集合から外した（_check_format が先に弾くので cards.py の ARENA_FORMATS の
+    実測: explorer は legalities に鍵が無いので ARENA_FORMATS に含めない（含めても
+    _check_format が先に弾くので cards.py の ARENA_FORMATS の
     枝には到達しない＝死んだ語）。鍵が増える分には落とさず、ARENA_FORMATS に legalities へ
     無い語が足されたら落ちる置き方にする。
     """
@@ -231,9 +231,8 @@ def test_search_format_note_is_kept_when_zero_hits():
 def test_search_format_check_is_skipped_when_list_unavailable(monkeypatch):
     """鍵の一覧が引けない環境でも検索は落とさない（素通り）。ただし黙っては通さない。
 
-    元の意図（引けない環境で新しい失敗を作らない）はそのまま＝err は None・読み替えもしない。
-    変えたのは「黙って」の部分だけ: 検査できなかったことを返り値の note に書く。
-    黙って通していたせいで、綴り違いの format が legalities->>'…' に渡って全部 NULL になり、
+    引けない環境で新しい失敗は作らない（err は None・読み替えもしない）が、検査できなかったことは
+    返り値の note に書く。黙って通すと、綴り違いの format が legalities->>'…' に渡って全部 NULL になり、
     「鍵が無い」のか「合法なカードが無い」のかクライアントに区別がつかなかった（公開サーバーで発生）。
     """
     monkeypatch.setitem(cards._FORMATS_CACHE, "keys", [])
@@ -270,13 +269,13 @@ if __name__ == "__main__":
 def test_draft_set_marks_which_cards_are_in_that_set():
     """draft_set を渡したら、どのカードがそのセットに入っているかを返り値に書く。
 
-    由来（実地テスト）: 画像から読んだ名前が曖昧なとき、
-    クライアントは「聖遺」のような部分文字列で引いていた。draft_set='LCI' は
+    背景: 画像から読んだ名前が曖昧なとき、
+    クライアントは「聖遺」のような部分文字列で引く。draft_set='LCI' は
     **検索を絞らない**（17Lands 統計を添えるセットの指定）ので、別セットのカードが
-    EDHREC 人気順で並び、唯一の LCI 収録カードは 5 番目に沈んでいた。しかも返り値に
-    収録セットが無いため、どれがそのセットかを**クライアントが判断できなかった**。
-    誤同定の連鎖（誤読 → 部分一致 → 複数候補 → もっともらしい 1 枚を選ぶ）の入口。
-    掟「MCP の返り値は自己完結させる」に従い、事実を足して判断材料を渡す。
+    EDHREC 人気順で並び、唯一の LCI 収録カードは 5 番目に沈む。しかも返り値に
+    収録セットが無いと、どれがそのセットかを**クライアントが判断できない**。
+    誤同定の連鎖（誤読 → 部分一致 → 複数候補 → もっともらしい 1 枚を選ぶ）の入口になる。
+    MCP の返り値は自己完結させる方針に従い、事実を足して判断材料を渡す。
     """
     import json
     d = json.loads(f("聖遺", top_k=10, draft_set="LCI"))
@@ -297,3 +296,94 @@ def test_no_draft_set_means_no_in_draft_set_key():
     import json
     d = json.loads(f("Lightning Bolt", top_k=1))
     assert "in_draft_set" not in d["cards"][0]
+
+
+def test_in_draft_set_matches_limited_stats_without_false_positives():
+    """in_draft_set は set_codes ではなく limited_stats の有無のみで決まる。
+
+    1) 不足なし: スペシャルゲスト（FRA の Sublime Epiphany 等）・ボーナスシート（STX の Mystical Archive 等）・
+       リマスター（PIO・SIR）は set_codes にそのセット記号を持たないが、17Lands 統計があるので in_draft_set=True。
+    2) 過剰なし: Starter Kit / Beginner Box / Jumpstart / Box Topper 限定カード（BLB の Bria, Riptide Rogue や
+       MKM の Voja, Jaws of the Conclave 等）は set_codes にそのセット記号を持つが、ドラフトに出ず統計も無いので False。
+    """
+    import json
+    # 1) スペシャルゲスト枠（set_codes に fra 無し・統計あり → True）
+    d = json.loads(f("Sublime Epiphany", top_k=1, draft_set="FRA"))
+    c = d["cards"][0]
+    assert "fra" not in [x.lower() for x in c["set_codes"]], "Scryfall の set_codes には fra が無い（spg 枠）"
+    assert c["in_draft_set"] is True, "FRA の 17Lands 統計があるので in_draft_set は True"
+    assert c["limited_stats"][0]["set"] == "FRA"
+    keys = list(c.keys())
+    assert keys.index("in_draft_set") < keys.index("limited_stats")
+
+    # 2) スターターキット・Box Topper 限定枠（set_codes に blb/mkm あり・ドラフト外で統計なし → False）
+    d_blb = json.loads(f("Bria, Riptide Rogue", top_k=1, draft_set="BLB"))
+    c_blb = d_blb["cards"][0]
+    assert "blb" in [x.lower() for x in c_blb["set_codes"]], "set_codes には blb がある（スターターキット枠）"
+    assert c_blb["in_draft_set"] is False, "ドラフトに出ない枠なので in_draft_set は False"
+    assert "limited_stats" not in c_blb
+
+
+def test_draft_set_db_failure_does_not_fabricate_false(monkeypatch):
+    """統計照会が例外で失敗したときは、嘘の in_draft_set: False を付けず draft_set_note で伝える。"""
+    import json
+    real = cards._db
+
+    def fail_stats(sql, params, lane=None):
+        if "FROM limited_card_stats WHERE db_card_name" in sql:
+            raise RuntimeError("stats db timeout")
+        return real(sql, params, lane=lane) if lane else real(sql, params)
+
+    monkeypatch.setattr(cards, "_db", fail_stats)
+    d = json.loads(f("Dusk Rose Reliquary", top_k=1, draft_set="LCI"))
+    assert "in_draft_set" not in d["cards"][0], "統計照会が失敗したときに嘘の in_draft_set=False を出してはいけない"
+    assert "統計の照会に失敗" in d.get("draft_set_note", ""), f"失敗の注記が出る（{d.get('draft_set_note')}）"
+
+
+@requires_db
+def test_set_catalog_failure_is_not_reported_as_missing_set(monkeypatch):
+    """セット一覧の照会だけが落ちたとき、カード検索もドラフトも「手持ちに無いセット」と言わない。"""
+    import json
+
+    from sisho import limited
+    import sisho.tools.draft as draft
+
+    def failing(real):
+        def db(sql, params, lane=None):
+            if sql == limited.SETS_SQL:
+                raise RuntimeError("catalog db timeout")
+            return real(sql, params, lane=lane) if lane else real(sql, params)
+        return db
+
+    monkeypatch.setattr(cards, "_db", failing(cards._db))
+    d = json.loads(f("Dusk Rose Reliquary", top_k=1, draft_set="LCI"))
+    assert d["cards"], "カード自体は返す"
+    assert "in_draft_set" not in d["cards"][0]
+    note = d.get("draft_set_note", "")
+    assert "照会に失敗" in note and "手持ちに無いと判定したわけではない" in note, note
+
+    monkeypatch.setattr(draft, "_db", failing(draft._db))
+    try:
+        r = draft.draft_pack_stats(["Dusk Rose Reliquary"], set="LCI")
+    except Exception:
+        r = None
+    assert r is None or "set が不正" not in r, r
+
+
+def test_duplicate_db_card_name_raises_error():
+    """同一 (db_card_name, expansion, event_type) に複数行が返ったときは黙って上書きせず検出する。"""
+    from sisho import limited
+
+    def dup_db(sql, params, lane=None):
+        return [
+            ("Card A", "LCI", "PremierDraft", 100, 0.55, 0.54, 0.56, 3.0, 4.0),
+            ("Card A", "LCI", "PremierDraft", 200, 0.60, 0.59, 0.61, 2.5, 3.5),
+        ]
+
+    with pytest.raises(RuntimeError, match="duplicate"):
+        limited.fetch_pack_stats("LCI", ["Card A"], _db=lambda sql, params, lane=None: [
+            ("Card A", 0.55, 100, 3.0, 0.52, 0.54, 0.56, 4.0),
+            ("Card A", 0.60, 200, 2.5, 0.58, 0.59, 0.61, 3.5),
+        ])
+    with pytest.raises(RuntimeError, match="duplicate"):
+        limited._query_limited_stats([{"card_name": "Card A"}], ["LCI"], _db=dup_db)

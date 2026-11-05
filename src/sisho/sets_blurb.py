@@ -8,8 +8,8 @@ query_mtg_database の description の両方が参照するので、道具のモ
 
 def _startup_sets_blurb() -> str:
     """道具の説明に載せる収録セットの一覧（起動時に DB から 1 回・失敗したら空）。
-    発端: あるモデルが MSH／SOS（知識の切れ目の後のセット）を「MTG でない（Marvel Snap の話）」と
-    決めつけ、道具を一度も呼ばず記憶で答えた（30 問中 3・B でも 2）。説明文は claude.ai がクライアントに見せるので、ここに
+    背景: モデルは MSH／SOS（知識の切れ目の後のセット）を「MTG でない（Marvel Snap の話）」と
+    決めつけ、道具を一度も呼ばず記憶で答えることがある（実測: 30 問中 3 問）。説明文は claude.ai がクライアントに見せるので、ここに
     一覧と「知らないセットでも必ず引く」を置く（instructions は届かないため）。"""
     try:
         import psycopg2
@@ -18,12 +18,9 @@ def _startup_sets_blurb() -> str:
         cfg.setdefault("connect_timeout", 2)
         conn = psycopg2.connect(**cfg)
         try:
+            from sisho.limited import SETS_SQL
             cur = conn.cursor()
-            cur.execute(
-                "SELECT s.expansion, m.set_name, extract(year from m.released_at)::int"
-                " FROM (SELECT DISTINCT expansion FROM limited_card_stats) s"
-                " LEFT JOIN mtg_sets m ON lower(m.set_code) = lower(s.expansion)"
-                " WHERE s.expansion NOT ILIKE 'cube%%' ORDER BY m.released_at DESC NULLS LAST, s.expansion")
+            cur.execute(SETS_SQL)
             rows = cur.fetchall()
         finally:
             conn.close()
@@ -31,14 +28,14 @@ def _startup_sets_blurb() -> str:
         return ""
     if not rows:
         return ""
-    items = "・".join(f"{c}（{n} {y}）" if n else c for c, n, y in rows)
+    items = "・".join(f"{c}（{n} {y}）" if n else c for c, n, _rel, y in rows)
     return (f"【収録セット（リミテッド統計あり・新しい順・記号（名前 発売年））】{items}。"
             "知らないセット名・記号（例 MSH・SOS・TLA）でも MTG のセットなので、記憶で『MTG ではない』と判断せず必ずこの道具で引く。"
             "記号はこの一覧から取り、推測しない。紛れ: STX は 2021 のストリクスヘイヴン・SOS は 2026 の Secrets of Strixhaven。")
 
 
 _SETS_BLURB = _startup_sets_blurb()
-# 冒頭用の短い版（追試: 末尾の一覧では、あるモデルの「Marvel は MTG でない」という先入観に勝てず、MSH の問いで道具を呼ばなかった。
+# 冒頭用の短い版（末尾の一覧だけでは、モデルの「Marvel は MTG でない」という先入観に勝てず、MSH の問いで道具を呼ばないことがあった。
 # 説明文は全文届いていた（1,961 字をクライアントが引用できた）ので、位置の問題＝最初の一文に置く）
 _SETS_HEAD = ((lambda m: f"【まず読む】このデータベースは MTG の最新セット {m} まで収録（Marvel Super Heroes＝MSH・Secrets of Strixhaven＝SOS も MTG の正式セット）。"
               "知らないセット名・記号・カード名は『MTG ではない』と決めつけず、必ずこの道具で引いてから答える。")(

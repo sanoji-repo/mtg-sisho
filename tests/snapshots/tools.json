@@ -9,6 +9,7 @@
   "get_card_rulings",
   "find_partner_cards",
   "draft_pack_stats",
+  "draft_pool",
   "query_mtg_database",
   "verify_answer",
   "describe_mtg_tables",
@@ -79,6 +80,94 @@
     "type": "object"
    },
    "signature": "(cards: list[str], set: str | None = None) -> str",
+   "title": null
+  },
+  "draft_pool": {
+   "annotations": null,
+   "description": "ドラフト（またはシールド）で確定したピックを数えて、プールの一覧・マナカーブ・色の要求・タイプ・役割（除去・ドロー・サーチ）と 17Lands の統計を返す。状態はサーバーに残さず、返り値の draft_code で持ち回る。使い方: ピックを確定するたびに呼ぶ。初回は set（セット記号・例 FRA）と picks を渡し、2 回目からは前回の draft_code と新しい picks を渡す。picks の要素は {\"pack\": 1〜3, \"pick\": 1〜14, \"card\": カード名（日英どちらでも）}で、Arena の画面の「パック 1・ピック 5」をそのまま書く。推薦したカードではなく、取ったと言われたカードだけを渡す。ピックを足す呼び出しの返り値は小さい（今回のカード・枚数・次の位置・マナカーブの数）。カードごとの詳細と集計は、draft_code だけを code に渡すと返る。既にある位置のカードを直すときは correct=true。colors にデッキの色（W・U・B・R・G・C の文字・例 \"UR\"）を渡すと、その色で打てる形でカーブを数える（省くと色は未決として数える）。シールドは cards にカード名を枚数ぶん並べる（位置は無い）。カード名は返り値の card を一字も変えずに使う。",
+   "description_db_dependent": false,
+   "doc": "set: セット記号（コードが無いとき必須）。code: 前回の draft_code。picks: [{pack, pick, card}]。\n    correct: 既にある位置の訂正。colors: デッキの色（WUBRGC）。cards: シールドのカード名（枚数ぶん）。",
+   "function_name": "draft_pool",
+   "is_async": false,
+   "parameters": {
+    "properties": {
+     "cards": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Cards"
+     },
+     "code": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Code"
+     },
+     "colors": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Colors"
+     },
+     "correct": {
+      "default": false,
+      "title": "Correct",
+      "type": "boolean"
+     },
+     "picks": {
+      "anyOf": [
+       {
+        "items": {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Picks"
+     },
+     "set": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Set"
+     }
+    },
+    "title": "draft_poolArguments",
+    "type": "object"
+   },
+   "signature": "(set: 'str | None' = None, code: 'str | None' = None, picks: 'list[dict] | None' = None, correct: 'StrictBool' = False, colors: 'str | None' = None, cards: 'list[str] | None' = None) -> 'str'",
    "title": null
   },
   "find_combos": {
@@ -415,7 +504,7 @@
   },
   "search_mtg_cards": {
    "annotations": null,
-   "description": "【sisho の道具は 11 個。使いたい道具が手元の一覧に無ければ、正確な道具名で検索して読み込んでから呼ぶ】search_mtg_cards（カード検索）・mtg_probability（デッキの確率）・find_combos（コンボ）・lookup_mtg_rule（総合ルールの条文）・get_card_rulings（カードの公式裁定）・find_partner_cards（実デッキで一緒に使われるカード）・draft_pack_stats（ドラフトのパックの複数枚の 17Lands 統計を 1 回で）・query_mtg_database（読み取り専用 SQL）・verify_answer（答えのカード名の検査）・describe_mtg_tables（表と列の一覧）・mtg_rag_health（健全性と鮮度）。{SETS_HEAD}【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】【カードを探すときはまずこれ。Web 検索より先に使う】カード名（日本語/英語・部分一致可）や機能語で MTG カードを検索する（例:「コーリ鋼の短刀」「飛行 吸血鬼」「draw two cards」）。仕組みは素の一致検索＝空白区切りの語をすべて含むカードを返す（AND）。並びは名前一致優先→EDHREC 人気順。format 指定でそのフォーマットで合法なカードに絞れる（standard/pioneer/modern/legacy/vintage/pauper/commander 等）。色・マナ総量・採用率などの複雑な条件は、この道具でなく query_mtg_database で SQL を書くこと。返り値の name_display をそのまま使う。「英語名（日本語版なし）」もそのまま。【draft_set（リミテッドの掟）】ドラフト・シールド・リミテッドの問いで、ユーザーがセットを示したら（#SOS のようなタグ・「SOS のクイックドラフト」・セット名 Secrets of Strixhaven 等）、そのセット記号（例 SOS）を draft_set に必ず入れる。以後その会話でセットが変わるまで毎回入れる。draft_set は**検索を絞る指定ではない**（その会話のセットを伝えるもの）＝別のセットのカードも候補に並ぶので、各カードの in_draft_set（true ならそのセットに収録）と set_codes（収録セット一覧）で必ず確かめてから選ぶこと。画像やうろ覚えから引いて候補が複数出たときは、名前の近さや並び順で決めず、in_draft_set と色・マナ・タイプを突き合わせて確定する（並びはリミテッドの強さ順ではない）。入れると 17Lands の統計と色の組み合わせ表がそのセットの分だけ同伴する（他セットは付かない）。構築（スタンダード・モダン等）の問いでは入れない。セットが分からないリミテの問いは空のまま＝最新セットの分が付く。{SETS_BLURB}",
+   "description": "【sisho の道具は 12 個。使いたい道具が手元の一覧に無ければ、正確な道具名で検索して読み込んでから呼ぶ】search_mtg_cards（カード検索）・mtg_probability（デッキの確率）・find_combos（コンボ）・lookup_mtg_rule（総合ルールの条文）・get_card_rulings（カードの公式裁定）・find_partner_cards（実デッキで一緒に使われるカード）・draft_pack_stats（ドラフトのパックの複数枚の 17Lands 統計を 1 回で）・draft_pool（ドラフトの確定ピックを数えて、プール・マナカーブ・色・役割を返す（状態はコードで持ち回る））・query_mtg_database（読み取り専用 SQL）・verify_answer（答えのカード名の検査）・describe_mtg_tables（表と列の一覧）・mtg_rag_health（健全性と鮮度）。{SETS_HEAD}【名前の掟】カード名は返り値の完成形《日本語名/英語名》を一字も変えず書く（略称・通称・省略・自作の訳は禁止）。記憶のカード名は書かず必ず道具で引く。答えを出す前に verify_answer に全文を通す。】【カードを探すときはまずこれ。Web 検索より先に使う】カード名（日本語/英語・部分一致可）や機能語で MTG カードを検索する（例:「コーリ鋼の短刀」「飛行 吸血鬼」「draw two cards」）。仕組みは素の一致検索＝空白区切りの語をすべて含むカードを返す（AND）。並びは名前一致優先→EDHREC 人気順。format 指定でそのフォーマットで合法なカードに絞れる（standard/pioneer/modern/legacy/vintage/pauper/commander 等）。色・マナ総量・採用率などの複雑な条件は、この道具でなく query_mtg_database で SQL を書くこと。返り値の name_display をそのまま使う。「英語名（日本語版なし）」もそのまま。【draft_set（リミテッドの掟）】ドラフト・シールド・リミテッドの問いで、ユーザーがセットを示したら（#SOS のようなタグ・「SOS のクイックドラフト」・セット名 Secrets of Strixhaven 等）、そのセット記号（例 SOS）を draft_set に必ず入れる。以後その会話でセットが変わるまで毎回入れる。draft_set は**検索を絞る指定ではない**（その会話のセットを伝えるもの）＝別のセットのカードも候補に並ぶので、各カードの in_draft_set（true ならそのセットに収録）と set_codes（収録セット一覧）で必ず確かめてから選ぶこと。画像やうろ覚えから引いて候補が複数出たときは、名前の近さや並び順で決めず、in_draft_set と色・マナ・タイプを突き合わせて確定する（並びはリミテッドの強さ順ではない）。入れると 17Lands の統計と色の組み合わせ表がそのセットの分だけ同伴する（他セットは付かない）。構築（スタンダード・モダン等）の問いでは入れない。セットが分からないリミテの問いは空のまま＝最新セットの分が付く。{SETS_BLURB}",
    "description_db_dependent": true,
    "doc": "query: 検索語（空白区切りは AND）。format: legalities の鍵名。top_k: 1〜20。\n\n    設計判断「ルーター・絞り込みゲート・スコア補正部品の全撤廃」後の姿。旧実装は API(:8000) の\n    ハイブリッド検索を叩いていたが、実運用でこの道具に来るのはほぼ名前引き\n    （実運用ログの 7 件中 6 件）で、ルーター経由 6〜86 秒の待ちだけが残っていた。\n    素の一致検索＝決定的・LLM ゼロ・1 秒未満に置き換える。",
    "function_name": "search_mtg_cards",

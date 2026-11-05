@@ -50,7 +50,7 @@ def test_verify_bracketed_japanese_becomes_full_form():
 
 
 def test_verify_bare_english_name():
-    """裸の英語名は **書き換えず報告だけ**（方針を変えた）。
+    """裸の英語名は **書き換えず報告だけ**。
 
     一般語と同じ綴りのカード名（Consider など）があり、裸で出た語がカード名かどうかは
     機械では決められない。掟の非対称に従って触らない側へ倒す。
@@ -61,11 +61,11 @@ def test_verify_bare_english_name():
 
 
 def test_verify_bare_japanese_name():
-    """裸の日本語名は **報告だけ**（振る舞いを変えた）。
+    """裸の日本語名は **報告だけ**。
 
-    以前は 4 文字以上の日本語カード名 31,011 語を無条件に完成形へ書き換えていたが、
+    4 文字以上の日本語カード名 31,011 語を無条件に完成形へ書き換えると、
     カード名と同形の一般語（漢字 4〜5 字だけで 1,169 語）まで書き換えて
-    「存在しないカードに言及した答案」を作る事故が実戦で出た。機械では決められないので
+    「存在しないカードに言及した答案」を作ってしまう。機械では決められないので
     判断を答案側に返す。同じ答案が《》でカードとして言及済みなら直す（下の試験）。
     """
     r = v("太陽の指輪を入れる。")
@@ -122,7 +122,7 @@ def test_verify_card_without_japanese_stays_english():
 
 def test_verify_protects_italics_and_parentheses():
     """*斜体*（アーキタイプ名）の中と丸括弧の中は触らない——書き換えでも報告でも。"""
-    # 《》の中は従来どおり完成形へ直す。保護域の中の同じ語は巻き添えにしない。
+    # 《》の中は完成形へ直す。保護域の中の同じ語は巻き添えにしない。
     assert _fixed("（太陽の指輪）と《Lightning Bolt》。") == "（太陽の指輪）と《稲妻/Lightning Bolt》。"
     assert "「太陽の指輪」" not in v("（太陽の指輪）と《Lightning Bolt》。"), "括弧の中は報告もしない"
     # 保護域の中にしか無い語は報告もしない（斜体のアーキタイプ名を毎回指摘しない）
@@ -143,8 +143,8 @@ def test_verify_removes_duplicate_english_gloss():
 def test_verify_collapses_double_brackets():
     """《《X》》の二重囲みは照合の前に 1 重へ畳み、完成形まで上げる。
 
-    以前は: 抽出の正規表現 [^》]+ が開き括弧を中身に含めて『《稲妻』を拾い、
-    (1)「未確認 1 件」と誤報し (2) 修正版も《稲妻》止まりで完成形に上がらなかった。
+    末尾でだけ畳むと、抽出の正規表現 [^》]+ が開き括弧を中身に含めて『《稲妻』を拾い、
+    (1)「未確認 1 件」と誤報し (2) 修正版も《稲妻》止まりで完成形に上がらない。
     ここで縫うのは「未確認ゼロ・完成形に上がる・畳んだことを返り値で言う」の三点。
     """
     r = v("《《稲妻》》は強い。")
@@ -465,7 +465,7 @@ def test_warm_retries_until_the_dict_is_built(monkeypatch):
 
 
 def test_signature_tells_null_positions_apart():
-    """署名は NULL の位置と列の境目を区別する（旧 concat_ws は NULL を飛ばして同じ文字列になった）。"""
+    """署名は NULL の位置と列の境目を区別する（concat_ws だと NULL を飛ばして同じ文字列になる）。"""
     from sisho.db import _db
     assert "concat_ws" not in verify._SIG_SQL
     same = _db("SELECT hashtextextended(ROW('Card', NULL::text, 'Front')::text, 0)"
@@ -539,7 +539,7 @@ def test_mana_claim_attributes_to_nearest_name():
     assert "食い違い" not in head and "2 件一致" in head
 
 
-# ─── 誤検知の修理（別セッションのクイックドラフト実戦で 7 パターンが挙がった）────
+# ─── 誤検知の防止（クイックドラフトの実戦で挙がった 7 パターン）────
 # どれも「本文の数字は正しいのに照合の紐付けだけが誤る」型＝答案側が直しようのない誤報なので、
 # 掟「誤発動＝有害・取り逃し＝無害」に従って誤発動をゼロにする側へ倒す。
 
@@ -547,7 +547,7 @@ def test_mana_claim_does_not_cross_a_newline():
     """(a) 箇条書きの直後の行にある数字を、リスト最終行のカードに紐付けない。
 
     実戦の形: 17Lands の一覧を出した直後に「4 マナのインスタントで…」と書くと、
-    最終行のカードと照合されて食い違いが出ていた（右窓が改行を越えていた）。
+    最終行のカードと照合されて食い違いが出る（右窓が改行を越えると）。
     """
     t = "候補:\n- 《Lightning Bolt》: GIH WR 58.2%\n4 マナのインスタントなら色を足す価値がある。"
     assert "マナ・コスト" not in _head(t)
@@ -567,16 +567,16 @@ def test_mana_range_matches_either_end():
     """(d) 「N から M マナ」の範囲表記は、どちらかに一致すれば食い違いにしない。"""
     assert "食い違い" not in _head("《Lightning Bolt》は 1 から 2 マナの帯。")
     assert "食い違い" not in _head("《Lightning Bolt》は 0 〜 1 マナで撃てる。")
-    # 範囲のどちらにも当たらなければ従来どおり食い違い
+    # 範囲のどちらにも当たらなければ食い違い
     assert "食い違い 1 件" in _head("《Lightning Bolt》は 4 から 5 マナ。")
 
 
 def test_mana_symbol_respects_reduction_clause():
-    """(2) 記号 {N} 側にも軽減の判定を効かせる（マナ側にはあったが記号側に無かった）。
+    """(2) 記号 {N} 側にも、マナ側と同じ軽減の判定を効かせる。
 
-    実戦の形: 軽減量を波括弧で書くと、それをカードのマナ・コストとして照合していた。
+    実戦の形: 軽減量を波括弧で書くと、それをカードのマナ・コストとして照合してしまう。
     同じ答案に「軽減条項があるので判定しない」という注意も出て、判定側と注意側が
-    同じ数値を別々に解釈している状態だった。
+    同じ数値を別々に解釈する状態になる。
     """
     head = _head("《Quicksand Whirlpool》は条件を満たすとコストが {3} 少なくなる。")
     assert "食い違い" not in head
@@ -588,7 +588,7 @@ def test_bare_japanese_word_is_not_turned_into_a_card():
 
     実戦の形: 報告書の見出しに使った普通の名詞が《…/…》に化けた。誤検知の中で最も危険で、
     気づかずに修正版を採用すると「存在しないカードに言及した答案」が出来上がる。
-    対象の裸の日本語名は 31,011 語あり、漢字 4〜5 字の一般語だけで 1,169 語が入っていた。
+    対象の裸の日本語名は 31,011 語あり、漢字 4〜5 字の一般語だけで 1,169 語が入る。
     """
     for word in ("決定的瞬間", "環境科学者", "応用幾何学"):
         t = f"## {word}\n\nこの節では{word}について述べる。"
@@ -596,7 +596,7 @@ def test_bare_japanese_word_is_not_turned_into_a_card():
 
 
 def test_second_mention_is_reported_not_rewritten():
-    """2 度目の裸の言及も **書き換えず報告する**（方針を変えた）。
+    """2 度目の裸の言及も **書き換えず報告する**。
 
     一度は「既出なら直す」を入れたが、日本語に単語の区切りが無いため《島/Island》を
     書いた答案で「島国」まで置換された。既出という事実は「以後の同形文字列がすべて
@@ -638,19 +638,19 @@ def test_mana_before_name_binds_to_the_following_card():
         head = _head(t)
         assert "食い違い" not in head, f"手前のカードに数字が付いた: {t}"
         assert "1 件一致" in head, f"後続のカードとの一致は数えるべき: {t}"
-    # 逆に、後ろにカード名が続かない「N マナ」は従来どおりそのカードの主張
+    # 逆に、後ろにカード名が続かない「N マナ」はそのカードの主張として見る
     assert "食い違い 1 件" in _head(f"{A}は 6 マナで重い。")
 
 
-# ─── 外部レビューで挙がった誤発動 ────────────
-# どれも「答案の文字列を壊す」側の誤発動＝掟の非対称でいちばん重い側。
+# ─── 答案の文字列を壊す誤発動の防止 ────────────
+# どれも「答案の文字列を壊す」側の誤発動＝「誤発動は有害・取り逃しは無害」の非対称でいちばん重い側。
 
 def test_bare_name_is_never_substituted_into_a_longer_word():
     """既出のカード名でも、より長い語の一部を置換しない。
 
     日本語には単語の区切りが無いので、《島/Island》を一度書いた答案では「島国」の
-    「島」まで置換され、文が壊れていた（「既出なら直す」を入れた副作用。
-    長さの条件を外したのが穴になった）。英語側も一般語と同じ綴りのカード名で同型。
+    「島」まで置換されて文が壊れる（「既出なら直す」にしたとき
+    長さの条件を外すと穴になる）。英語側も一般語と同じ綴りのカード名で同型。
     """
     t = "《Island》は基本土地。島国を表す語ではない。"
     assert _fixed(t) == "《島/Island》は基本土地。島国を表す語ではない。", "「島国」が壊れた"
@@ -661,15 +661,15 @@ def test_mana_production_is_not_read_as_own_cost():
     """「N マナを加える」は生み出す量であって、そのカードのコストではない。"""
     head = _head("《金粉の水蓮/Gilded Lotus》は 3 マナを加える。")
     assert "食い違い" not in head, "生成量をコスト主張として誤報した"
-    # 同じカードの本当のコスト主張は従来どおり見る
+    # 同じカードの本当のコスト主張は見る
     assert "食い違い 1 件" in _head("《金粉の水蓮/Gilded Lotus》は 3 マナで唱えられる。")
 
 
 def test_bracketed_name_with_spaces_is_actually_fixed():
     """《 英語名 》のように中に空白があっても、数えた分は本当に書き換える。
 
-    以前は strip() した値で元文字列を置換していたため一致せず、本文は空白入りのまま
-    なのに「機械修正 1 箇所」とだけ報告していた（数えたのに直っていない）。
+    strip() した値で元文字列を置換すると一致せず、本文は空白入りのまま
+    なのに「機械修正 1 箇所」とだけ報告してしまう（数えたのに直っていない）。
     """
     t = "《 Lightning Bolt 》は軽い。"
     out = _fixed(t)
@@ -677,7 +677,7 @@ def test_bracketed_name_with_spaces_is_actually_fixed():
 
 
 def test_candidate_lookup_is_capped_for_many_unknowns(monkeypatch):
-    """未確認が多い答案で、候補の照会を直列に積み上げない（レビューでの指摘）。
+    """未確認が多い答案で、候補の照会を直列に積み上げない。
 
     候補は 1 件ずつ similarity 走査を掛けるので、20 件あれば 20 回走る。verify は
     答えを出す前に必ず通す道具なので、送信全体を待たせる。名前の列挙自体は全件残す。
@@ -693,3 +693,72 @@ def test_candidate_lookup_is_capped_for_many_unknowns(monkeypatch):
     r = v(t)
     assert "未確認の名前 12 件" in r, "名前の列挙は全件残す"
     assert len(calls) <= 5, f"候補の照会が {len(calls)} 回走った（上限 5）"
+
+
+def test_verify_card_names_containing_slashes():
+    """カード名自体に「/」を含むカード（SP//dr・Summon: Choco/Mog）の完成形・単一表記・片側誤り・重複括弧削り。"""
+    spdr_full = "《ペニーが操縦するSP//dr/SP//dr, Piloted by Peni》"
+    choco_full = "《召喚：チョコボ＆モーグリ/Summon: Choco/Mog》"
+
+    # 完成形はそのまま通り、未確認にも機械修正にもならない
+    for full in (spdr_full, choco_full):
+        r = v(f"{full}を採用する。")
+        assert "未確認の名前: なし" in r
+        assert "機械修正 0 箇所" in r
+        assert r.split(MARK, 1)[1] == f"{full}を採用する。"
+
+    # 単一表記（《日本語名》・《英語名》）は完成形に引き上がる
+    assert _fixed("《ペニーが操縦するSP//dr》を出す。") == f"{spdr_full}を出す。"
+    assert _fixed("《SP//dr, Piloted by Peni》を出す。") == f"{spdr_full}を出す。"
+    assert _fixed("《Summon: Choco/Mog》を出す。") == f"{choco_full}を出す。"
+
+    # 片側だけ誤っている完成形は未確認として正しい候補を添える
+    assert _unknown("《ペニが操縦するSP//dr/SP//dr, Piloted by Peni》") == [
+        f"《ペニが操縦するSP//dr/SP//dr, Piloted by Peni》 → 候補: {spdr_full}"]
+    assert _unknown("《チョコボ＆モーグリ/Summon: Choco/Mog》") == [
+        f"《チョコボ＆モーグリ/Summon: Choco/Mog》 → 候補: {choco_full}"]
+    assert _unknown("《ペニーが操縦するSP//dr/SP//dr, Piloted by Penny》") == [
+        "《ペニーが操縦するSP//dr/SP//dr, Piloted by Penny》 → 候補: ペニーが操縦するSP//dr"]
+
+    # 完成形の直後に残った（英語名）の重複も削れる
+    assert _fixed("《ペニーが操縦するSP//dr》（SP//dr, Piloted by Peni）は強い。") == f"{spdr_full}は強い。"
+
+
+def test_mana_check_on_card_names_containing_slashes():
+    """日本語名に「/」を含む完成形でもマナ・コストの照合が働く。"""
+    spdr_full = "《ペニーが操縦するSP//dr/SP//dr, Piloted by Peni》"
+    assert "マナ・コストの照合: 1 件一致" in _head(f"{spdr_full}は 5 マナ。")
+    head_mism = _head(f"{spdr_full}は 2 マナ。")
+    assert "マナ・コストの食い違い 1 件" in head_mism
+    assert f"{spdr_full}: DB では {{3}}{{W}}{{U}}（5 マナ）・答案は 2 マナ" in head_mism
+
+
+def test_front_name_beats_other_cards_back_name_regardless_of_row_order(monkeypatch):
+    """別カードの裏面名と本物の表面名が同じ英語名のとき、行の並びに関係なく表面の訳と発売状態を採る
+    （表面を先勝ちにすると、先に並んだ先行収録カードの裏面が本物の表面に勝ってしまう）。"""
+    from datetime import date as _d
+
+    from sisho.preview import ReleaseState
+
+    # 列: card_name, japanese_name, digital, name_en_front, name_en_back, name_ja_front, name_ja_back,
+    #     mana_cost, cmc, oracle_text, 先行収録か
+    alpha = ("Alpha // Shared", None, False, "Alpha", "Shared", None, "裏訳", "{1}", 1.0, "", True)
+    shared = ("Shared // Tail", None, False, "Shared", "Tail", "表訳", None, "{2}", 2.0, "", False)
+    for rows in ([alpha, shared], [shared, alpha]):
+        def fake_db(sql, params=(), lane=None, rows=rows):
+            if "s.released_at" in sql:
+                return [("Alpha // Shared", "fra", "Reality Fracture", _d(2099, 1, 1), "expansion")]
+            if "count(*)" in sql:
+                return [(2, 0)]
+            return list(rows)
+
+        _isolate_cache(monkeypatch)
+        monkeypatch.setattr(verify, "_db", fake_db)
+        monkeypatch.setattr(verify, "_NAMES", None)
+        names, _sig = verify._build_names()
+        assert names["en"]["Shared"] == "表訳"
+        assert names["rel_state"]["Shared"] == ReleaseState.ORDINARY
+        assert "Shared" not in names["preview"]
+        assert names["rel_state"]["Alpha // Shared"] == ReleaseState.UPCOMING
+        r = v("《表訳/Shared》を採用する。")
+        assert "未確認の名前: なし" in r, r

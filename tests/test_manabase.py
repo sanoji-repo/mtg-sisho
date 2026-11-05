@@ -5,6 +5,7 @@
 SQL 側は Hall の条件と集合演算の数え上げ＝別の道筋で同じ値になること。DB が要る（無い環境では skip）。
 走らせ方: pytest tests/test_manabase.py -v
 """
+import hashlib
 import itertools
 import json
 import os
@@ -145,12 +146,98 @@ def test_hand_errors():
 
 # ─── 公開関数の安全と入力の読み違いを縫う ───
 
+# 利用者から SQL の構文を渡せる入口を残さないための縫い方。「mtg 関数が text を受け取らないこと」で判定すると、
+# 固定の SELECT に値として渡す text（mtg_card_partners のカード名）まで落とし、逆に varchar・domain に型を
+# 変えた生の条件や、SQL の関数から別の動的な関数へ渡す形は通してしまう。そこで、拡張の物を除く自作の関数
+# （名前の頭を問わない＝呼び先の helper も入る）の署名と定義の指紋を、下のレビュー済みの一覧と照らす。新しい関数・オーバーロード・定義の
+# 変更は、レビューして一覧を直すまで落ちる（知らない物は通さない）。一覧に有って DB に無いのは落とさない
+# （公開サーバーや clone した人の DB には開発側の関数が無い）。
+# 一覧を直す手順: 定義（pg_get_functiondef）を読み、利用者の値が SQL の構文として解釈される道が無いことを
+# 確かめる（EXECUTE があれば、構文を組む材料が利用者の文字列でないこと・値は USING で渡していること）。
+# repo の sql/ の正本と DB の本体が一致することも確かめる。理由を一行書き、指紋はこの試験の失敗の出力から
+# 写す（期待値を試験の中で DB から作らない）。PostgreSQL の版上げで定義の書式が変わったときも落ちる＝読み直す。
+REMOVED_ENTRY_POINTS = [
+    # 廃止した入口の本体: cond text を関数の中で SELECT として走らせられた（sql/prob_functions_mana.sql が DROP する）
+    "public.mtg_multi_hypergeom(integer, integer[], integer[], integer[], integer, text)",
+]
+
+# (スキーマ, 名前, 入力の署名): (定義の sha256 の頭 16 字, レビューの理由)。11 本とも sql/ の正本と本体の一致を確かめてある
+REVIEWED_FUNCTIONS = {
+    ("public", "mtg__int_array_ok", "a integer[], n integer"):
+        ("f59482abf0153dbe", "LANGUAGE sql・整数の配列の検査だけ"),
+    ("public", "mtg_card_partners", "p_format text, p_card text, p_days integer, p_board text, p_min_with integer"):
+        ("5c6a334cf05b28b7", "LANGUAGE sql の固定の SELECT・text は比較の値として使うだけ（開発側の分析用・公開サーバーには置かない）"),
+    ("public", "mtg_cards_seen", "turn integer, on_play boolean, mull integer"):
+        ("3de3a1d8bd0ddf79", "LANGUAGE sql・整数の計算だけ"),
+    ("public", "mtg_castable", "deck integer, counts integer[], canpay integer[], need integer[], mv integer[], turn integer, on_play boolean, mull integer"):
+        ("63aa3773233bdbf6", "EXECUTE の文は整数と整数の配列から format で組む・表は USING で渡す・文字列の引数なし"),
+    ("public", "mtg_comb", "n integer, k integer"):
+        ("001854385bac9b6b", "plpgsql・整数の計算だけ"),
+    ("public", "mtg_combo_by_turn", "deck integer, a integer, b integer, turn integer, on_play boolean, mull integer"):
+        ("32475a2bed15253a", "LANGUAGE sql・整数の計算だけ"),
+    ("public", "mtg_hand_prob", "deck integer, counts integer[], lo integer[], hi integer[], turn integer, on_play boolean, mull integer"):
+        ("ac7863edd058abe9", "EXECUTE の文は整数と整数の配列から format で組む・表は USING で渡す・文字列の引数なし"),
+    ("public", "mtg_hypergeom_atleast", "n integer, k integer, d integer, m integer"):
+        ("909babefbc34eddb", "LANGUAGE sql・整数の計算だけ"),
+    ("public", "mtg_hypergeom_exact", "n integer, k integer, d integer, m integer"):
+        ("2797075345214581", "LANGUAGE sql・整数の計算だけ"),
+    ("public", "mtg_land_drops", "deck integer, lands integer, turn integer, on_play boolean, mull integer"):
+        ("2f48f39472a9bbeb", "LANGUAGE sql・整数の計算だけ"),
+    ("public", "mtg_prob_by_turn", "deck integer, copies integer, turn integer, on_play boolean, m integer, mull integer"):
+        ("8238e8dccf057f58", "LANGUAGE sql・整数の計算だけ"),
+}
+
+# 拡張の物を除く自作の関数と手続き（集約・窓は pg_get_functiondef が受けないので数えない）。% は書かない（_db の書式と混ざる）
+_OWN_FUNCTIONS_SQL = (
+    "SELECT n.nspname, p.proname, pg_get_function_identity_arguments(p.oid), pg_get_functiondef(p.oid)"
+    " FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace"
+    " WHERE p.prokind IN ('f', 'p') AND n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname !~ '^pg_'"
+    " AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')")
+
+
+def _fingerprint(definition):
+    return hashlib.sha256(definition.encode("utf-8")).hexdigest()[:16]
+
+
+def unreviewed_functions(rows, reviewed):
+    """rows=[(スキーマ, 名前, 入力の署名, 定義)]。一覧に無い関数と、指紋が一覧と違う関数を (鍵, 今の指紋) で返す。"""
+    out = []
+    for nsp, name, args, definition in rows:
+        key, fp = (nsp, name, args), _fingerprint(definition)
+        if key not in reviewed or reviewed[key][0] != fp:
+            out.append((key, fp))
+    return sorted(out)
+
+
+def test_unreviewed_functions_judging():
+    """照らし方そのもの（DB 不要）: 知っている定義は通し、新しい名前・オーバーロード・定義の変更は落とす。"""
+    known = ("public", "f_ok", "a integer")
+    reviewed = {known: (_fingerprint("def ok"), "試験")}
+    assert unreviewed_functions([("public", "f_ok", "a integer", "def ok")], reviewed) == []
+    assert unreviewed_functions([], reviewed) == []                                   # 一覧に有って DB に無いのは落とさない
+    new = unreviewed_functions([("public", "f_new", "q varchar", "def x")], reviewed)
+    assert [k for k, _ in new] == [("public", "f_new", "q varchar")]                   # 型を varchar に変えた新顔も一覧に無ければ落ちる
+    over = unreviewed_functions([("public", "f_ok", "a integer, cond text", "def ok")], reviewed)
+    assert [k for k, _ in over] == [("public", "f_ok", "a integer, cond text")]        # 同じ名前のオーバーロード
+    changed = unreviewed_functions([("public", "f_ok", "a integer", "def ok -- EXECUTE cond")], reviewed)
+    assert changed == [(known, _fingerprint("def ok -- EXECUTE cond"))]                # 同じ署名で定義が変わった
+    other_schema = unreviewed_functions([("tools", "f_ok", "a integer", "def ok")], reviewed)
+    assert [k for k, _ in other_schema] == [("tools", "f_ok", "a integer")]            # 別のスキーマの同じ名前
+
+
 @requires_db
-def test_no_sql_text_function_left():
-    """生の条件式（text）を受け取る公開関数が残っていないこと。"""
-    rows = m._db("SELECT p.proname FROM pg_proc p WHERE p.proname LIKE 'mtg%%'"
-                 " AND 'text'::regtype = ANY(p.proargtypes::regtype[])", ())
-    assert rows == [], f"text を受け取る mtg 関数: {rows}"
+def test_removed_entry_points_absent():
+    """廃止した入口（cond text を受け取る mtg_multi_hypergeom）が DB に無いこと。"""
+    for sig in REMOVED_ENTRY_POINTS:
+        assert m._db("SELECT to_regprocedure(%s)::text", (sig,)) == [(None,)], f"廃止した入口が残っている: {sig}"
+
+
+@requires_db
+def test_own_functions_match_reviewed_list():
+    """自作の関数の署名と定義が、レビュー済みの一覧と一致すること。"""
+    bad = unreviewed_functions(m._db(_OWN_FUNCTIONS_SQL, ()), REVIEWED_FUNCTIONS)
+    assert bad == [], "レビューしていない関数か、定義が変わった関数（読んでから REVIEWED_FUNCTIONS を直す）:\n" + "\n".join(
+        f"  {k}: 今の指紋 {fp}" for k, fp in bad)
 
 
 @requires_db
@@ -216,3 +303,37 @@ def test_preview_after_release_says_pending(monkeypatch):
         ("X", "fra", "Reality Fracture", _d(2000, 1, 1), "expansion")])
     n = preview.preview_notes(["X"])["X"]
     assert "発売前" not in n and "反映待ち" in n
+
+
+@requires_db
+def test_ambiguous_back_face_spell_is_rejected():
+    """裏面名が複数のカードで重なる名前（Vicious Verse 等）を渡したとき、LIMIT 1 で 1 枚に潰さず曖昧エラーを返す。"""
+    r = call(kind="castable", deck_size=60, lands=[{"name": "Mountain", "count": 24}], spell="Vicious Verse", turn=2)
+    assert r["error_kind"] == "out_of_range"
+    assert "複数のカードの面の名前で、1 枚に決まらない" in r["error"]
+    assert len(r.get("candidates", [])) >= 2
+
+
+@requires_db
+def test_pathway_face_name_counts_as_dual_land():
+    """両面とも土地の modal_dfc（Pathway）は、面の名前で渡してもデュアルランドと同じ扱い＝カード全体の色
+    （デッキ作りの数え方ではデュアルランドと同じ扱いにする）。面の色に絞る直しを入れるとここが落ちる。"""
+    lands, err = manabase._resolve_lands([{"name": "Riverglide Pathway", "count": 24}])
+    assert err is None, err
+    assert lands[0]["produces"] == ["U", "R"] and lands[0]["source"] == "DB", lands
+    for face in ("Riverglide Pathway", "Lavaglide Pathway"):
+        for cost in ("{U}", "{R}"):
+            r = call(kind="castable", deck_size=60, lands=[{"name": face, "count": 24}], mana_cost=cost, turn=1)
+            assert r.get("probability", 0) > 0.9, f"{face} で {cost}: {r}"
+
+
+@requires_db
+def test_lands_reject_transform_back_land_and_mdfc_spell_face():
+    """変身後の裏面だけ土地のカード（Search for Azcanta / Azcanta, the Sunken Ruin）や MDFC の呪文面名指し（Bala Ged Recovery）は土地枠で拒否し、MDFC の土地面（Bala Ged Sanctuary）や全体名（Bala Ged Recovery // Bala Ged Sanctuary）は通す。"""
+    for bad_land in ("Search for Azcanta", "Azcanta, the Sunken Ruin", "Bala Ged Recovery"):
+        r = call(kind="castable", deck_size=60, lands=[{"name": bad_land, "count": 24}], spell="Opt", turn=1)
+        assert r["error_kind"] == "out_of_range", f"{bad_land} が土地として通ってしまった: {r}"
+
+    for ok_land in ("Bala Ged Sanctuary", "Bala Ged Recovery // Bala Ged Sanctuary"):
+        r = call(kind="castable", deck_size=60, lands=[{"name": ok_land, "count": 24, "produces": ["G"]}], mana_cost="{G}", turn=1)
+        assert "probability" in r, f"{ok_land} が土地として通らなかった: {r}"

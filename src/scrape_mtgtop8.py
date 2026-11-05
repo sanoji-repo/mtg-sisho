@@ -53,6 +53,7 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from db_config import DB_CONFIG, connect_scrape, read_cursor
+import player_hook
 
 BASE_URL       = "https://www.mtgtop8.com"
 REQUEST_INTERVAL = 2.75  # 秒（礼儀正しいスクレイピング・夜間実行では 2.5〜3.0 秒を指定）
@@ -103,12 +104,12 @@ def get_event_ids(format_code: str, meta: int) -> list[int]:
     return unique_ids
 
 
-def get_deck_ids(event_id: int) -> tuple[str, str | None, list[tuple[int, str]]]:
+def get_deck_ids(event_id: int) -> tuple[str, str | None, list[tuple[int, str, str]]]:
     """
     イベントページからイベント名・大会日・デッキIDを取得する。
-    戻り値: (event_name, event_date_iso_or_None, [(deck_id, deck_name), ...])
+    戻り値: (event_name, event_date_iso_or_None, [(deck_id, deck_name, player_name), ...])
 
-    プレイヤー名は取らない（下の設計判断の注記を参照）。
+    player_name は引き当ての口に渡すためだけに読む（下の「プレイヤー名」の注記を参照）。
     """
     url  = f"{BASE_URL}/event?e={event_id}"
     html = fetch(url)
@@ -125,8 +126,9 @@ def get_deck_ids(event_id: int) -> tuple[str, str | None, list[tuple[int, str]]]
     event_date = None
     date_m = re.search(r'\d+\s+players?\s*-\s*(\d{2})/(\d{2})/(\d{2})', html)
     if not date_m:
-        # 参加者数が出ないイベント（小規模大会など）は "players" 行が無い。
-        # その場合は "Source" より前に現れる最初の日付を拾う（後ろには引用元の日付が混ざる）。
+        # 参加者数が出ないイベントは "N players -" の行が無い（例: MTGO League・The Decks to Beat は
+        # 見出しに「Modern 30/08/26 Source: …」とだけ出る）。その場合は "Source" より前に現れる最初の日付を拾う
+        # （後ろには引用元の日付が混ざる）。
         head = html.split('Source', 1)[0]
         date_m = re.search(r'(\d{2})/(\d{2})/(\d{2})\b', head)
     if date_m:
@@ -140,15 +142,22 @@ def get_deck_ids(event_id: int) -> tuple[str, str | None, list[tuple[int, str]]]
         html
     )
 
+    # プレイヤー名（デッキの並びと同じ順で出る）
+    player_links = re.findall(
+        r'href=["\']?search\?player=([^"\'&>]+)["\']?[^>]*class=["\']?player["\']?',
+        html
+    )
+
     results = []
-    for deck_id, deck_name in deck_links:
+    for i, (deck_id, deck_name) in enumerate(deck_links):
+        player = player_links[i].replace("+", " ") if i < len(player_links) else ""
         # リンクテキストは HTML 実体参照のことがある（&rarr; ＝未分類の矢印表示・
         # 1,356 本が番兵値として archetype に混入していた虫）。
         # 実体を解いた上で、矢印だけの「名無し」は空にする＝下流の or None で NULL 化。
         name = html_lib.unescape(deck_name).strip()
         if name in {"→", "←"}:
             name = ""
-        results.append((int(deck_id), name))
+        results.append((int(deck_id), name, player.strip()))
 
     return event_name, event_date, results
 
@@ -221,9 +230,9 @@ def get_scraped_event_ids(conn, source: str = SOURCE) -> set[int]:
         return {row[0] for row in cur.fetchall()}
 
 
-# 設計判断: この取り込みはプレイヤー名を持たない。deck_list に
-# player_name 列は無く、名前を隔離する players 表は開発側だけに置く。
-# 集めてから捨てるのではなく、最初から取らない。
+# プレイヤー名: イベントページから読んだ名前は、引き当ての口（src/player_hook.py）にだけ渡す。
+# 口が空（公開の既定）なら名前はその場で捨て、deck_list に player_id の列も書かない。
+# 口が開発側の引き当て（PLAYER_RESOLVER）を指すときだけ、名前を players 表へ・deck_list には player_id だけを書く。
 _REQUIRED_COLUMNS = ("tournament_name", "tournament_date", "placement",
                      "format_name", "source_url", "tournament_event_id")
 # (source, tournament_event_id) は重複検出とバックフィルの JOIN/GROUP BY で頻繁に使う組
@@ -243,8 +252,8 @@ _DDL = """
 def verify_schema(conn):
     """deck_list に必要な列と索引が在るか確かめる（足りなければ止める）。
 
-    以前はここで毎回 ALTER TABLE ADD COLUMN IF NOT EXISTS と
-    CREATE INDEX IF NOT EXISTS を打っていた。列が既に在っても DDL は対象表の
+    毎回 ALTER TABLE ADD COLUMN IF NOT EXISTS と
+    CREATE INDEX IF NOT EXISTS を打つと、列が既に在っても DDL は対象表の
     ACCESS EXCLUSIVE を要求するので、別の取り込みが読みのトランザクションを開けたまま
     HTTP を叩いている間ずっと待つ。ロック待ちは先着順なので、待っている DDL の後ろに
     来た INSERT や SELECT まで並ぶ（実測: 取り込みを 3 本並行で動かすと
@@ -262,7 +271,7 @@ def verify_schema(conn):
 
 
 def save_deck(conn, event_id: int, event_name: str, event_date: str | None,
-              deck_id: int, deck_name: str,
+              deck_id: int, deck_name: str, player_name: str | None,
               format_code: str, cards: list[tuple[str, int, str]],
               archetype: str = "", source: str = SOURCE) -> bool:
     """デッキを DB に保存する。重複の場合は False を返す"""
@@ -270,17 +279,17 @@ def save_deck(conn, event_id: int, event_name: str, event_date: str | None,
     source_url  = f"{BASE_URL}/event?e={event_id}&d={deck_id}&f={format_code}"
 
     with conn.cursor() as cur:
-        cur.execute("""
-            INSERT INTO deck_list
-                (deck_name, set_code, source, tournament_name, tournament_date,
-                 format_name, source_url, tournament_event_id,
-                 archetype)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (deck_name) DO NOTHING
-            RETURNING id;
-        """, (unique_name, format_code, source, event_name, event_date,
-              FORMAT_NAMES.get(format_code, format_code),
-              source_url, event_id, archetype or None))
+        # 名前は口にだけ渡す（重複のデッキでも引き当ては INSERT の前に済ませる）
+        player_id = player_hook.resolve_player(cur, source, player_name)
+        cols, vals = player_hook.deck_columns(
+            ["deck_name", "set_code", "source", "tournament_name", "tournament_date",
+             "format_name", "source_url", "tournament_event_id", "archetype"],
+            [unique_name, format_code, source, event_name, event_date,
+             FORMAT_NAMES.get(format_code, format_code), source_url, event_id, archetype or None],
+            player_id)
+        cur.execute(
+            f"INSERT INTO deck_list ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))})"
+            " ON CONFLICT (deck_name) DO NOTHING RETURNING id;", vals)
         result = cur.fetchone()
 
     if result is None:
@@ -345,21 +354,22 @@ def scrape(format_code: str, meta: int, year: int):
     n_skip_mtgo = 0
     for event_id in tqdm(new_events, desc="イベント処理"):
         event_name, event_date, deck_infos = get_deck_ids(event_id)
-        # MTGO の大会は MTGO 公式の取り込みを正とし、こちら側の転載は数えない（二重計上を避ける）
+        # MTGO の大会は MTGO 公式の取り込みを正とし、こちら側の転載は数えない（二重計上を避ける）。
+        # 保存しないので既読にならず、この種のイベントページは毎回 1 回だけ取りに行く（集計からは外してある）。
         if event_name.startswith("MTGO ") or event_name == "MTGO League":
             n_skip_mtgo += 1
             continue
         if not deck_infos:
             continue
 
-        for deck_id, archetype in deck_infos:
+        for deck_id, archetype, player_name in deck_infos:
             cards = get_deck_cards(deck_id, sb_board=sb_board)
             if not cards:
                 continue
 
             saved = save_deck(
                 conn, event_id, event_name, event_date,
-                deck_id, archetype,
+                deck_id, archetype, player_name,
                 format_code, cards,
                 archetype=archetype, source=source,
             )

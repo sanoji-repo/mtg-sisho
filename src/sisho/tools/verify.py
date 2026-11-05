@@ -2,6 +2,7 @@
 
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
 """
+from datetime import date
 import logging
 import os
 import threading
@@ -9,12 +10,13 @@ import time
 
 from sisho.db import _db
 from sisho.names import face_display
+from sisho.preview import PREVIEW_EXPR, ReleaseState, preview_status
 from sisho.toollog import JOURNAL, _log_tool
 
 
 # ─── 答案検査 ────────────────────────
 # 書式ベンチの残穴は「道具の返り値に出ないカードをクライアントが記憶で挙げて自分で訳す」型
-# （Sonnet medium 10 問で 11 件・Opus low 200 問で 7 答案）。返り値側の同伴（_ja）では
+# （書式ベンチの実測: 10 問で 11 件・200 問で 7 答案）。返り値側の同伴（_ja）では
 # 届かないので、答案そのものを DB に当てる口を置く。クライアントが最後に一回呼べば届く。
 
 _JA_STOP = {"ショック", "巻き添え", "レベルアップ", "ナズグル", "フラッシュバック", "トランプル", "生け贄",
@@ -30,7 +32,7 @@ _JA_STOP = {"ショック", "巻き添え", "レベルアップ", "ナズグル"
 # 期限では捨てない。_NAMES_CHECK_SEC ごとに裏で mtg_cards_v2 の署名（名前・コスト・オラクル文のハッシュの和）を見て、
 # 変わっていれば新しい辞書を別に作り、作り終えたら差し替える（古い辞書は読み手が手放した時点で解放される）。
 # 作るのは一人だけ（_NAMES_LOCK）で、作り直しの間は古い辞書で答える。空のとき（起動直後）だけは作り終わるのを待つ。
-# 旧: 1 時間で捨てて最初の客が作り直す形。空のときに同時に来た呼び出しが全員それぞれ作り、6 本同時で 8〜11 秒かかった。
+# 期限で捨てて最初の客に作り直させると、空のときに同時に来た呼び出しが全員それぞれ作ってしまい、6 本同時で 8〜11 秒かかる。
 
 _NAMES: dict | None = None
 _NAMES_SIG = None
@@ -45,12 +47,25 @@ _NAMES_FAILED: tuple[float, str] | None = None   # 空の辞書の作成に失�
 _CHECK_LOCK = threading.Lock()                    # 見回りを起こすかの判定と「見回り中」の印を一緒に動かす
 _CHECKING = False
 # 署名: 行を丸ごと ROW(...)::text にしてから 64 ビットのハッシュを足す。
-#   旧 concat_ws('|', ...) は NULL を飛ばすので ('A', NULL, 'B') と ('A', 'B', NULL) が同じ文字列になった。
+#   concat_ws('|', ...) だと NULL を飛ばすので ('A', NULL, 'B') と ('A', 'B', NULL) が同じ文字列になる。
 #   行の文字列表現は NULL（空）と ''（""）と列の境目を区別する。和は 32 ビット→64 ビット（numeric で足す）。
 #   全行を読むので軽いレーン（点を引く照会の予約席）でなく既定の重いレーンで引く。
-_SIG_SQL = ("SELECT count(*), coalesce(sum(hashtextextended(ROW(card_name, japanese_name, name_en_front,"
-            " name_ja_front, name_en_back, name_ja_back, digital, mana_cost, cmc,"
-            " md5(coalesce(oracle_text, '')))::text, 0)::numeric), 0) FROM mtg_cards_v2")
+#   発売状態は mtg_sets.released_at と set_code にも依存するが、ここには入っていない＝セットの発売日だけが変わっても
+#   辞書は作り直されない。日付の変化は _current_sig が足す。
+_SIG_SQL = (
+    "SELECT count(*), coalesce(sum(hashtextextended(ROW(card_name, japanese_name, name_en_front,"
+    f" name_ja_front, name_en_back, name_ja_back, digital, mana_cost, cmc, ({PREVIEW_EXPR}),"
+    " md5(coalesce(oracle_text, '')))::text, 0)::numeric), 0) FROM mtg_cards_v2"
+)
+
+
+def _today() -> date:
+    return date.today()
+
+
+def _current_sig(today: date | None = None) -> tuple:
+    # 日付も署名に入れる: 先行収録のカードは発売日を越えると状態（発売前 → 反映待ち）が変わるが、行は変わらない
+    return tuple(_db(_SIG_SQL, ())[0]) + (today or _today(),)
 
 
 class NamesUnavailable(RuntimeError):
@@ -59,40 +74,59 @@ class NamesUnavailable(RuntimeError):
 
 def _build_names() -> tuple[dict, tuple]:
     """カード名の辞書を新しく作って返す（今使っている辞書には触らない）。ja→正式名・en→(ja or None)・両面は表名も登録。"""
-    sig = tuple(_db(_SIG_SQL, ())[0])
-    # 面の列で組む。以前は裏面の英語名に表面の日本語名を割り当てていた（《厚かましい借り手/Petty Theft》型の誤接合）。
+    today = _today()     # 署名と状態の判定で同じ日付を使う（日付を跨いだ build で食い違わないように）
+    sig = _current_sig(today)
+    # 面の列で組む（裏面の英語名に表面の日本語名を割り当てると《厚かましい借り手/Petty Theft》型の誤接合になる）。
     #   en_ja: 英語（正式名／表面名／裏面名）→ 同じ粒度の日本語（無ければ None）
     #   ja_full: 日本語（空白抜き）→ 日本語（そのまま）  ja_en: 日本語 → 同じ粒度の英語
-    #   裏面名は本物のカード名と同じことがある（prepare 20 枚）→ 裏面は setdefault＝本物のカードが勝つ
-    # 並びは紙が先（setdefault は先勝ち＝同じ日本語名を紙と Arena 専用が持つ《緊急脱出》は紙の Eject に決まる）
+    #   裏面名は本物のカード名や別カードの表面名と同じことがある（prepare 20 枚）→ en_ja は names と同じ順位
+    #   （正式名 0 → 表面名 1 → 裏面名 2・同じ順位なら紙）で選び、訳と発売状態は同じ候補から取る
+    #   （表面を「先に入った方が勝つ」にすると、先に並んだ別カードの裏面が本物の表面に勝ってしまう）
+    #   同じ順位・同じ紙区分の別カードは先勝ち（全件の辞書は曖昧を持てない・names の解決は曖昧として返す）
+    # 並びは紙が先（ja_en の setdefault は先勝ち＝同じ日本語名を紙と Arena 専用が持つ《緊急脱出》は紙の Eject に決まる）
     rows = _db("SELECT card_name, japanese_name, digital, name_en_front, name_en_back, name_ja_front, name_ja_back,"
-               " mana_cost, cmc, oracle_text FROM mtg_cards_v2 ORDER BY digital, card_name", ())
-    ja_full, en_ja, ja_en, digital, paper, cost = {}, {}, {}, set(), set(), {}
-    for en, ja, dg, enf, enb, jaf, jab, mc, cmc, otext in rows:
+               f" mana_cost, cmc, oracle_text, ({PREVIEW_EXPR}) FROM mtg_cards_v2 ORDER BY digital, card_name", ())
+    prev_cards = [r[0] for r in rows if r[10]]
+    pstats = preview_status(prev_cards, today=today, _db=_db) if prev_cards else {}
+    ja_full, en_ja, ja_en, digital, paper, preview_set, cost = {}, {}, {}, set(), set(), set(), {}
+    rel_state: dict[str, ReleaseState] = {}
+    en_rank: dict[str, tuple[int, bool]] = {}
+
+    def put(key, rank, dg, ja_val, st):
+        if key and (key not in en_rank or (rank, dg) < en_rank[key]):
+            en_rank[key] = (rank, dg)
+            en_ja[key] = ja_val
+            rel_state[key] = st
+
+    for en, ja, dg, enf, enb, jaf, jab, mc, cmc, otext, pv in rows:
+        # 先行収録なのに状態が取れなかった行は今は UPCOMING に倒す
+        st = pstats[en][0] if (pv and en in pstats) else (ReleaseState.UPCOMING if pv else ReleaseState.ORDINARY)
         (digital if dg else paper).update(x for x in (en, enf, enb) if x)
         # マナ・コストの照合用（正式名と表面名の両方から引ける）。軽減条項＝自分のコストが下がる文だけ
         rec = (mc or "", cmc, _reduction_clause(otext or ""))
         cost[en] = rec
         if enf:
             cost.setdefault(enf, rec)
-        en_ja[en] = ja
-        en_ja[enf] = jaf
-        if enb:
-            en_ja.setdefault(enb, jab)
+        # 両面カードで片面（表面）だけ日本語名があるとき（ja=None かつ jaf あり）、正式名 en の完成形も表面の対を使う
+        dg = bool(dg)
+        put(en, 0, dg, ja if ja is not None else jaf, st)
+        put(enf, 1, dg, jaf, st)
+        put(enb, 2, dg, jab, st)
         for j, e in ((ja, en), (jaf, enf), (jab, enb)):
             if j and e:
                 ja_full[j.replace(" ", "")] = j
                 ja_en.setdefault(j, e)
-    # 紙のカードも持つ名前はデジタル専用として扱わない（Arena 専用カードの裏面名 Boltwave が紙の Boltwave を巻き込んでいた）
+    preview_set = {k for k, v in rel_state.items() if v == ReleaseState.UPCOMING}
+    # 紙のカードも持つ名前はデジタル専用として扱わない（Arena 専用カードの裏面名 Boltwave が紙の Boltwave を巻き込む）
     digital -= paper
     # 裸の英語名検出用: 日本語名があり、5 文字以上か空白入り（短い一般語を避ける）
     # 並びは長い順・同じ長さなら名前順（報告の上位 10 件が入れ順で揺れないように）
     en_bare = sorted((e for e, j in en_ja.items() if e and j and (len(e) >= 5 or " " in e)), key=lambda e: (-len(e), e))
-    # 報告専用（書き換えはしない）なので短い名前も拾う。閾値を 4 から 2 へ下げた:
+    # 報告専用（書き換えはしない）なので短い名前（2 字以上）も拾う:
     # 実測で「稲妻を 4 枚」型の答案が拾え、技術文書での誤ヒットは 0 件だった。
     ja_bare = sorted(set(j for j in ja_full.values() if len(j) >= 2 and j not in _JA_STOP), key=lambda j: (-len(j), j))
     return ({"ja": ja_full, "en": en_ja, "ja_en": ja_en, "en_bare": en_bare, "ja_bare": ja_bare,
-             "digital": digital, "cost": cost}, sig)
+             "digital": digital, "preview": preview_set, "rel_state": rel_state, "cost": cost}, sig)
 
 
 def _refresh_if_changed() -> None:
@@ -104,7 +138,7 @@ def _refresh_if_changed() -> None:
             return
         ok = False
         try:
-            sig = tuple(_db(_SIG_SQL, ())[0])
+            sig = _current_sig()
             if sig != _NAMES_SIG:
                 new, new_sig = _build_names()
                 _NAMES, _NAMES_SIG = new, new_sig    # 差し替え。古い辞書は使い終わった読み手から手放される
@@ -205,9 +239,15 @@ def _mana_check(fixed: str, cost: dict) -> list[str]:
         return str(int(cmc)) if cmc is not None and float(cmc).is_integer() else str(cmc)
     mism, notes, ok = [], [], 0
     seen = set()
-    for m in re.finditer(r"《([^《》/]+)/([^《》]+)》", fixed):
-        en = m.group(2).strip()
-        rec = cost.get(en)
+    for m in re.finditer(r"《([^《》]+)》", fixed):
+        inner = m.group(1)
+        ja_disp, en, rec = None, None, None
+        for idx, ch in enumerate(inner):
+            if ch == "/" and inner[:idx].strip():
+                e = inner[idx + 1:].strip()
+                if e in cost:
+                    ja_disp, en, rec = inner[:idx], e, cost[e]
+                    break
         if not rec:
             continue
         mc, cmc, red = rec
@@ -218,7 +258,7 @@ def _mana_check(fixed: str, cost: dict) -> list[str]:
             if sep in left:
                 left = left[left.rfind(sep) + 1:]
         right = fixed[m.end():m.end() + 70]
-        # 右窓も改行で切る（左窓は最初から切っていた）。実戦で出た誤検知 10 件のうち
+        # 右窓も左窓と同じく改行で切る。実戦で出た誤検知 10 件のうち
         # 9 件がこれ——箇条書きの直後の行の数字を最終行のカードが拾う／カーブ表（「1 マナ: 《A》」の
         # 次の行が「2 マナ: 《B》」）で前の行のカードが次の行のラベルと照合される、の 2 型。
         # 行が変われば別の主張、が日本語の書き方の実態に合う。
@@ -227,20 +267,20 @@ def _mana_check(fixed: str, cost: dict) -> list[str]:
                 right = right[:right.find(sep)]
         # 次のカード名の手前で切る。このとき「N マナの《B》」型は、日本語の語順として
         # 数字が助詞「の」で**後ろの名前に係る**＝B の主張なので、手前の A の窓から外す
-        # （追加分。右窓を改行で切っただけでは、同じ行で読点がつながる
-        # 「《A》は悪くないが、6 マナの《B》のほうが強い」で A が 6 マナと報告されていた。
+        # （右窓を改行で切るだけでは、同じ行で読点がつながる
+        # 「《A》は悪くないが、6 マナの《B》のほうが強い」で A が 6 マナと報告される。
         # 一つの数字が A と B の両方に配られ、A 側だけが食い違いになる形）。
         i = right.find("《")
         if i >= 0:
             right = re.sub(r"\d+\s*マナ\s*(?:の|な)?\s*$", "", right[:i])
         window = left + "《》" + right
         # 範囲表記「N から M マナ」（〜・~・- も）は、両端のどちらに当たっても一致とみなす。
-        # 単純に findall すると後ろの M だけ拾って「5 から 6 マナ」を 6 マナの主張と読んでいた。
+        # 単純に findall すると後ろの M だけ拾って「5 から 6 マナ」を 6 マナの主張と読んでしまう。
         rng = {int(b): (int(a), int(b)) for a, b in
                re.findall(r"(\d+)\s*(?:から|〜|~|–|-|ー)\s*(\d+)\s*マナ", window)}
         # 「N マナを加える／生み出す」は生み出す量、「N マナ分」は別の数量＝コストの主張ではない
-        # （答案の「《金粉の水蓮/Gilded Lotus》は 3 マナを加える。」が
-        # CMC 5 に対する食い違いとして誤報されていた）。数字ごとに直後の語で判定する。
+        # （これを見ないと《金粉の水蓮/Gilded Lotus》は 3 マナを加える。が
+        # CMC 5 に対する食い違いとして誤報される）。数字ごとに直後の語で判定する。
         claims = []
         for mm in re.finditer(r"(\d+)\s*マナ", window):
             if re.match(r"\s*(?:を|が|も)?\s*(?:加え|足せ|足し|生み|生む|出せ|出る|出し|得|分|増や)",
@@ -261,24 +301,24 @@ def _mana_check(fixed: str, cost: dict) -> list[str]:
                 if float(cmc).is_integer() and lo <= int(cmc) <= hi:
                     ok += 1
                 elif soft:
-                    notes.append(f"  - 《{m.group(1)}/{en}》: DB は {mc or '（コスト無し）'}（{_fmt(cmc)} マナ）・答案は {val} マナ"
+                    notes.append(f"  - 《{ja_disp}/{en}》: DB は {mc or '（コスト無し）'}（{_fmt(cmc)} マナ）・答案は {val} マナ"
                                  + (f"＝軽減条項あり「{red}」（軽減後の数字は答案側で確かめる）" if red else "（軽減・実質の文なので判定しない）"))
                 else:
-                    mism.append(f"  - 《{m.group(1)}/{en}》: DB では {mc or '（コスト無し）'}（{_fmt(cmc)} マナ）・答案は {val} マナ")
+                    mism.append(f"  - 《{ja_disp}/{en}》: DB では {mc or '（コスト無し）'}（{_fmt(cmc)} マナ）・答案は {val} マナ")
             else:
                 if not mc:
                     continue
                 if val == mc.replace(" ", ""):
                     ok += 1
                 elif soft:
-                    # 記号側にも軽減の判定を効かせる（マナ側にはあったのに抜けていた）。
-                    # 実戦では軽減量を波括弧で書いた「コストが {2} 少なくなる」をコスト主張と読み、
-                    # 同じ答案に「軽減条項があるので判定しない」という注意も並んで出ていた。
-                    notes.append(f"  - 《{m.group(1)}/{en}》: DB は {mc}・答案は {val}"
+                    # 記号側にもマナ側と同じ軽減の判定を効かせる。
+                    # 軽減量を波括弧で書いた「コストが {2} 少なくなる」をコスト主張と読むと、
+                    # 同じ答案に「軽減条項があるので判定しない」という注意も並んで出てしまう。
+                    notes.append(f"  - 《{ja_disp}/{en}》: DB は {mc}・答案は {val}"
                                  + (f"＝軽減条項あり「{red}」（軽減後の数字は答案側で確かめる）" if red
                                     else "（軽減・実質の文なので判定しない）"))
                 else:
-                    mism.append(f"  - 《{m.group(1)}/{en}》: DB では {mc}・答案は {val}")
+                    mism.append(f"  - 《{ja_disp}/{en}》: DB では {mc}・答案は {val}")
     lines = []
     if mism:
         lines.append(f"マナ・コストの食い違い {len(mism)} 件（DB の mana_cost/cmc と答案の数字が合わない＝DB に合わせて直すこと）:")
@@ -316,8 +356,8 @@ def verify_answer(text: str) -> str:
                 f"{int(_NAMES_RETRY_SEC)} 秒ほど待ってから同じ呼び出しをもう一度試してください。")
     ja_full, en_ja, ja_en = N["ja"], N["en"], N["ja_en"]
     # 二重・三重の囲み《《X》》は照合の**前に**畳む。
-    # 以前は末尾でだけ畳んでいたため、抽出の正規表現 [^》]+ が開き括弧を中身に含めて
-    # 《稲妻 を拾い、(1)「未確認 1 件」と誤報し (2) 修正版も《稲妻》止まりで完成形に上がらなかった。
+    # 末尾でだけ畳むと、抽出の正規表現 [^》]+ が開き括弧を中身に含めて
+    # 《稲妻 を拾い、(1)「未確認 1 件」と誤報し (2) 修正版も《稲妻》止まりで完成形に上がらない。
     # 抽出側の [^《》]+ と合わせて二重（三重以上も）の囲みを掟の内側に戻す。
     n_collapse = 0
     while True:
@@ -337,12 +377,22 @@ def verify_answer(text: str) -> str:
             return _disp(ja.split(" // ")[0], en.split(" // ")[0])
         return _disp(ja, en.split(" // ")[0] if " // " in en else en)
     def _noja(en):
-        return face_display(en, None, en in N.get("digital", ()))
+        st = N.get("rel_state", {}).get(en)
+        if st is None and en in N.get("preview", ()):
+            st = ReleaseState.UPCOMING
+        disp_en = en.split(" // ")[0] if " // " in en else en
+        return face_display(
+            disp_en,
+            None,
+            en in N.get("digital", ()),
+            st == ReleaseState.UPCOMING,
+            awaiting_upstream=(st == ReleaseState.AWAITING_UPSTREAM),
+        )
     def _sub_bracket(s, inner, repl):
         """《 inner 》を repl に置き換える。囲みの内側の空白を許す。
 
         中身は strip して照合しているので、《 Lightning Bolt 》のように空白があると
-        str.replace が一致せず、**数えたのに直っていない**状態になっていた
+        str.replace が一致せず、**数えたのに直っていない**状態になる
         （「機械修正 1 箇所」と報告しつつ本文は空白入りのまま）。
         """
         return re.sub(r"《\s*" + re.escape(inner) + r"\s*》", repl.replace("\\", "\\\\"), s)
@@ -355,18 +405,8 @@ def verify_answer(text: str) -> str:
     # (1) 《》の中身
     for b in dict.fromkeys(x.strip() for x in brackets):
         key = b.replace(" ", "")
-        if "/" in b and " // " not in b:                # 《日本語名/英語名》の完成形＝両半分が対で一致して初めて合格
-            jpart, epart = b.split("/", 1)
-            jkey, ekey = jpart.strip().replace(" ", ""), epart.strip()
-            true_ja = en_ja.get(ekey)
-            if true_ja is not None and jkey in (true_ja.replace(" ", ""), true_ja.split(" // ")[0].replace(" ", "")):
-                continue
-            if ekey in en_ja:                           # 英語半分は正しい・日本語半分が違う（記憶の訳）→ 正しい完成形を第一候補に
-                cand = _pair(true_ja, ekey) if true_ja else _noja(ekey)
-                unknown.append((b, [cand])); continue
-            if jkey in ja_full:                         # 日本語半分は正しい・英語半分が違う
-                unknown.append((b, [ja_full[jkey]])); continue
-            unknown.append((b, [])); continue            # 両方 DB に無い（カード自体が未収録 or 創作）
+        # 単一の名前（《日本語名》・《英語名》）を先に引く。《ペニーが操縦するSP//dr》や《Summon: Choco/Mog》のように
+        # カード名自体に「/」を含むものを、下の完成形《日本語名/英語名》の分割に誤って落とさないため。
         if key in ja_full:                             # 《日本語名》だけ → 完成形へ（同じ粒度の英語と組む）
             ja_name = ja_full[key]
             en_name = ja_en.get(ja_name)
@@ -380,12 +420,29 @@ def verify_answer(text: str) -> str:
                 new = _sub_bracket(fixed, b, _pair(ja, b))
                 n_fix += (new != fixed); fixed = new
             continue                                   # 日本語版なしの英語名はそのまま
+        if "/" in b and " // " not in b:                # 《日本語名/英語名》の完成形＝両半分が対で一致して初めて合格
+            # カード名自体が「/」を含む場合（SP//dr・Summon: Choco/Mog 等）に備え、すべての「/」位置を境界候補として検査する
+            splits = [(b[:i].strip().replace(" ", ""), b[i + 1:].strip())
+                      for i, ch in enumerate(b) if ch == "/"]
+            if any((t := en_ja.get(ek)) is not None
+                   and jk in (t.replace(" ", ""), t.split(" // ")[0].replace(" ", ""))
+                   for jk, ek in splits):
+                continue
+            ek_hit = next((ek for _, ek in splits if ek in en_ja), None)
+            if ek_hit is not None:                      # 英語半分は正しい・日本語半分が違う（記憶の訳）→ 正しい完成形を第一候補に
+                true_ja = en_ja[ek_hit]
+                cand = _pair(true_ja, ek_hit) if true_ja else _noja(ek_hit)
+                unknown.append((b, [cand])); continue
+            jk_hit = next((jk for jk, _ in reversed(splits) if jk in ja_full), None)
+            if jk_hit is not None:                      # 日本語半分は正しい・英語半分が違う
+                unknown.append((b, [ja_full[jk_hit]])); continue
+            unknown.append((b, [])); continue            # 両方 DB に無い（カード自体が未収録 or 創作）
         # DB に無い: 近い正式名を候補として添える（添えられた英語名があればそれが第一候補）
         cands = []
         e = en_after.get(b)
         if e and e in en_ja:
             cands.append(en_ja[e] or _noja(e))
-        # 閾値 0.35（0.25 から上げた）。実測: 「カード名」→「カー砦」0.286 という
+        # 閾値 0.35（0.25 では低すぎる）。実測: 「カード名」→「カー砦」0.286 という
         # ひな形への誤候補が出ていた一方、正当な誤字は「氷巻きの偵察」→「水巻きの偵察」0.400・
         # 「太陽の指輪」→「太陽の指環」0.500 で、その間に線が引ける。候補が消えても
         # 「未確認」の報告自体は残る＝答案側は search_mtg_cards で引ける（取り逃しは無害）。
@@ -414,18 +471,17 @@ def verify_answer(text: str) -> str:
         return "".join(out)
     # (3) 裸のカード名（日本語・英語とも）は **報告だけ**。書き換えない。
     #
-    # 経緯: もとは「4 文字以上でストップリストに無い」日本語名 31,011 語を無条件に置換していた。
-    # カード名と同形の一般語が漢字 4〜5 字だけで 1,169 語あり、「決定的瞬間」「環境科学者」が
-    # 完成形に化けた＝**存在しないカードへの言及を答案に注入する**事故。そこで
-    # 「答案が《》で言及済みの名前だけ直す」へ絞ったが、レビューで**それでも壊れる**
-    # ことが分かった——日本語には単語の区切りが無いので、《島/Island》を書いた答案では
-    # 「島国」の「島」まで置換される。英語側も単語境界はあるが一般語と同形のカード名
-    # （Consider・Island 等）で同型の事故が起きる（「Consider this option.」が壊れた）。
+    # 理由: 「4 文字以上でストップリストに無い」日本語名 31,011 語を無条件に置換すると、
+    # カード名と同形の一般語（漢字 4〜5 字だけで 1,169 語）の「決定的瞬間」「環境科学者」が
+    # 完成形に化ける＝**存在しないカードへの言及を答案に注入する**事故になる。
+    # 「答案が《》で言及済みの名前だけ直す」へ絞ってもなお壊れる——日本語には単語の区切りが無いので、
+    # 《島/Island》を書いた答案では「島国」の「島」まで置換される。英語側も単語境界はあるが
+    # 一般語と同形のカード名（Consider・Island 等）で同型の事故が起きる（「Consider this option.」が壊れる）。
     #
-    # 「その語がカード名として使われているか」は機械では決められない。掟の
+    # 「その語がカード名として使われているか」は機械では決められない。設計方針の
     # 「誤発動＝有害・取り逃し＝無害」「誤発動ゼロを試験で縫えないものは入れない」に従い、
     # **裸の名前には一切触れず、見つけたことだけを知らせる**。答案側は誤りなら無視でき、
-    # 本物なら完成形に直せる。《》の中の置換（宣言がある）は従来どおり続ける。
+    # 本物なら完成形に直せる。《》の中の置換（宣言がある）は行う。
     bare = []                       # (裸で出ていた語, 完成形) の対。日本語・英語とも
     for j in N["ja_bare"]:
         if j not in fixed:
@@ -440,7 +496,7 @@ def verify_answer(text: str) -> str:
         if _outside(pat, "\x00", fixed) != fixed:
             bare.append((e, _pair(en_ja[e], e)))
     # 完成形《ja/en》の直後に重複の（en）が残っていれば削る
-    fixed = re.sub(r"(《[^》/]+/([^》]+)》)\s*[（(]\2[）)]", r"\1", fixed)
+    fixed = re.sub(r"(《[^《》]+/([^《》]+)》)\s*[（(]\2[）)]", r"\1", fixed)
     # 機械修正の途中で二重に囲んだ箇所（《《X》》）が生じていれば戻す（入口の畳みで残った分の保険）
     fixed = re.sub(r"《《([^《》]+)》》", r"《\1》", fixed)
     lines = []

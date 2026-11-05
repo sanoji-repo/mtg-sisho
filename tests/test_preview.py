@@ -48,3 +48,56 @@ def test_preview_notes_empty_skips_db(monkeypatch):
         raise AssertionError("空の入力で DB を叩いた")
     monkeypatch.setattr(preview, "_db", boom)
     assert preview.preview_notes([]) == {}
+
+
+def test_apply_preview_to_cards_awaiting_upstream_does_not_say_upcoming(monkeypatch):
+    """発売日を過ぎた先行収録カード（AWAITING_UPSTREAM）は、cards 表示でも『発売前』と言わない。"""
+    from datetime import date as _d
+
+    monkeypatch.setattr(
+        preview,
+        "_db",
+        lambda sql, params, lane=None: [("X", "fra", "Reality Fracture", _d(2000, 1, 1), "expansion")],
+    )
+    cards = [
+        {
+            "card_name": "X",
+            "japanese_name": None,
+            "name_display": "X（日本語名は未収録・発売前）",
+            "faces": [{"en": "X", "ja": None, "display": "X（日本語版なし）"}],
+        }
+    ]
+    preview.apply_preview_to_cards(cards, today=_d(2026, 10, 30))
+    assert "発売前" not in cards[0]["preview_note"] and "反映待ち" in cards[0]["preview_note"]
+    assert "発売前" not in cards[0]["name_display"] and "日本語版なし" not in cards[0]["name_display"]
+    assert cards[0]["name_display"] == "X（日本語名未収録）"
+    assert cards[0]["faces"][0]["display"] == "X（日本語名未収録）"
+    assert "発売前" not in cards[0]["name_note"] and "反映待ち" in cards[0]["name_note"]
+
+
+def test_apply_preview_to_cards_preserves_partial_dfc_japanese_front(monkeypatch):
+    """片面（表面）だけ日本語名がある両面カード（japanese_name=None, faces[0]['ja'] あり）の表面日本語名を消さない。"""
+    from datetime import date as _d
+
+    monkeypatch.setattr(
+        preview,
+        "_db",
+        lambda sql, params, lane=None: [("Front // Back", "fra", "Reality Fracture", _d(2099, 1, 1), "expansion")],
+    )
+    cards = [
+        {
+            "card_name": "Front // Back",
+            "japanese_name": None,
+            "name_display": "《表訳/Front》",
+            "faces": [
+                {"en": "Front", "ja": "表訳", "display": "《表訳/Front》"},
+                {"en": "Back", "ja": None, "display": "Back（日本語版なし）"},
+            ],
+        }
+    ]
+    preview.apply_preview_to_cards(cards, today=_d(2026, 10, 30))
+    assert cards[0]["name_display"] == "《表訳/Front》"
+    assert cards[0]["faces"][0]["display"] == "《表訳/Front》"
+    assert cards[0]["faces"][1]["display"] == "Back（日本語名は未収録・発売前）"
+    # 表面の訳はあるので「日本語名は未収録」と全体を言わない。訳の無い裏面だけを名指しする（訳名を作らせない）
+    assert cards[0]["name_note"].startswith("裏面の日本語名は未収録（発売前）")

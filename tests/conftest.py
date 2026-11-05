@@ -41,19 +41,33 @@ def is_db_available() -> bool:
 
 
 DB_AVAILABLE = is_db_available()
-requires_db = pytest.mark.skipif(
-    not DB_AVAILABLE,
-    reason="PostgreSQL データベースに接続できないためスキップ（DB 稼働・認証が必要）",
-)
+
+# MTG_REQUIRE_DB=1 のとき、DB に繋がらないことを「飛ばし」でなく「失敗」にする
+# （DB の要る試験が黙って全部飛んで、緑に見えるのを防ぐ口）。既定（未設定）では飛ばす。
+REQUIRE_DB = os.environ.get("MTG_REQUIRE_DB", "").strip() == "1"
+
+
+@pytest.fixture
+def _db_must_connect():
+    pytest.fail("MTG_REQUIRE_DB=1 なのに PostgreSQL に接続できません（DB 稼働・認証を確認）", pytrace=False)
+
+
+if REQUIRE_DB and not DB_AVAILABLE:
+    # usefixtures の印は pytestmark にも @ にも使える。fixture の側で落とす
+    requires_db = pytest.mark.usefixtures("_db_must_connect")
+else:
+    requires_db = pytest.mark.skipif(
+        not DB_AVAILABLE,
+        reason="PostgreSQL データベースに接続できないためスキップ（DB 稼働・認証が必要）",
+    )
 
 
 @pytest.fixture(autouse=True)
 def isolate_tool_log(tmp_path, monkeypatch):
     """道具ログを試験ごとの tmp_path へ逃がす。
 
-    試験は道具を実呼びするので、既定の出力先（リポジトリ直下 logs/mcp_tools.log・
-    開発側では /mnt/mtg_rag/logs/mcp_tools.log）に試験由来の行が混ざる実害があった
-    sisho.toollog.TOOL_LOG は import 時に環境変数を読んで固定される
+    試験は道具を実呼びするので、既定の出力先（リポジトリ直下 logs/mcp_tools.log）に試験由来の行が
+    混ざる。sisho.toollog.TOOL_LOG は import 時に環境変数を読んで固定される
     ので、環境変数だけでなくモジュール属性そのものを差し替える。
     """
     log = tmp_path / "mcp_tools.log"

@@ -24,6 +24,7 @@ Sisho を自分の PostgreSQL と Python で動かす手順。
 
 新しいセットのカードは、夜間の脚本 `sh/nightly_cron_driver.sh` から毎日呼ばれる `src/daily_set_watch.py` が Scryfall から取り込む（発売前のセットと、発売直後に日本語名が欠けているカードも報告する）。
 ※ `mtg_probability` などの確率計算を利用する場合は、DB 構築後に `sql/prob_functions.sql` を PostgreSQL に投入する必要がある。
+※ 共起から相方を読む SQL 関数 `mtg_card_partners`（開発側の分析用・重い）を使う場合は、`sql/partner_functions.sql` も投入する。公開サーバーには入れない。
 
 ## 定期運用・更新
 

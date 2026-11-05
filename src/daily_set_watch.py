@@ -9,11 +9,12 @@ daily_set_watch.py — Scryfall・17lands の毎日監視
   2. /sets 報告（1 コール）: 45 日以内に発売が来るセットの接近と card_count、
      21 日以内に発売済みセットの日本語名の欠けを報告。
   3. 17lands 見張り: 候補セット（expansion 等・発売 -7〜+90 日）の PremierDraft ファイルを
-     S3 に HEAD。未取り込みで現れていたら sh/17lands_premier_sets.tsv に行を足して
+     S3 に HEAD。未取り込みで現れていたら 17Lands のセット一覧（状態の置き場の 17lands_premier_sets.tsv・
+     L17_LIST で変えられる）に行を足して
      sh/lab17_import_sets.sh <CODE> で初回の取り込み（DB に居るセットはスクリプト側が skip＝冪等）。
      取り込み済みセットのファイル更新（シーズン中は成長する）は報告だけ＝再取り込みは手で判断。
 
-ログ: logs/set_watch.log（このファイル自身の観測）。夜間ドライバから呼ぶときは標準出力も別ログへ渡す。
+ログ: <LOG_DIR>/set_watch.log（既定 logs/・このファイル自身の観測）。状態: <STATE_DIR>/daily_set_watch_state.json（既定 state/）。夜間ドライバから呼ぶときは標準出力も別ログへ渡す。
 使い方: python src/daily_set_watch.py [--dry-run]（--dry-run は同期と取り込みをしない）
 """
 
@@ -21,6 +22,7 @@ import argparse
 import gzip
 import json
 import os
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -29,9 +31,15 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-STATE = REPO / "state" / "daily_set_watch_state.json"
-TSV17 = REPO / "sh" / "17lands_premier_sets.tsv"
-WATCH_LOG = REPO / "logs" / "set_watch.log"
+# 状態とログの置き場（既定はリポジトリの中・別の置き場で動かすときは入口が STATE_DIR・LOG_DIR を渡す）
+STATE_DIR = Path(os.environ.get("STATE_DIR") or REPO / "state")
+LOG_DIR = Path(os.environ.get("LOG_DIR") or REPO / "logs")
+STATE = STATE_DIR / "daily_set_watch_state.json"
+# 17Lands のセット一覧の正本は状態の置き場の物（ここで書き足す・sh/lab17_import_sets.sh も同じ物を読む）。
+# リポジトリの sh/17lands_premier_sets.tsv は初めて作るときの見本。
+TSV17 = Path(os.environ.get("L17_LIST") or STATE_DIR / "17lands_premier_sets.tsv")
+TSV17_SEED = REPO / "sh" / "17lands_premier_sets.tsv"
+WATCH_LOG = LOG_DIR / "set_watch.log"
 CACHE = Path.home() / ".cache" / "mtg_sisho"
 PYTHON = sys.executable
 UA = "mtg-sisho set-watch/1.0 (educational project; contact via GitHub)"
@@ -204,12 +212,18 @@ def main():
         else:
             log_line(f"17lands に出現: {code}（{lm}・{size/1e6:.0f} MB）→ 初回の取り込み")
             if not args.dry_run:
+                if not TSV17.exists():
+                    # 一時のファイルに写してから入れ替える（書きかけの一覧を正本として残さない・失敗は例外で止まる）
+                    TSV17.parent.mkdir(parents=True, exist_ok=True)
+                    tmp = TSV17.with_name(f"{TSV17.name}.tmp.{os.getpid()}")
+                    shutil.copyfile(TSV17_SEED, tmp)
+                    os.replace(tmp, TSV17)
                 if not any(f"\t{gurl}" in l or l.endswith(gurl)
                            for l in TSV17.read_text(encoding="utf-8").splitlines()):
                     with open(TSV17, "a", encoding="utf-8") as f:
                         f.write(f"{x['name']}\t{lm}\t{durl}\t{gurl}\n")
                 rc = subprocess.run(["bash", str(REPO / "sh" / "lab17_import_sets.sh"), code],
-                                    env={**os.environ, "PYBIN": PYTHON}).returncode
+                                    env={**os.environ, "PYBIN": PYTHON, "L17_LIST": str(TSV17)}).returncode
                 log_line(f"lab17_import_sets {code} 完了 rc={rc}")
                 if rc == 0:
                     st17[code] = {"imported_lm": lm}

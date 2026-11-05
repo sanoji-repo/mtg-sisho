@@ -35,6 +35,9 @@ def test_resolve_draft_set():
         ("Secrets of Strixhaven", "SOS"),
         ("#Limited SOS", "SOS"),
         ("SOS 2", "" if m._resolve_draft_set("SOS 2") is None else "SOS"),
+        ("the", None),
+        ("of", None),
+        ("Innistrad", None),
         ("XYZ", None),
         ("Cube", None),
         ("", None),
@@ -76,4 +79,4 @@ def test_search_mtg_cards_draft_set():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    raise SystemExit(pytest.main([__file__, "-v", *sys.argv[1:]]))

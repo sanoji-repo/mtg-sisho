@@ -14,91 +14,20 @@
   返すのは「指定セットの 17Lands 統計行の有無」という実測できる事実だけにする。
 - 統計は db_card_name で結ぶ。生の card_name で救済すると、名前の対応が未確認の行を
   検証済みの事実として返してしまう。
-- DB の例外を不在に丸めない。統計取得が主目的なので、障害を「統計が無い」と誤報しない。
+- DB の例外を不在に丸めない。統計取得が主目的なので、障害を「統計が無い」と誤報しない
+  （sisho.limited の _resolve_draft_set は propagate_db_error=True で呼び、fetch_pack_stats は DB の例外を送出する）。
 """
-import difflib
 import os
-import re
-import unicodedata
 
 from sisho import errors
 from sisho.db import LANE_LIGHT, _db
+from sisho.limited import _archetype_lines, _resolve_draft_set, _sets_line, fetch_pack_stats
+from sisho.names import _POOL_MIN_SCORE, _POOL_STRONG, _pool_score, name_rank, trgm_display_candidates
 from sisho.toollog import _log_tool
 
 MAX_CARDS = int(os.environ.get("MCP_DRAFT_PACK_MAX", "20"))
 _FUZZY_CANDIDATES = 3          # 完全一致しなかった名前に添える候補の上限
 _SMALL_SAMPLE = 500            # これ未満の母数は数字がぶれる（実測: 標準偏差が 4.5 倍）
-_POOL_MIN_SCORE = 0.5          # セットの中の候補に出す点の下限（下の _pool_score）
-_POOL_STRONG = 0.85            # これ以上が強い候補。セットの中に強い候補が無ければ DB 全体も見る
-
-# 名前を比べる前に落とす文字（空白・句読点・括弧・記号）。画像から読んだ名前はカンマや中黒が抜けやすい
-_NAME_NOISE = re.compile(r"[\s,、・'’\"\-‐–—.:：/!！?？()（）「」『』《》]+")
-
-
-def _norm_name(s: str | None) -> str:
-    """比べるための名前（NFKC・小文字・空白と記号を落とす）。"""
-    return _NAME_NOISE.sub("", unicodedata.normalize("NFKC", s or "").lower())
-
-
-def _words(s: str) -> list[str]:
-    return re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKC", s or "").lower())
-
-
-def _has_run(words: list[str], run: list[str]) -> bool:
-    """run が words の中に、単語の切れ目を保ったまま続けて現れるか。"""
-    n = len(run)
-    return n > 0 and any(words[i:i + n] == run for i in range(len(words) - n + 1))
-
-
-def _pool_score(key: str, names: list[str]) -> float:
-    """入力 key とそのカードの名前たち（英語名・日本語名・面の名前）の近さ（0〜1）。
-
-    実際のドラフトでの実測: 画像から読んだ名前のかけら（「いたずら屋」・「眠り いざない」・
-    カンマ抜けの「Greta Sweettooth Scourge」）が、pg_trgm の similarity > 0.3 ではセットの中で拾えなかった
-    （短いかけらと長い名前は全体どうしの似かたが低く出る）。セットのカードは数百枚なので Python で比べる:
-      1.0  空白と記号を落とすと同じ
-      0.9  入力が名前の一部（2 文字以上）
-      0.85 名前が入力の一部（読み取りで余計な字が付いた）
-      0.5〜0.8 空白で区切ったかけらのうち、名前に含まれる割合
-      それ以外は文字列の似かた（difflib の ratio）
-    候補は「未確認・完全一致ではない」として返すだけで、勝手に置き換えない（誤発動は有害の非対称）。
-
-    英語の一部一致は単語の切れ目で見る（「the」が「hear*th e*lemental」に
-    当たっていた）。記号を落として 3 文字以下の短い入力は、名前の一部のときだけ弱い候補（0.6）にして、
-    似かたの点では拾わない（「火花」が 1 字だけ共通の《苦花》に 0.5 で当たっていた）。
-    """
-    kn = _norm_name(key)
-    if not kn:
-        return 0.0
-    short = len(kn) <= 3
-    ascii_key = kn.isascii()
-    kwords = _words(key) if ascii_key else []
-    toks = ([w for w in kwords if len(w) >= 2] if ascii_key
-            else [t for t in (_norm_name(x) for x in key.split()) if len(t) >= 2])
-    best = 0.0
-    for name in names:
-        nn = _norm_name(name)
-        if not nn:
-            continue
-        if kn == nn:
-            return 1.0
-        nwords = _words(name) if ascii_key else []
-        inside = _has_run(nwords, kwords) if ascii_key else (len(kn) >= 2 and kn in nn)
-        if inside:
-            best = max(best, 0.6 if short else 0.9)
-            continue
-        if short:
-            continue
-        around = _has_run(kwords, nwords) if ascii_key else (len(nn) >= 2 and nn in kn)
-        if around:
-            best = max(best, 0.85)
-            continue
-        if len(toks) >= 2:
-            frac = sum((t in nwords) if ascii_key else (t in nn) for t in toks) / len(toks)
-            if frac:
-                best = max(best, 0.5 + 0.3 * frac)
-        best = max(best, difflib.SequenceMatcher(None, kn, nn).ratio())
-    return best
 
 _COLS = ("name_display", "rarity", "mana_cost", "type_line",
          "gih_wr", "gih_games", "alsa", "gp_wr", "oh_wr", "gd_wr", "ata")
@@ -118,8 +47,6 @@ DESCRIPTION = (
 def draft_pack_stats(cards: list[str], set: str | None = None) -> str:
     """cards: カード名の一覧（1〜20）。set: セット記号（必須・例 LCI）。"""
     _log_tool("draft_pack_stats", {"cards": cards, "set": set})
-    # 循環輸入を避けるため関数の中で読む（cards.py はこの道具を輸入しない）
-    from sisho.tools.cards import _archetype_lines, _resolve_draft_set, _sets_line
 
     if isinstance(cards, str):          # 1 枚を素の文字列で渡されたときも受ける
         cards = [cards]
@@ -137,18 +64,11 @@ def draft_pack_stats(cards: list[str], set: str | None = None) -> str:
 
     if not set or not str(set).strip():
         return ("セットの指定が必要です: set にドラフトのセット記号を渡してください（例 set=\"LCI\"）。"
-                f"手持ち（新しい順・記号（名前））: {_sets_line()}")
-    code = _resolve_draft_set(set)
+                f"手持ち（新しい順・記号（名前））: {_sets_line(_db=_db)}")
+    code = _resolve_draft_set(set, allow_cube=True, propagate_db_error=True, _db=_db)
     if not code:
-        # _limited_sets() は Cube を除くが、統計は実在する（Cube_-_Powered は 538 行）。
-        # この道具の有効値は「統計表に在る expansion」＝そちらで引き直す。
-        want_code = str(set).strip().lstrip("#").strip()
-        hit = _db("SELECT expansion FROM limited_card_stats"
-                  " WHERE lower(expansion) = lower(%s) LIMIT 1", (want_code,), lane=LANE_LIGHT)
-        code = hit[0][0] if hit else None
-    if not code:
-        return (f"set が不正: 「{set}」は手持ちに無いセットです。"
-                f"手持ち（新しい順・記号（名前））: {_sets_line()}")
+        return (f"set が不正: 「{set}」は手持ちに無いか、名前が複数のセットに当たって 1 つに決まらない。"
+                f"手持ち（新しい順・記号（名前））: {_sets_line(_db=_db)}")
 
     uniq = list(dict.fromkeys(raw))     # 問い合わせだけ重複を除く（返却は入力順を保つ）
 
@@ -169,30 +89,35 @@ def draft_pack_stats(cards: list[str], set: str | None = None) -> str:
         "    OR c.name_en_front = ANY(%s) OR c.name_en_back = ANY(%s)"
         "    OR c.name_ja_back = ANY(%s)",
         (uniq, uniq, uniq, uniq, uniq), lane=LANE_LIGHT)
-    matched: dict[str, bool] = {}   # 注意: 引数名 set が組み込みの set() を隠す＝この関数の中で set() は呼べない
     exact: dict[str, list[dict]] = {}
+    seen_en: dict[str, dict[str, bool]] = {}  # 注意: 引数名 set が組み込みの set() を隠す＝この関数の中で set() は呼べない
 
     def _take(row):
         ja, en, disp, rarity, mana, tline, enf, jaf, enb, jab = row
         card = {"card_name": en, "name_display": disp, "rarity": rarity,
                 "mana_cost": mana, "type_line": tline}
-        # 一致の種類を覚える。「そのカード自身の名前」で当たった候補を、「面の名前」で
-        # 当たった候補より優先する（意図の推測ではなく、名前の種類の優先順位）。
+        # 一致の種類を覚える。「そのカード自身の名前」で当たった候補を、「表面名」→「裏面名」の
+        # 順で優先する（意図の推測ではなく、名前の種類の優先順位）。
         # 面名を対象にした副作用で、ありふれたカードが曖昧になるのを防ぐ。実例:
         # 「Lightning Bolt」は《稲妻/Lightning Bolt》と、裏面がその名前の
         # 《対立の名誉教授/Emeritus of Conflict》の 2 枚に当たる。
+        # 順位の決まり（正式名 0 → 表面名 1 → 裏面名 2）は names.name_rank が持ち主（draft_pool と共有）
         for key in uniq:
-            own = (key.lower() == (en or "").lower()) or (ja is not None and key == ja)
-            face = (any(key.lower() == x.lower() for x in (enf, enb) if x)
-                    or any(key == x for x in (jaf, jab) if x))
-            if own or face:
-                exact.setdefault(key, []).append(dict(card, _own=own))
-                matched[key] = True
+            rank = name_rank(key, en, ja, enf, jaf, enb, jab)
+            if rank is not None:
+                if en in seen_en.setdefault(key, {}):
+                    continue
+                seen_en[key][en] = True
+                exact.setdefault(key, []).append(dict(card, _own=rank == 0, _front=rank <= 1))
 
     for r in rows:
         _take(r)
-    # name_ja_front だけ索引が無い＝外れた名前が残っているときだけ引く（全件 Seq Scan を常用しない）
-    rest = [k for k in uniq if k not in matched]
+    # name_ja_front だけ索引が無い＝正式名（_own）で確定していない非 ASCII 名が残っているときだけ引く（全件 Seq Scan を常用しない）
+    # （第 1 段で別カードの裏面名 jab だけに当たった場合も name_ja_front 側を落とさない）
+    rest = [
+        k for k in uniq
+        if not k.isascii() and not any(c.get("_own") for c in exact.get(k, []))
+    ]
     if rest:
         for r in _db(f"SELECT {cols} FROM mtg_cards_v2 c WHERE c.name_ja_front = ANY(%s)",
                      (rest,)):
@@ -200,18 +125,11 @@ def draft_pack_stats(cards: list[str], set: str | None = None) -> str:
 
     # 2) そのセットの 17Lands 統計（行の有無は「封入されたか」を証明しない＝断定しない）
     want = sorted({c["card_name"] for lst in exact.values() for c in lst})   # 内包表記なので set() を呼ばない
-    stats: dict[str, tuple] = {}
-    if want:
-        for r in _db(
-            "SELECT db_card_name, gih_wr, gih_games, alsa, gp_wr, oh_wr, gd_wr, ata"
-            "  FROM limited_card_stats"
-            " WHERE expansion = %s AND event_type = 'PremierDraft' AND db_card_name = ANY(%s)",
-                (code, want), lane=LANE_LIGHT):
-            stats[r[0]] = r[1:]
+    stats = fetch_pack_stats(code, want, _db=_db)
 
     # 3) 完全一致しなかった名前だけ、プールに閉じた曖昧一致へ回す
     #    （実測: プールで絞ると候補がほぼ一意に落ちる。孤光→弧光のフェニックスは全体 30 候補→プール内 1）
-    #    プールは一度だけ読んで Python で比べる（_pool_score。名前のかけらを拾えるように）
+    #    プールは一度だけ読んで Python で比べる（names._pool_score。名前のかけらも拾えるように）
     fuzzy: dict[str, list[str]] = {}
     elsewhere: dict[str, list[str]] = {}   # 指定セットの統計行は無いが DB には近い名前がある
     ties: dict[str, int] = {}              # 候補の上限で切った所に残った同点の数
@@ -243,18 +161,10 @@ def draft_pack_stats(cards: list[str], set: str | None = None) -> str:
         # セットの中に強い候補が無いときは DB 全体も見る（WOE で「Lightnig Bolt」が
         # セットの中の弱い《石断ちの稲妻》で止まり、DB 全体で一番近い《稲妻/Lightning Bolt》を伝えられなかった）。
         # 「このセットに居ない」と「DB のどこにも無い」は別の事実で、混ぜると実在するカードを「創作の疑い」と誤報する。
-        wide = _db(
-            "SELECT c.name_display FROM mtg_cards_v2 c"
-            " WHERE (c.card_name %% %s OR c.japanese_name %% %s)"
-            "   AND greatest(similarity(c.card_name, %s),"
-            "                similarity(coalesce(c.japanese_name, ''), %s)) > 0.3"
-            " ORDER BY greatest(similarity(c.card_name, %s),"
-            "                   similarity(coalesce(c.japanese_name, ''), %s)) DESC"
-            " LIMIT %s",
-            (key, key, key, key, key, key, _FUZZY_CANDIDATES))
+        wide = trgm_display_candidates(key, _FUZZY_CANDIDATES, _db=_db)
         in_pool = {r[0] for r in pool}
         fuzzy[key] = cand
-        elsewhere[key] = [r[0] for r in wide if r[0] not in in_pool]
+        elsewhere[key] = [d for d in wide if d not in in_pool]
 
     # 4) 入力順のまま、1 入力につき 1 件の結果に振り分ける
     table, unverified, not_in_pool, ambiguous, small = [], [], [], [], []
@@ -272,6 +182,10 @@ def draft_pack_stats(cards: list[str], set: str | None = None) -> str:
         own = [c for c in hits if c.get("_own")]
         if own:                         # 自分の名前で当たった候補があるならそちらだけを見る
             hits = own
+        else:
+            front = [c for c in hits if c.get("_front")]
+            if front:                   # 表面名で当たった候補があるなら裏面一致より優先する
+                hits = front
         if len(hits) > 1:               # それでも複数なら自動で選ばない（客にしか分からない）
             ambiguous.append((key, [(c["name_display"], c["card_name"] in stats) for c in hits]))
             continue
@@ -307,7 +221,7 @@ def draft_pack_stats(cards: list[str], set: str | None = None) -> str:
         out.append(tail)
     out.append("")
     out.append(_LEGEND)
-    out.append(_archetype_lines(code))
+    out.append(_archetype_lines(code, _db=_db))
     return "\n".join(x for x in out if x is not None)
 
 

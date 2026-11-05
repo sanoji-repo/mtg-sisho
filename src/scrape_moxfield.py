@@ -2,8 +2,8 @@
 scrape_moxfield.py — Moxfield 公開デッキスクレイパー（多人数 EDH 向け）
 ====================================================================
 Moxfield は private API（無文書・無保証・予告なく変更されうる）。
-Moxfield の運営担当者から
-専用 User-Agent を条件付きで発行された（非営利・1req/sec厳守・UA秘密保持）。
+Moxfield の運営から専用 User-Agent を条件付きで発行されている
+（非営利・1req/sec 厳守・UA の値は非公開・ユーザー名が公開側に出ないこと）。
 
 このスクリプトの根拠は Moxfield 公式ドキュメントではなく、
 コミュニティによる非公式リバースエンジニアリング（spoved/moxfield.cr 等）を
@@ -42,8 +42,11 @@ design note（実測で確定した点）:
     を使う。デッキが Commander の singleton legal 建築（100枚・禁止カード無し等）
     を満たすかの構造化フラグ＝「crisp な属性は厳格に」の一族。
   - tournament_name/tournament_date/placement は Moxfield に対応概念が無い
-    ため NULL のまま（不在は NULL・番兵にしない）。デッキ投稿者の名前は
-    取り込まない（DATA_MODEL.md を参照）。
+    ため NULL のまま（不在は NULL・番兵にしない）。デッキ投稿者の名前（createdByUser.userName）は
+    引き当ての口（src/player_hook.py）にだけ渡す。口が空（公開の既定）なら読んだその場で捨てる。
+    Moxfield の利用の条件（ユーザー名が出ないこと）により、公開側には名前も player_id も残さない
+    （名前と ID の対応表は開発側だけに置く・DATA_MODEL.md を参照）。
+    Moxfield 由来の行の source_url・deck_name を公開側で落とす仕組みは別（sh/restore_public_dump.sh・公開サーバー側の洗浄トリガ）。
   - archetype 列（MTGTop8 の大会公式アーキタイプ名）に相当する概念が無い
     ので NULL のまま。hub_names は捨てず raw JSON ログにだけ残す（列は作らない）。
   - **bracket は deck_list に新規列として保存**（verify_schema で在ることを確かめる・列を作るのは移行側。
@@ -70,6 +73,7 @@ import psycopg2.extras
 import requests
 
 from db_config import DB_CONFIG, connect_scrape, read_cursor
+import player_hook
 
 API_SCHEME = "https"
 API_HOST = "api2.moxfield.com"
@@ -171,10 +175,10 @@ def search_cards(query: str) -> dict:
 def verify_schema(conn):
     """deck_list に bracket 列が在るか確かめる（足りなければ止める）。
 
-    以前はここで毎回 ALTER TABLE ADD COLUMN IF NOT EXISTS を打っていた。
-    列が既に在っても DDL は対象表の ACCESS EXCLUSIVE を要求するので、他の取り込みが
-    読みのトランザクションを開けたまま HTTP を叩いている間ずっと待ち、ロック待ちは
-    先着順なのでその後ろに INSERT や SELECT まで並ぶ（実測: 一晩の待ち 77.6 分）。
+    毎回 ALTER TABLE ADD COLUMN IF NOT EXISTS を打つと、列が既に在っても DDL は対象表の
+    ACCESS EXCLUSIVE を要求するので、他の取り込みが読みのトランザクションを開けたまま
+    HTTP を叩いている間ずっと待ち、ロック待ちは先着順なのでその後ろに INSERT や SELECT まで
+    並ぶ（実測: 一晩の待ち 77.6 分）。そのため通常運転では在るかどうかだけ確かめる。
     列を作るのは移行の仕事。作ってよいときだけ --migrate を付ける。
     """
     from db_config import migrate_requested, require_columns
@@ -221,24 +225,24 @@ def save_deck(conn, deck_json: dict, bracket: int | None = None, source: str = S
     deck_name = deck_json.get("name") or unique_name
     raw_format = deck_json.get("format")
     format_name = FORMAT_NAMES.get(raw_format, raw_format)
-# 設計判断: この取り込みはプレイヤー名を持たない。deck_list に
-# player_name 列は無く、名前を隔離する players 表は開発側だけに置く。
-# 集めてから捨てるのではなく、最初から取らない。
-# Moxfield の作者名（createdByUser.userName）は取得しない。
+    # 作者名: 引き当ての口（src/player_hook.py）にだけ渡す。口が空（公開の既定）なら名前はその場で捨て、
+    # deck_list に player_id の列も書かない。口が開発側の引き当てを指すときだけ players 表へ・deck_list には
+    # player_id だけ。
+    # Moxfield の利用の条件（ユーザー名が出ないこと）により、公開側には名前も player_id も置かない。
+    author = (deck_json.get("createdByUser") or {}).get("userName")
 
     with conn.cursor() as cur:
+        # 重複のデッキでも引き当ては INSERT の前に済ませる（INSERT の結果で重複と分かるデッキも、引き当てを通る）
+        player_id = player_hook.resolve_player(cur, source, author)
+        cols, vals = player_hook.deck_columns(
+            ["deck_name", "set_code", "source", "tournament_name", "tournament_date",
+             "format_name", "source_url", "tournament_event_id", "archetype", "bracket"],
+            [unique_name, format_name, source, None, None,
+             format_name, source_url, None, None, bracket],
+            player_id)
         cur.execute(
-            """
-            INSERT INTO deck_list
-                (deck_name, set_code, source, tournament_name, tournament_date,
-                 format_name, source_url, tournament_event_id,
-                 archetype, bracket)
-            VALUES (%s, %s, %s, NULL, NULL, %s, %s, NULL, NULL, %s)
-            ON CONFLICT (deck_name) DO NOTHING
-            RETURNING id;
-            """,
-            (unique_name, format_name, source, format_name, source_url, bracket),
-        )
+            f"INSERT INTO deck_list ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))})"
+            " ON CONFLICT (deck_name) DO NOTHING RETURNING id;", vals)
         result = cur.fetchone()
 
     if result is None:

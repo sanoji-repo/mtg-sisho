@@ -4,7 +4,7 @@
 
 共起の表:
 表は card_cooccurrence_v2（組）・card_population_deck_counts（分母 M と S）・cooccurrence_population_stats（N と区間）・
-cooccurrence_populations（フォーマット × 区間の定義）。入口はフォーマット（format）で、旧の scope（構築を混ぜて数えていた）は捨てた。
+cooccurrence_populations（フォーマット × 区間の定義）。入口はフォーマット（format）で、複数のフォーマットを混ぜた集計は持たない。
 区間は「直近 90 日」を先に見て、材料が足りないときだけ「全期間」へ広げ、広げた理由を返り値で言う。
 
 読み取りは SQL 1 文: 区間を選ぶ材料（N・M・S・組の有無）と、両方の区間の相方の上位を
@@ -50,18 +50,8 @@ def _format_of(s) -> str | None:
     return _FORMAT_KEYS.get(str(s or "").strip().lower().replace(" ", "").replace("_", "").replace("-", ""))
 
 
-def _resolve(name: str):
-    """入力を 1 枚のカードに決める。mtgtop8 が書く斜線 1 本の表記（「Fire / Ice」）は、斜線 2 本に直した名前が
-    カードの正式名にちょうど一致するときだけ受ける（旧の版は旧表の鍵で引けていた 18 種）。
-    前半だけで通すことはしない（「Fire / でたらめ」は通さない・names.resolve_card_ex の ` // ` の規則のまま）。"""
-    card, amb = resolve_card_ex(name)
-    if card or amb or " / " not in name or " // " in name:
-        return card, amb
-    full = " // ".join(p.strip() for p in name.split(" / "))
-    c2, _amb2 = resolve_card_ex(full)
-    if c2 and c2["card_name"] == full:
-        return c2, []
-    return None, []
+# 斜線 1 本の表記（「Fire / Ice」）も sisho.names.resolve_card_ex が解決する（rules.py 等と共有）
+_resolve = resolve_card_ex
 
 
 # 1 文で読む。hdr＝区間ごとの見出しの材料・rows＝区間ごとの相方の上位（同居数の順と、頼まれたら lift の順）。
@@ -183,7 +173,7 @@ def find_partner_cards(card_name: str, format: str = "", relation: str = "main",
         return (f"relation='side' は {fmt} には無い（サイドボードの関係は 60 枚の構築の 7 フォーマットだけ・"
                 "統率者戦・デュエル・コマンダー・構築済み製品には作っていない）。relation='main' で呼び直す")
 
-    card, amb = _resolve(name)
+    card, amb = resolve_card_ex(name)
     if amb:
         return f"共起なし: {name}（" + ambiguous_hint(amb) + "）"
     if not card:

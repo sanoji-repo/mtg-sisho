@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Draw 枚数列（draw_count / draw_x）の導出 — 「ドロー族＝行為ベース」の検索側の写し。
 
-
 列の意味（機械的事実の列であって grade ではない）:
 - draw_count int  : そのカードが一回の命令で引かせる最大枚数 N。
-                    「命令形の Draw N card(s)」だけを数える。無ければ NULL（番兵 0 禁止）。
+                    「命令形の Draw N card(s)」だけを数える（例外は前提 6 のキーワード能力）。
+                    無ければ NULL（番兵 0 禁止）。
 - draw_x     bool : 可変枚数ドロー（Draw X / that many / equal to / for each）を
                     持つなら TRUE。無ければ NULL。
 
-前提の明示（design-premise・崩れたら設計者に経路ごと問い直してもらう）:
+前提の明示（崩れたら設計ごと見直す）:
 1. 行為ベース＝命令形のみ。置換文（... would draw ...）の中の draw は数えない
    （Dredge・倍化・概念泥棒は列 NULL。GT の 0/1 は人間採点側の仕事）。誘発の条件節
    （Whenever you draw ...,）は先頭コンマまで落としてから残りを数える（Sheoldred が
-   浮かない・除去の「注釈テキスト除去」の教訓の写し）。注釈（括弧）は先に除去。
+   浮かない・除去の「注釈テキスト除去」の教訓の写し）。注釈（括弧）は先に除去
+   （そのため注釈の中にしか draw が無い能力は前提 6 の形で別に拾う）。
 2. 主語の向き: draw の直前文脈に opponent がいる命令（each/target opponent draws）は
    相手に引かせる行為＝自分のドローでないから数えない（precision 優先）。
    each player draws / target player draws は自分も引ける・自分を選べる＝数える
@@ -21,8 +22,14 @@
    （モードで「2 枚引く」を選べるカードは 2 枚引けると数えるのと同じ考え方＝X=N を選べば引ける）。
 4. 面選定は castable_oracle（face_cmcs / removal と同一規則＝手札から唱えられる面）。
 5. 複数の draw 命令は合算せず max（ETB 1枚＋死亡時 1枚 は「2枚引く」ではない）。
+6. 注釈文（括弧）の中にしか "draw" が無いキーワード能力を 1 枚と数える: Cycling（素の
+   Cycling だけ。Swampcycling などの型サイクリングは土地を探すだけ）・Connive・Recruit・
+   Blitz。能力を持たず言及するだけの文（"cycling abilities you activate cost ..."・
+   "Whenever a creature you control connives, ..."）は数えない。Investigate（手掛かり）は数えない。
+   もっと大きな Draw N が本文にあればそちらの max のまま。
 """
 import re
+import sys
 
 import psycopg2
 from psycopg2.extras import execute_batch
@@ -44,6 +51,15 @@ DRAW_RE = re.compile(
 DRAW_EQUAL_RE = re.compile(r"\bdraws?\s+cards?\s+equal to\b", re.I)
 # 上付き指数の可変（Mathemagics「draws 2ˣ cards」）
 DRAW_SUPER_RE = re.compile(r"\bdraws?\s+\d*[ˣ⁰¹²³⁴⁵⁶⁷⁸⁹]+\s*cards?", re.I)
+# 注釈文の中にしか draw が無いキーワード能力（能力として持つ行だけ。行頭か ', ' / ' // ' の直後で、
+# 直後にコストが続く形。landcycling 類は語頭が違うので掛からない）
+KEYWORD_LINE_RE = re.compile(
+    r"(?:^|\n|,\s*|//\s*)\s*(?:cycling|blitz)(?=\s*(?:\{|—|-|–))", re.I)
+# connive / recruit は命令形の動詞。connives X は可変、connives 2 は 2 枚
+CONNIVE_RE = re.compile(r"\bconnives?(?:\s+(x|\d+))?\b", re.I)
+# recruit は文末の単独の動詞（"..., recruit." / "I — Recruit."）。カード名の一部
+# （Recruit Instructor）には掛けない
+RECRUIT_RE = re.compile(r"(?:^\s*|,\s*|\band\s+|\bthen\s+)recruits?\s*$", re.I)
 # 誘発の条件節（先頭コンマまで）: Whenever you draw a card, → 落とす
 TRIGGER_PREFIX_RE = re.compile(
     r"^\s*(?:whenever|when|as long as)\b[^,]*,", re.I)
@@ -65,6 +81,17 @@ def parse_draw(oracle: str):
             continue
         # 誘発の条件節を落とす（条件の中の draw は行為でない）
         low = TRIGGER_PREFIX_RE.sub('', low)
+        # 注釈文にしか draw が無いキーワード動詞（条件節は上で落としてある）
+        mc = CONNIVE_RE.search(low)
+        if mc:
+            if (mc.group(1) or '') == 'x':
+                has_x = True
+            else:
+                n = int(mc.group(1)) if mc.group(1) else 1
+                if best is None or n > best:
+                    best = n
+        if RECRUIT_RE.search(low) and (best is None or best < 1):
+            best = 1
         for m in DRAW_RE.finditer(low):
             # 主語の向き（前提2）: draw の直前が opponent（each/target/an opponent
             # draws）のときだけ相手のドロー。窓を広くすると「相手が引き、次に
@@ -83,6 +110,9 @@ def parse_draw(oracle: str):
                 best = n
         if DRAW_EQUAL_RE.search(low) or DRAW_SUPER_RE.search(low):
             has_x = True
+    # 能力として持つ Cycling / Blitz（注釈文の中だけに draw がある）
+    if KEYWORD_LINE_RE.search(text.lower()) and (best is None or best < 1):
+        best = 1
     return best, (True if has_x else None)
 
 
@@ -96,25 +126,67 @@ CREATE INDEX IF NOT EXISTS mtg_cards_v2_draw_count_idx
 """
 
 
+def _arg_value(flag, argv=None):
+    """`--flag 値` の値（無ければ None）。argparse を持たない脚本の流儀（migrate_requested と同じ）"""
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if flag in argv:
+        k = argv.index(flag)
+        if k + 1 < len(argv):
+            return argv[k + 1]
+    return None
+
+
+def _draw_diff_summary(changes):
+    """changes = [(id, name, old_count, old_x, new_count, new_x)] → draw_count の変わり方の枚数"""
+    null_to_n = sum(1 for c in changes if c[2] is None and c[4] is not None)
+    n_to_null = sum(1 for c in changes if c[2] is not None and c[4] is None)
+    n_to_m = sum(1 for c in changes if c[2] is not None and c[4] is not None and c[2] != c[4])
+    x_only = sum(1 for c in changes if c[2] == c[4] and c[3] != c[5])
+    print(f"draw_count / draw_x が変わる行: {len(changes)} 件")
+    print(f"  draw_count NULL→N: {null_to_n} 枚 / N→NULL: {n_to_null} 枚 / N→M: {n_to_m} 枚"
+          f" / draw_count は同じで draw_x だけ変わる: {x_only} 枚")
+
+
 def main():
+    dry_run = "--dry-run" in sys.argv[1:]
+    report = _arg_value("--report")
     cfg = get_db_config()
     conn = psycopg2.connect(**cfg)
+    if dry_run:
+        # 書き込まない: 接続そのものを読み取り専用にする（UPDATE・ANALYZE・DDL・索引作成は全て打たない）
+        conn.set_session(readonly=True)
     cur = conn.cursor()
     # 通常運転では DDL を打たない。無ければ --migrate を促して止まる。
     require_columns(conn, "mtg_cards_v2", ("draw_count", "draw_x"), DDL,
-                    migrate=migrate_requested(), label="DDL")
+                    migrate=(migrate_requested() and not dry_run), label="DDL")
 
     # 書き込みは値が変わる行だけ（物理チャーン回避・enrich_removal と同じ流儀）
-    cur.execute("""SELECT id, oracle_text, card_faces_json, draw_count, draw_x
+    cur.execute("""SELECT id, card_name, oracle_text, card_faces_json, draw_count, draw_x
                    FROM mtg_cards_v2""")
     rows = cur.fetchall()
     updates = []
-    for cid, ot, cfj, cur_dc, cur_dx in rows:
+    changes = []
+    for cid, name, ot, cfj, cur_dc, cur_dx in rows:
         dc, dx = parse_draw(castable_oracle(ot, cfj))
         if (dc, dx) == (cur_dc, cur_dx):
             continue
         updates.append((dc, dx, cid))
+        changes.append((cid, name, cur_dc, cur_dx, dc, dx))
     print(f"値が変わる行: {len(updates)} 件（他はスキップ）")
+
+    if dry_run:
+        _draw_diff_summary(changes)
+        if report:
+            with open(report, "w", encoding="utf-8") as f:
+                f.write("id\tcard_name\told_draw_count\told_draw_x\tnew_draw_count\tnew_draw_x\n")
+                for cid, name, odc, odx, ndc, ndx in sorted(changes, key=lambda r: str(r[1])):
+                    f.write("\t".join(['' if v is None else str(v)
+                                        for v in (cid, name or '', odc, odx, ndc, ndx)]) + "\n")
+            print(f"差分を書きました: {report}")
+        conn.rollback()
+        conn.close()
+        return
+
     execute_batch(cur,
                   "UPDATE mtg_cards_v2 SET draw_count=%s, draw_x=%s WHERE id=%s",
                   updates, page_size=1000)

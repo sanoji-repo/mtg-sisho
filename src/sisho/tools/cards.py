@@ -1,16 +1,17 @@
 """cards.py — カード検索の道具 search_mtg_cards。
 
 登録（server.tool）は mcp_server.py 側。ここは DESCRIPTION と素の関数だけを持つ。
-同伴の道具（17Lands 統計・収録セットの解決・色の組み合わせ表）もここに置く
-＝query_mtg_database（sisho/tools/sql.py）が _resolve_draft_set・_archetype_lines を借りる。
+同伴（17Lands 統計・収録セットの解決・in_draft_set・色の組み合わせ表）の持ち主は sisho/limited.py
+（sql.py と draft.py も同じ所から借りる）。
 """
 import json
 import os
 
 from sisho import errors
+from sisho import limited as _limited
 from sisho.db import LANE_LIGHT, _db
 from sisho.names import face_display
-from sisho.preview import preview_notes
+from sisho.preview import apply_preview_to_cards, preview_notes
 from sisho.sets_blurb import _SETS_BLURB, _SETS_HEAD
 from sisho.toollog import _log_tool
 
@@ -22,16 +23,16 @@ ARENA_FORMATS = {"historic", "alchemy", "timeless", "brawl", "standardbrawl", "g
 _CARD_COLS: tuple[str, ...] = (
     "card_name", "japanese_name", "type_line", "mana_cost", "power", "toughness",
     "rarity", "oracle_text", "japanese_oracle_text", "edhrec_rank", "name_display", "digital",
-    # 収録セット。draft_set を渡されたとき「どれがそのセットのカードか」を
-    # 返り値自身に書くために引く（下の _mark_draft_set）。掟「返り値は自己完結」。
+    # 収録セットの一覧（返り値の set_codes＝どのセットに入っているかを客が見る用）。
+    # in_draft_set はこれで判定しない（ドラフトのプールは limited_card_stats だけが正本）。
     # 面の列 4 本は末尾に置いたまま（_row がそこを前提に扱う・test_card_cols が縫っている）。
     "set_codes",
     "name_en_front", "name_en_back", "name_ja_front", "name_ja_back",
 )
 
 # 不明な format の扱い（取り決め: 一意で近いなら直して再検索し返り値に必ず書く／
-# 複数候補なら直さず選ばせる／遠ければ一覧）。以前は legalities->>'modrn' を引くだけだったので、
-# 「そんな鍵は無い」と「その鍵で合法なカードが無い」が同じ「該当なし」に潰れていた。
+# 複数候補なら直さず選ばせる／遠ければ一覧）。legalities->>'modrn' を引くだけだと、
+# 「そんな鍵は無い」と「その鍵で合法なカードが無い」が同じ「該当なし」に潰れるため。
 _FORMATS_CACHE: dict = {"keys": []}
 # 一意判定のしきい値。difflib.SequenceMatcher の比（0〜1）で 0.8。実物（DB の鍵 23 個）で決めた:
 #   打ち間違い（modrn 0.909・standrad 0.875・brwl 0.889・comander 0.941・bralw 0.800・modren 0.833）は
@@ -46,9 +47,9 @@ _FORMAT_CUTOFF = 0.8
 def _valid_formats() -> list[str]:
     """legalities の鍵の一覧（プロセスに 1 回だけ引く）。引けなければ空。
 
-    全 32,730 行の jsonb を展開していた（VM 380ms）。公開サーバーでは
-    軽いレーンの 1 秒も重いレーンの 10 秒も超えて落ち、下の _check_format が「検査できなかった」と
-    言わずに素通ししていた。鍵はカードごとに変わらないので**先頭 100 行で足りる**
+    全 32,730 行の jsonb を展開すると VM で 380ms かかり、公開サーバーでは軽いレーンの 1 秒も
+    重いレーンの 10 秒も超えて落ちる（落ちると下の _check_format は検査できない）。鍵はカードごとに
+    変わらないので**先頭 100 行で足りる**
     （実測: 100 行でも 23 鍵すべて揃う・1.3ms。欠けるのは competitivebrawl を持たない 1 枚だけ
     なので、1 行では不足しうるが 100 行なら他が埋める）。
     線は重いまま（既定）にしてある——プロセスに 1 回しか引かないので、速くなったからといって
@@ -79,8 +80,8 @@ def _check_format(fmt: str) -> tuple[str, str, str | None]:
         return fmt, "", None
     if not valid:
         # 鍵の一覧を引けなかった＝検査できない。通すが黙っては通さない。
-        # 以前はここで素通ししていたので、綴りが違う format が legalities->>'…' に渡り、
-        # 全部 NULL ≠ 'legal' で「該当なし」に見えていた（クライアントには区別がつかない）。
+        # ここで素通しすると、綴りが違う format が legalities->>'…' に渡り、
+        # 全部 NULL ≠ 'legal' で「該当なし」に見える（クライアントには区別がつかない）。
         return fmt, (f"format「{fmt}」は検査できなかった（legalities の鍵の一覧を DB から引けなかった）。"
                      "0 件なら鍵の綴りを疑う"), None
     listing = "・".join(valid)
@@ -121,20 +122,7 @@ DESCRIPTION = (
     "入れると 17Lands の統計と色の組み合わせ表がそのセットの分だけ同伴する（他セットは付かない）。"
     "構築（スタンダード・モダン等）の問いでは入れない。セットが分からないリミテの問いは空のまま＝最新セットの分が付く。"
     + _SETS_BLURB)
-def _mark_draft_set(cards: list[dict], expansion: str) -> None:
-    """各カードに in_draft_set（そのセットに入っているか）を立てる。
-
-    由来: 実地テストで、画像から読んだ曖昧な名前を「聖遺」のような部分文字列で
-    引く使い方が出た。draft_set は **検索を絞らない**（17Lands 統計を添えるセットの指定）ので
-    別セットのカードが EDHREC 人気順に並び、唯一のそのセット収録カードが 5 番目に沈んでいた。
-    返り値に収録セットが無いため、どれがそのセットかを**クライアントが判断できない**状態で、
-    「誤読 → 部分一致 → 複数候補 → もっともらしい 1 枚を選ぶ」の入口になっていた。
-    絞る・並べ替えるのでなく、**事実を足して判断材料を渡す**（列 → 並べ方の順番）。
-    """
-    low = expansion.lower()
-    for c in cards:
-        codes = [str(x).lower() for x in (c.get("set_codes") or [])]
-        c["in_draft_set"] = low in codes
+_mark_draft_set = _limited._mark_draft_set
 
 
 def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, draft_set: str | None = None) -> str:
@@ -180,8 +168,8 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     for t in terms:
         p2 += [f"%{t}%"] * 5
     p2 += ([fmt] if fmt else []) + [top_k]
-    # 外部レビューの提言を実測で置き換えた: 名前ヒットが top_k 件あれば本文ヒットは
-    # 下の詰め合わせで 1 件も使われない（名前を先に詰めて top_k で止まる）＝引かない。出力は不変。
+    # 名前ヒットが top_k 件あれば本文ヒットは
+    # 下の詰め合わせで 1 件も使われない（名前を先に詰めて top_k で止まる）＝引かない。出力は変わらない。
     # 公開サーバーの実引数 187 通りを VM で再生: 本文検索は 1 検索 339ms のうち平均 260ms（77%）で、実運用の
     # 大半は名前引き（top_k 1〜3）。p1 と p2 を 1 文に束ねても仕事量は減らないので、そちらは採らない。
     if len(name_rows) >= top_k:
@@ -194,8 +182,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
 
     keep = _CARD_COLS
     def _row(r: tuple) -> dict:
-        """japanese_name だけは None でも落とさず明示する（指摘:
-        クライアントが Helm of Obedience のような日本語版の無いカードに勝手な訳名を作った。
+        """japanese_name だけは None でも落とさず明示する（クライアントは Helm of Obedience のような日本語版の無いカードに勝手な訳名を作ることがある。
         「無い」を返り値で言わないと、クライアントは無言を「自分で訳してよい」と読む）。"""
         d = {k: v for k, v in zip(keep, r) if v is not None}
         if d.get("japanese_name") is None:
@@ -231,8 +218,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
         if len(cards) >= top_k:
             break
     # 3) 一致ゼロのときだけ、曖昧名（pg_trgm 類似度・しきい値 0.3）で救う。
-    #    実例: 「孤光のフェニックス」（正しくは弓へんの「弧光」・類似度 0.54）。
-    #    旧・名前の直行ルートが持っていた打ち間違い耐性の、SQL 一本での置き換え。
+    #    実例: 「孤光のフェニックス」（正しくは弓へんの「弧光」・類似度 0.54）。打ち間違い耐性を SQL 一本で持たせる。
     route = "simple_match"
     if not cards:
         route = "fuzzy_name"
@@ -255,18 +241,7 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
         cards = [_row(r) for r in fuzzy_rows]
     # 発売前のカード（先行収録）: 発売後に使えるフォーマットを候補ごとに書く
     # （統率者セットの新カードがスタンダードで使えるように読まれないため）。日本語名の無い面は表示も直す。
-    notes = preview_notes([c["card_name"] for c in cards])
-    for c in cards:
-        note = notes.get(c["card_name"])
-        if not note:
-            continue
-        c["preview_note"] = note
-        if c.get("japanese_name") is None:
-            c["name_note"] = "日本語名は未収録（発売前）＝name_display をそのまま使う（訳名を作らない）"
-        for f in c.get("faces", []):
-            f["display"] = face_display(f["en"], f["ja"], False, True)
-        if c.get("matched_face") == "back":
-            c["face_display"] = c["faces"][1]["display"]
+    apply_preview_to_cards(cards)
     if not cards:
         # 「該当なし」は入力の誤りでなく引き当てゼロ＝error_kind を分ける（no_match）。
         # 解釈し直した format は 0 件でも必ず言う（成功時と同じ format_note の鍵で）。
@@ -279,9 +254,12 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     # 17Lands の同伴（速さの道具＝高確率で当たる分だけ付ける）:
     #   draft_set あり → そのセットだけ／不明な記号 → 数字は付けず一覧を返す／なし → 最新 N セット（既定 2）だけ。
     #   それ以外のセットにしか無いカードは、一行の道しるべ（limited_stats_elsewhere）に留める。
-    requested = _resolve_draft_set(draft_set) if draft_set else None
-    if requested:
-        _mark_draft_set(cards, requested)     # どれがそのセットのカードかを候補ごとに書く
+    # セット一覧の照会が落ちたときは「手持ちに無い」と言わない（照会できなかったと言う）
+    sets_unavailable = False
+    try:
+        requested = _resolve_draft_set(draft_set, propagate_db_error=True) if draft_set else None
+    except Exception:
+        requested, sets_unavailable = None, True
     constructed = bool(fmt) and not requested and fmt.lower() not in ("limited", "draft", "sealed")
     if constructed:
         allowed: list[str] = []      # 構築の format 指定（modern 等）はドラフトの問いでない＝同伴なし（道しるべだけ）
@@ -291,16 +269,24 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
         allowed = [requested]
     else:
         allowed = [x["code"] for x in _limited_sets()[:_DRAFT_RECENT_N]]
-    elsewhere = _attach_limited_stats(cards, allowed)
+    elsewhere, _stats_ok = _limited.attach_and_mark_limited(
+        cards, allowed, requested_set=requested, _db=_db
+    )
     archetypes = _limited_archetypes(sorted({s["set"] for c in cards for s in c.get("limited_stats", [])})) if allowed else {}
     out = {"route": route,
            "naming_rule": "name_display（完成形《日本語名/英語名》）を一字も変えずに使う。略称・通称・省略は冗長でも禁止（2 回目以降も）。「英語名（日本語版なし）」「英語名（日本語名未収録）」もそのまま（翻訳禁止・組み立て禁止）",
            "cards": cards}
     if format_note:
         out["format_note"] = format_note
-    if draft_set and not requested:
-        out["draft_set_note"] = (f"draft_set「{draft_set}」は手持ちに無いセット＝数字は付けていない。"
-                                 f"手持ち（新しい順・記号（名前））: {_sets_line()}。正しい記号で呼び直す")
+    if sets_unavailable:
+        out["draft_set_note"] = (f"セットの一覧の照会に失敗したため draft_set「{draft_set}」を確かめられず、"
+                                 "in_draft_set と統計は付けていない（手持ちに無いと判定したわけではない）。少し待って呼び直す")
+    elif draft_set and not requested:
+        out["draft_set_note"] = (f"draft_set「{draft_set}」は手持ちに無いか、名前が複数のセットに当たって 1 つに決まらない"
+                                 f"＝数字は付けていない。手持ち（新しい順・記号（名前））: {_sets_line()}。正しい記号で呼び直す")
+    elif requested and not _stats_ok:
+        out["draft_set_note"] = (f"draft_set「{requested}」の 17Lands 統計の照会に失敗したため、"
+                                 "in_draft_set と統計は付けていない（ドラフト外と判定したわけではない）")
     if elsewhere:
         out["limited_stats_elsewhere"] = elsewhere
         out["limited_stats_elsewhere_note"] = ("これらのカードには別のセットの 17Lands 統計がある（記号のみ列挙）。"
@@ -322,135 +308,31 @@ def search_mtg_cards(query: str, format: str | None = None, top_k: int = 10, dra
     return json.dumps(out, ensure_ascii=False, indent=1)
 
 
+# 以下は sisho.limited への薄い包み。mcp_server.py が m._limited_sets 等として再輸出し（test_draft_set が使う）、
+# cards._db を差し替えた試験がそのまま効くよう _db を渡す＝消さない
+_DRAFT_RECENT_N = _limited._DRAFT_RECENT_N
+_sets_cache = _limited._sets_cache
+
+
 def _attach_limited_stats(cards: list[dict], sets: list[str] | None = None) -> dict[str, list[str]]:
-    """検索結果の各カードに、17Lands 集計（limited_card_stats）があればセット別に同伴する。
-
-    発端: クライアントが SOS のカードの GIH WR を聞かれ、mtg_cards_v2 と information_schema を手探りしたまま
-    表に辿り着かなかった（instructions は claude.ai に届かない＝返り値に載っていないものは無いのと同じ）。
-    行が無いカードにはキーを出さない（不在は無言でなく、クライアントが「無い」と読めるように limited_stats_note で線引き）。
-    表が無い環境（旧 VM 等）では何もしない。
-    sets（記号の一覧）に入るセットの行だけ同伴し、それ以外のセットは card_name→[記号] で返す（道しるべ用）。"""
-    names = [c["card_name"] for c in cards if c.get("card_name")]
-    if not names:
-        return {}
-    try:
-        rows = _db(
-            "SELECT db_card_name, expansion, event_type, gih_games, gih_wr, oh_wr, gd_wr, alsa, ata"
-            " FROM limited_card_stats WHERE db_card_name = ANY(%s)"
-            " ORDER BY db_card_name, expansion", (names,), lane=LANE_LIGHT)
-    except Exception:
-        return {}
-    by: dict[str, list] = {}
-    elsewhere: dict[str, list[str]] = {}
-    for n, ex, ev, g, gih, oh, gd, alsa, ata in rows:
-        if sets is not None and ex not in sets:
-            if not ex.lower().startswith("cube"):
-                elsewhere.setdefault(n, []).append(ex)
-            continue
-        by.setdefault(n, []).append({
-            "set": ex, "event": ev, "gih_games": g,
-            "gih_wr": float(gih) if gih is not None else None,
-            "oh_wr": float(oh) if oh is not None else None,
-            "gd_wr": float(gd) if gd is not None else None,
-            "alsa": float(alsa) if alsa is not None else None,
-            "ata": float(ata) if ata is not None else None,
-            "source": "17Lands"})
-    for c in cards:
-        if c.get("card_name") in by:
-            c["limited_stats"] = by[c["card_name"]]
-    return elsewhere
-
-
-_DRAFT_RECENT_N = int(os.environ.get("MCP_DRAFT_RECENT_SETS", "2"))
-_sets_cache: dict = {"t": 0.0, "rows": []}
+    return _limited._attach_limited_stats(cards, sets, _db=_db)
 
 
 def _limited_sets() -> list[dict]:
-    """limited_card_stats の収録セットを発売日の新しい順に（記号・名前・発売日）。Cube は除く。5 分キャッシュ。
-    注意: 発売日の最新が今のドラフト環境とは限らない（実測: 最新は MSH だが Arena の Quick Draft は SOS）
-    ＝既定は最新 N（MCP_DRAFT_RECENT_SETS・既定 2）で取りこぼしを減らし、本命は呼び出し側の draft_set。"""
-    import time
-    if time.time() - _sets_cache["t"] < 300 and _sets_cache["rows"]:
-        return _sets_cache["rows"]
-    try:
-        rows = _db(
-            "SELECT s.expansion, m.set_name, m.released_at FROM (SELECT DISTINCT expansion FROM limited_card_stats) s"
-            " LEFT JOIN mtg_sets m ON lower(m.set_code) = lower(s.expansion)"
-            " WHERE s.expansion NOT ILIKE 'cube%%' ORDER BY m.released_at DESC NULLS LAST, s.expansion", (),
-            lane=LANE_LIGHT)
-    except Exception:
-        return []
-    out = [{"code": r[0], "name": r[1], "released_at": str(r[2]) if r[2] else None} for r in rows]
-    _sets_cache.update(t=time.time(), rows=out)
-    return out
+    return _limited._limited_sets(_db=_db)
 
 
-def _resolve_draft_set(s: str | None) -> str | None:
-    """『#SOS』『LimitedSOS』『sos』『Secrets of Strixhaven』を記号 SOS に。手持ちに無ければ None（推測しない）。"""
-    if not s:
-        return None
-    key = s.strip().lstrip("#").strip()
-    low = key.lower()
-    for pre in ("limited", "quickdraft", "quick draft", "quick", "premierdraft", "premier", "draft", "sealed"):
-        if low.startswith(pre):
-            key = key[len(pre):].strip(" _-:：")
-            low = key.lower()
-    if not key:
-        return None
-    sets = _limited_sets()
-    for x in sets:
-        if x["code"].lower() == low:
-            return x["code"]
-    for x in sets:
-        if x["name"] and (low in x["name"].lower() or x["name"].lower() in low):
-            return x["code"]
-    return None
+def _resolve_draft_set(s: str | None, *, propagate_db_error: bool = False) -> str | None:
+    return _limited._resolve_draft_set(s, propagate_db_error=propagate_db_error, _db=_db)
 
 
 def _sets_line() -> str:
-    return "・".join(f"{x['code']}（{x['name']}）" if x["name"] else x["code"] for x in _limited_sets())
+    return _limited._sets_line(_db=_db)
 
 
 def _archetype_lines(code: str) -> str:
-    """query の返り値に添える、そのセットの色の組み合わせ表（1 行）。"""
-    a = _limited_archetypes([code]).get(code)
-    if not a:
-        return ""
-    pairs = "・".join(f"{p['colors']} {p['share_pct']}% wr{p['wr']}" for p in a["color_pairs"])
-    return (f"\n[#{code} の色の組み合わせ（17Lands・2 色・タッチ無し・プレイ数順・share% と勝率・基準線 {a['baseline_wr']}）] {pairs}"
-            "\n（share が 1% 未満の組み合わせはそのセットでは成立していない）")
+    return _limited._archetype_lines(code, _db=_db)
 
 
 def _limited_archetypes(sets: list[str]) -> dict:
-    """セットごとの色の組み合わせ別勝率（2 色・タッチ無し・limited_color_stats）を search の返り値に同伴する。
-
-    発端: 「アーキタイプ別勝率を参考にしながら、と言わないと SOS に無いアーキタイプ
-    （有効色）でデッキを作り出す」。返り値に載っていない表はクライアントが引かない前提なので、
-    カードの統計を付けたセットについて 2 色の組み合わせをプレイ数順で丸ごと（10 行）載せる（勝率順だと
-    母数 100 戦の組み合わせが上位に混ざって読み違える＝SOS で実測）。share_pct はセット内の割合＝成立しない
-    組み合わせ（SOS の WU 0.04% 等）をクライアントが構造で見分けるための列。
-    baseline_wr はセット全体の勝率（limited_format_stats のランク帯合算）＝組み合わせの良し悪しの基準線。
-    色の列が無いセット（STX）や表が無い環境では空。"""
-    if not sets:
-        return {}
-    try:
-        rows = _db(
-            "SELECT expansion, main_colors, games, wins FROM limited_color_stats"
-            " WHERE expansion = ANY(%s) AND NOT splash AND length(main_colors) = 2"
-            " ORDER BY expansion, games DESC", (sets,), lane=LANE_LIGHT)
-        base = _db(
-            "SELECT expansion, sum(games), sum(wins) FROM limited_format_stats"
-            " WHERE expansion = ANY(%s) GROUP BY 1", (sets,), lane=LANE_LIGHT)
-    except Exception:
-        return {}
-    out: dict[str, dict] = {}
-    for ex, g, w in base:
-        out[ex] = {"baseline_wr": round(w / g, 4) if g else None, "color_pairs": []}
-    tot: dict[str, int] = {}
-    for ex, _mc, g, _w in rows:
-        tot[ex] = tot.get(ex, 0) + (g or 0)
-    for ex, mc, g, w in rows:
-        out.setdefault(ex, {"baseline_wr": None, "color_pairs": []})["color_pairs"].append(
-            {"colors": mc, "games": g, "share_pct": round(100.0 * g / tot[ex], 2) if tot.get(ex) else None,
-             "wr": round(w / g, 4) if g else None, "source": "17Lands"})
-    return {ex: v for ex, v in out.items() if v["color_pairs"]}
+    return _limited._limited_archetypes(sets, _db=_db)

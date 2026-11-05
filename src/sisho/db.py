@@ -4,13 +4,13 @@
 置かない（実測負荷は IP 別 8 回/分・localhost の接続 1 回は数ミリ秒・
 公開サーバーは 2 コアで readonly_ai の上限 6 とスロット取り 5 に重ねると管理が二重になる）。
 
-線（設計判断）:
+レーン設計:
 DB のスロットは「重いレーン 4＋バイパス 1」に分ける。軽いレーン（バイパス）は statement_timeout 1 秒で、
 切られたら（57014）スロットを返して重いレーン（10 秒）に並び直す。重いレーンは 4 スロットまでなので軽いレーンには
-常に 1 スロット予約が残る。**既定は重いレーン**（後に反転）で、軽いレーンは「索引で点を
-引ける」と実証できた呼び出しだけが lane=LANE_LIGHT を明示する。宣言し忘れは安全側（順番待ちに
-加わるだけ）に倒れる。旧: 既定は軽いレーンで、重いレーンは呼び出し側（query_mtg_database と
-find_partner_cards 本体）が明示する。
+常に 1 スロット予約が残る。
+**既定は重いレーン**（軽いレーンを既定にすると宣言し忘れのクエリが 1 秒で切られるため、宣言漏れが安全側＝順番待ちに
+加わるだけに倒れるよう重いレーンを既定にしている）。軽いレーンは「索引で点を引ける」と実証できた呼び出しだけが
+lane=LANE_LIGHT を明示する。
 """
 import os
 import time
@@ -24,7 +24,7 @@ from sisho.toollog import record_db_call
 # 待ちきれなければ「混雑」を返す（失敗でなく待たせるのが目的）。MCP は 1 プロセスなので
 # プロセス内セマフォで足りる。DB を叩く物が MCP 以外に増えたら pgbouncer に格上げ。
 #
-# 設計判断: スロットを「重いレーン 4＋バイパス 1」に分ける。
+# スロットは「重いレーン 4＋バイパス 1」に分ける。
 # 重いレーンは _HEAVY_SLOTS と _DB_SLOTS の両方を取り、軽いレーンは _DB_SLOTS のみを取る。
 # 重いレーンが 4 スロット埋まっても、軽いレーンには必ず 1 スロット予約が残る。
 import threading as _threading
@@ -53,7 +53,7 @@ _DB_WAIT_SEC = float(os.environ.get("MCP_DB_WAIT_SEC", "20"))
 class DBBusy(RuntimeError):
     """DB のスロットが空かなかった＝混雑。
 
-    RuntimeError の子なので、これを知らない受け手は従来どおり例外として扱える。
+    RuntimeError の子なので、これを知らない受け手は通常の例外として扱える。
     知っている道具（query_mtg_database・describe_mtg_tables・mtg_rag_health）は
     「SQL エラー」「health 失敗」に丸めず、混雑としてそのまま返す
     （失敗ではなく待てば通る＝次の一手が違う・errors.BUSY）。"""
@@ -62,6 +62,8 @@ class DBBusy(RuntimeError):
 class _db_slot:
     """with _db_slot(lane=...): の間だけ DB のスロットを占有する。"""
 
+    # 外側の入口（_run・_db・_db_readonly）の既定は LANE_HEAVY。
+    # ここの引数既定は tests/test_errors.py が db._db_slot() を引数なし（_DB_SLOTS のみ取得）で直接呼ぶため LANE_LIGHT のままにする。
     def __init__(self, lane: str = LANE_LIGHT):
         self.lane = lane
         self._acquired = []
