@@ -68,15 +68,6 @@ _COLS = ("card_name, name_display, type_line, produced_mana, mana_cost, card_fac
          " name_en_front, name_ja_front, name_en_back, name_ja_back, digital")
 
 
-def _lookup(name: str):
-    """カード名（正式名・日本語名・面の名前）を完全一致で引く。戻り値 (行, 当たった面 0/1/None)。
-
-    現在はどこからも呼ばれていない（_resolve_lands・_resolve_spell は曖昧の候補も要るので
-    lookup_card_with_face を直に呼ぶ）。"""
-    r, face, _amb = lookup_card_with_face(name, _COLS, _db=_db)
-    return r, face
-
-
 def _candidates(name: str) -> list[str]:
     return trgm_display_candidates(name, 3, _db=_db)
 

@@ -8,7 +8,7 @@
   1. 先行収録かは行の状態から（印を持たない）: digital でなく vintage が not_legal ＝ 先行収録の入口
      （sync_oracle_cards.py --preview-days）しか通らない状態。発売日に Scryfall が legal へ切り替えれば外れる。
   2. 先行収録の行を mtg_sets.released_at と今日で分ける: 発売日の前は UPCOMING・過ぎていれば AWAITING_UPSTREAM
-     （Scryfall の反映待ち）。
+     （Scryfall の反映待ち）・発売日が分からなければ UNKNOWN（どちらとも決めない）。
 呼び出し側（cards.py・names.display_map_for_en_names 経由の sql と combos・verify.py）が「発売前」とも「日本語版なし」とも
 誤表示しないよう状態型で区別する。
 """
@@ -29,6 +29,7 @@ class ReleaseState(str, Enum):
     ORDINARY = "ordinary"
     UPCOMING = "upcoming"
     AWAITING_UPSTREAM = "awaiting_upstream"
+    UNKNOWN = "unknown"      # 先行収録だが発売日が分からない（mtg_sets に行が無い・released_at が NULL・照会の間に行が変わった）
 
 
 # 公式の告知で確かめたセットだけ書く（無いセットは set_type から控えめに言う）。
@@ -48,12 +49,14 @@ def _legality(set_code: str, set_type: str | None) -> str:
 
 
 def classify_release(released_at: date | None, *, today: date | None = None) -> ReleaseState:
-    """先行収録条件（PREVIEW_SQL）に当たった行を、発売日から UPCOMING / AWAITING_UPSTREAM に分類する。
+    """先行収録条件（PREVIEW_SQL）に当たった行を、発売日から UPCOMING / AWAITING_UPSTREAM / UNKNOWN に分類する。
 
-    発売日が NULL（mtg_sets に無い・未確認）は今は UPCOMING に倒す＝「発売前」と断定しうる
-    （「分からない」を表す状態はまだ持たない。今の DB で当たる行は 0）。"""
+    発売日が NULL（mtg_sets に無い・未確認）は UNKNOWN＝「発売前」とも「反映待ち」とも断定しない
+    （実測: 先行収録 529 行のうち発売日 NULL は 0）。"""
+    if released_at is None:
+        return ReleaseState.UNKNOWN
     now = today or date.today()
-    if released_at is not None and released_at <= now:
+    if released_at <= now:
         return ReleaseState.AWAITING_UPSTREAM
     return ReleaseState.UPCOMING
 
@@ -86,6 +89,12 @@ def preview_status(
                 f"{set_name or code} のカード（{when}・発売日を過ぎたが、この DB の legalities は Scryfall の反映待ち）。"
                 f"使えるフォーマット: {_legality(code, set_type)}。採用率・共起・17Lands の数字はまだ無い"
             )
+        elif state == ReleaseState.UNKNOWN:
+            note = (
+                f"{set_name or code or 'セット未確認'} のカード（{when}）。この DB の legalities はどのフォーマットも"
+                " not_legal だが、発売前か、発売日を過ぎて Scryfall の反映待ちかは決められない（発売日を公式の告知で確かめる）。"
+                f"使えるフォーマット: {_legality(code, set_type)}。採用率・共起・17Lands の数字はまだ無い"
+            )
         else:
             note = (
                 f"発売前のカード（{set_name or code}・{when}）。今はどのフォーマットでも使えない"
@@ -106,6 +115,14 @@ def preview_notes(
     return {k: v[1] for k, v in preview_status(card_names, today=today, _db=_db).items()}
 
 
+# name_note の括弧の中（状態ごとの理由）。preview_status は先行収録の行だけを返すので ORDINARY は来ない
+_NAME_NOTE_WHY = {
+    ReleaseState.UPCOMING: "発売前",
+    ReleaseState.AWAITING_UPSTREAM: "Scryfall の反映待ち",
+    ReleaseState.UNKNOWN: "発売日が確かめられない",
+}
+
+
 def apply_preview_to_cards(
     cards: list[dict],
     *,
@@ -116,8 +133,8 @@ def apply_preview_to_cards(
 
     - 両面カードで片面だけ日本語名がある場合（japanese_name=None かつ faces[0]["ja"] あり）に、取得済みの
       表面日本語名を消さない。
-    - 発売日経過後（AWAITING_UPSTREAM）で日本語名が未収録の面は「日本語名未収録」とし、「日本語版なし」とも
-      「発売前」とも断定しない。
+    - 発売日経過後（AWAITING_UPSTREAM）と発売日の分からない行（UNKNOWN）で日本語名が未収録の面は「日本語名未収録」とし、
+      「日本語版なし」とも「発売前」とも断定しない。
     """
     if not cards:
         return
@@ -129,7 +146,9 @@ def apply_preview_to_cards(
         state, note = item
         c["preview_note"] = note
         is_upcoming = state == ReleaseState.UPCOMING
-        is_awaiting = state == ReleaseState.AWAITING_UPSTREAM
+        # 反映待ちも発売日の分からない行も、表示は中立の「日本語名未収録」（names.display_map_for_en_names と同じ倒し方）
+        is_awaiting = state != ReleaseState.UPCOMING
+        why = _NAME_NOTE_WHY[state]
         faces = c.get("faces") or []
         en_front = (faces[0].get("en") if faces else None) or c["card_name"].split(" // ")[0]
         ja_front = (faces[0].get("ja") if faces else None) or (
@@ -141,15 +160,9 @@ def apply_preview_to_cards(
             en_front, ja_front, False, is_upcoming, awaiting_upstream=is_awaiting
         )
         if ja_front is None:
-            if is_upcoming:
-                c["name_note"] = "日本語名は未収録（発売前）＝name_display をそのまま使う（訳名を作らない）"
-            else:
-                c["name_note"] = "日本語名は未収録（Scryfall の反映待ち）＝name_display をそのまま使う（訳名を作らない）"
+            c["name_note"] = f"日本語名は未収録（{why}）＝name_display をそのまま使う（訳名を作らない）"
         elif c.get("japanese_name") is None and any(f.get("ja") is None for f in faces[1:]):
-            if is_upcoming:
-                c["name_note"] = "裏面の日本語名は未収録（発売前）＝faces の display をそのまま使う（訳名を作らない）"
-            else:
-                c["name_note"] = "裏面の日本語名は未収録（Scryfall の反映待ち）＝faces の display をそのまま使う（訳名を作らない）"
+            c["name_note"] = f"裏面の日本語名は未収録（{why}）＝faces の display をそのまま使う（訳名を作らない）"
         for f in faces:
             f["display"] = face_display(
                 f["en"], f["ja"], False, is_upcoming, awaiting_upstream=is_awaiting

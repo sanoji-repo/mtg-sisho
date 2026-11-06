@@ -10,7 +10,7 @@ import time
 
 from sisho.db import _db
 from sisho.names import face_display
-from sisho.preview import PREVIEW_EXPR, ReleaseState, preview_status
+from sisho.preview import PREVIEW_EXPR, PREVIEW_SQL, ReleaseState, preview_status
 from sisho.toollog import JOURNAL, _log_tool
 
 
@@ -50,12 +50,16 @@ _CHECKING = False
 #   concat_ws('|', ...) だと NULL を飛ばすので ('A', NULL, 'B') と ('A', 'B', NULL) が同じ文字列になる。
 #   行の文字列表現は NULL（空）と ''（""）と列の境目を区別する。和は 32 ビット→64 ビット（numeric で足す）。
 #   全行を読むので軽いレーン（点を引く照会の予約席）でなく既定の重いレーンで引く。
-#   発売状態は mtg_sets.released_at と set_code にも依存するが、ここには入っていない＝セットの発売日だけが変わっても
-#   辞書は作り直されない。日付の変化は _current_sig が足す。
+#   発売状態は先行収録の行の set_code と、それで結んだ mtg_sets.released_at にも依存する（preview_status）ので、
+#   先行収録の行だけその 2 つも行に入れる（通常の行の set_code は辞書に効かない＝再印刷で
+#   作り直さない）。mtg_sets にも digital の列があるので列は c. で修飾する。日付の変化は _current_sig が足す。
+#   試験は表の名前を CTE で覆ってこの文を読ませる（tests/test_tools_verify.py）＝表の名前は schema で修飾しない。
 _SIG_SQL = (
-    "SELECT count(*), coalesce(sum(hashtextextended(ROW(card_name, japanese_name, name_en_front,"
-    f" name_ja_front, name_en_back, name_ja_back, digital, mana_cost, cmc, ({PREVIEW_EXPR}),"
-    " md5(coalesce(oracle_text, '')))::text, 0)::numeric), 0) FROM mtg_cards_v2"
+    "SELECT count(*), coalesce(sum(hashtextextended(ROW(c.card_name, c.japanese_name, c.name_en_front,"
+    f" c.name_ja_front, c.name_en_back, c.name_ja_back, c.digital, c.mana_cost, c.cmc, ({PREVIEW_SQL}),"
+    f" md5(coalesce(c.oracle_text, '')), CASE WHEN {PREVIEW_SQL} THEN c.set_code END,"
+    f" CASE WHEN {PREVIEW_SQL} THEN s.released_at END)::text, 0)::numeric), 0)"
+    " FROM mtg_cards_v2 c LEFT JOIN mtg_sets s ON s.set_code = c.set_code"
 )
 
 
@@ -99,8 +103,8 @@ def _build_names() -> tuple[dict, tuple]:
             rel_state[key] = st
 
     for en, ja, dg, enf, enb, jaf, jab, mc, cmc, otext, pv in rows:
-        # 先行収録なのに状態が取れなかった行は今は UPCOMING に倒す
-        st = pstats[en][0] if (pv and en in pstats) else (ReleaseState.UPCOMING if pv else ReleaseState.ORDINARY)
+        # 先行収録なのに状態が取れなかった行（二つの照会の間に行が変わった）は UNKNOWN＝発売前とも反映待ちとも決めない
+        st = pstats[en][0] if (pv and en in pstats) else (ReleaseState.UNKNOWN if pv else ReleaseState.ORDINARY)
         (digital if dg else paper).update(x for x in (en, enf, enb) if x)
         # マナ・コストの照合用（正式名と表面名の両方から引ける）。軽減条項＝自分のコストが下がる文だけ
         rec = (mc or "", cmc, _reduction_clause(otext or ""))
@@ -381,12 +385,13 @@ def verify_answer(text: str) -> str:
         if st is None and en in N.get("preview", ()):
             st = ReleaseState.UPCOMING
         disp_en = en.split(" // ")[0] if " // " in en else en
+        # 反映待ちも発売日の分からない行も中立の「日本語名未収録」（「日本語版なし」と断定しない）
         return face_display(
             disp_en,
             None,
             en in N.get("digital", ()),
             st == ReleaseState.UPCOMING,
-            awaiting_upstream=(st == ReleaseState.AWAITING_UPSTREAM),
+            awaiting_upstream=st in (ReleaseState.AWAITING_UPSTREAM, ReleaseState.UNKNOWN),
         )
     def _sub_bracket(s, inner, repl):
         """《 inner 》を repl に置き換える。囲みの内側の空白を許す。

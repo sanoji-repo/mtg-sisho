@@ -475,6 +475,67 @@ def test_signature_tells_null_positions_apart():
     assert sig[0] > 0 and sig[1] != 0
 
 
+def test_signature_follows_every_input_of_the_release_state():
+    """署名は発売状態の依存先のどれか一つだけが変わっても変わる: 先行収録の行の set_code・結んだ mtg_sets.released_at・
+    先行収録の条件・日付。通常の行の set_code だけの変化では変わらない（再印刷で作り直さない）。
+    表の名前を CTE で覆って同じ _SIG_SQL を読ませる（本物の表には書かない）。"""
+    from datetime import date as _d
+    from sisho.db import _db
+
+    def sig(code="zzz", rel="2099-01-01", vintage="not_legal", normal_code="aaa"):
+        cte = (
+            "WITH mtg_cards_v2 AS (SELECT * FROM (VALUES"
+            " ('Future Card', NULL::text, 'Future Card', NULL::text, NULL::text, NULL::text, false, '{1}'::text,"
+            "  1.0::numeric, jsonb_build_object('vintage', %s::text), 'text'::text, %s::text),"
+            " ('Old Card', NULL, 'Old Card', NULL, NULL, NULL, false, '{2}', 2.0, jsonb_build_object('vintage', 'legal'),"
+            "  'text', %s)"
+            ") AS t(card_name, japanese_name, name_en_front, name_ja_front, name_en_back, name_ja_back, digital, mana_cost,"
+            " cmc, legalities, oracle_text, set_code)),"
+            " mtg_sets AS (SELECT * FROM (VALUES ('zzz', %s::date, false), ('yyy', %s::date, false),"
+            " ('aaa', DATE '2000-01-01', false), ('bbb', DATE '2000-01-01', false)) AS t(set_code, released_at, digital)) "
+        )
+        return tuple(_db(cte + verify._SIG_SQL, (vintage, code, normal_code, rel, rel))[0])
+
+    base = sig()
+    assert base[0] == 2
+    assert sig(rel="2099-02-01") != base, "発売日だけの変化を見落とした"
+    assert sig(code="yyy") != base, "先行収録の行の set_code だけの変化を見落とした（同じ発売日のセットへ）"
+    assert sig(code="nnn") != base, "mtg_sets と結べなくなった変化を見落とした"
+    assert sig(vintage="legal") != base, "先行収録の条件だけの変化を見落とした"
+    assert sig(normal_code="bbb") == base, "通常の行の set_code で作り直す"
+    assert verify._current_sig(_d(2026, 11, 6)) != verify._current_sig(_d(2026, 11, 7)), "日付だけの変化を見落とした"
+
+
+def test_preview_row_without_state_or_date_is_unknown_not_upcoming(monkeypatch):
+    """先行収録の行で状態が取れない（二つの照会の間に行が変わった）・発売日が分からないときは UNKNOWN で、
+    答案の候補も「発売前」「日本語版なし」と書かない（cards と sql の入口と同じ扱い）。"""
+    from sisho.preview import ReleaseState
+
+    # 列: card_name, japanese_name, digital, name_en_front, name_en_back, name_ja_front, name_ja_back,
+    #     mana_cost, cmc, oracle_text, 先行収録か
+    lost = ("Lost Card", None, False, "Lost Card", None, None, None, "{1}", 1.0, "", True)
+    nodate = ("Nodate Card", None, False, "Nodate Card", None, None, None, "{2}", 2.0, "", True)
+
+    def fake_db(sql, params=(), lane=None):
+        if "count(*)" in sql:
+            return [(2, 0)]
+        if "s.released_at" in sql:
+            return [("Nodate Card", "zzz", None, None, None)]     # Lost Card の行は返らない
+        return [lost, nodate]
+
+    _isolate_cache(monkeypatch)
+    monkeypatch.setattr(verify, "_db", fake_db)
+    monkeypatch.setattr(verify, "_NAMES", None)
+    names, _sig = verify._build_names()
+    assert names["rel_state"]["Lost Card"] == ReleaseState.UNKNOWN
+    assert names["rel_state"]["Nodate Card"] == ReleaseState.UNKNOWN
+    assert not names["preview"]
+    assert _unknown("《でたらめ/Lost Card》と《誤訳/Nodate Card》。") == [
+        "《でたらめ/Lost Card》 → 候補: Lost Card（日本語名未収録）",
+        "《誤訳/Nodate Card》 → 候補: Nodate Card（日本語名未収録）",
+    ]
+
+
 def test_same_japanese_name_prefers_paper_card():
     """同じ日本語名を紙と Arena 専用のカードが持つとき、紙のカードに決める（入れ順で揺れない）。"""
     assert _fixed("《緊急脱出》を使う。") == "《緊急脱出/Eject》を使う。"
@@ -746,10 +807,10 @@ def test_front_name_beats_other_cards_back_name_regardless_of_row_order(monkeypa
     shared = ("Shared // Tail", None, False, "Shared", "Tail", "表訳", None, "{2}", 2.0, "", False)
     for rows in ([alpha, shared], [shared, alpha]):
         def fake_db(sql, params=(), lane=None, rows=rows):
+            if "count(*)" in sql:                       # 署名（_SIG_SQL も s.released_at を含むので先に見分ける）
+                return [(2, 0)]
             if "s.released_at" in sql:
                 return [("Alpha // Shared", "fra", "Reality Fracture", _d(2099, 1, 1), "expansion")]
-            if "count(*)" in sql:
-                return [(2, 0)]
             return list(rows)
 
         _isolate_cache(monkeypatch)

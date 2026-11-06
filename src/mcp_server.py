@@ -130,61 +130,69 @@ TOOL_CATALOG_LINE = (
     f"【sisho の道具は {len(TOOL_CATALOG)} 個。使いたい道具が手元の一覧に無ければ、正確な道具名で検索して読み込んでから呼ぶ】"
     + "・".join(f"{n}（{d}）" for n, d in TOOL_CATALOG) + "。")
 
+# 道具は本文（content の text）だけを返す＝structuredContent に同じ表を二重に入れない。
+# 指定しないと SDK が返り値の型（-> str）を見て {"result": 文字列} の構造化と outputSchema を自動で足し、
+# 客によっては同じ表を AI に二度読ませる（実測: draft_pack_stats の本文 2,583 字と structuredContent 2,618 字が
+# 一字一句同じ・outputSchema は 12 本で 1,693 字＝tools/list に毎回載る）。tests/test_tool_contract.py が縫う。
+def _tool(**kw):
+    return server.tool(structured_output=False, **kw)
+
+
 # カード検索（素の一致検索＋17Lands 同伴）= sisho/tools/cards.py
-search_mtg_cards = server.tool(
+search_mtg_cards = _tool(
     name="search_mtg_cards",
     description=TOOL_CATALOG_LINE + _tool_cards.DESCRIPTION)(observed(_tool_cards.search_mtg_cards))
 
 # 確率計算の入口 = sisho/tools/probability.py
-mtg_probability = server.tool(
+mtg_probability = _tool(
     name="mtg_probability",
     description=_tool_probability.DESCRIPTION)(observed(_tool_probability.mtg_probability))
 
 # Commander Spellbook（外部 API を都度照会）= sisho/tools/combos.py
-find_combos = server.tool(
+find_combos = _tool(
     name="find_combos",
     description=_tool_combos.DESCRIPTION)(observed(_tool_combos.find_combos))
 
 # 総合ルールと公式裁定（ローカル DB 直結）= sisho/tools/rules.py
-lookup_mtg_rule = server.tool(
+lookup_mtg_rule = _tool(
     name="lookup_mtg_rule",
     description=_tool_rules.LOOKUP_MTG_RULE_DESCRIPTION)(observed(_tool_rules.lookup_mtg_rule))
-get_card_rulings = server.tool(
+get_card_rulings = _tool(
     name="get_card_rulings",
     description=_tool_rules.GET_CARD_RULINGS_DESCRIPTION)(observed(_tool_rules.get_card_rulings))
 
 # 共起（実デッキ集計）= sisho/tools/partners.py
-find_partner_cards = server.tool(
+find_partner_cards = _tool(
     name="find_partner_cards",
     description=_tool_partners.DESCRIPTION)(observed(_tool_partners.find_partner_cards))
 
 # ドラフトのパックをまとめて引く = sisho/tools/draft.py
-draft_pack_stats = server.tool(
+draft_pack_stats = _tool(
     name="draft_pack_stats",
     description=_tool_draft.DESCRIPTION)(observed(_tool_draft.draft_pack_stats))
 
 # ドラフトの確定ピックを数える = sisho/tools/pool.py
-draft_pool = server.tool(
+draft_pool = _tool(
     name="draft_pool",
     description=_tool_pool.DESCRIPTION)(observed(_tool_pool.draft_pool))
 
 # 自由 SQL の口 = sisho/tools/sql.py
-query_mtg_database = server.tool(
+query_mtg_database = _tool(
     name="query_mtg_database",
     description=_tool_sql.QUERY_MTG_DATABASE_DESCRIPTION)(observed(_tool_sql.query_mtg_database))
 
 # 答案検査 = sisho/tools/verify.py
-verify_answer = server.tool(
+verify_answer = _tool(
     name="verify_answer",
     description=_tool_verify.DESCRIPTION)(observed(_tool_verify.verify_answer))
 
 # スキーマの窓（SQL を書く前に列を確認する口）= sisho/tools/sql.py
-describe_mtg_tables = server.tool(
+describe_mtg_tables = _tool(
     name="describe_mtg_tables",
     description=_tool_sql.DESCRIBE_MTG_TABLES_DESCRIPTION)(observed(_tool_sql.describe_mtg_tables))
 
 # 健全性確認（DB 実疎通・行数・鮮度）= sisho/tools/health.py
-mtg_rag_health = server.tool(
+mtg_rag_health = _tool(
     name="mtg_rag_health",
     description=_tool_health.DESCRIPTION)(observed(_tool_health.mtg_rag_health))
 

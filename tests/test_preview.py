@@ -75,6 +75,38 @@ def test_apply_preview_to_cards_awaiting_upstream_does_not_say_upcoming(monkeypa
     assert "発売前" not in cards[0]["name_note"] and "反映待ち" in cards[0]["name_note"]
 
 
+def test_release_state_has_unknown_for_missing_date():
+    """発売日が分からない先行収録の行は UNKNOWN（発売前とも反映待ちとも決めない）。発売日当日は反映待ち。"""
+    from datetime import date as _d
+
+    assert preview.classify_release(None) == preview.ReleaseState.UNKNOWN
+    assert preview.classify_release(_d(2099, 1, 1), today=_d(2026, 11, 6)) == preview.ReleaseState.UPCOMING
+    assert preview.classify_release(_d(2026, 11, 6), today=_d(2026, 11, 6)) == preview.ReleaseState.AWAITING_UPSTREAM
+
+
+def test_apply_preview_to_cards_unknown_date_is_neutral(monkeypatch):
+    """mtg_sets と結べず発売日が分からない先行収録カードは、注記・表示とも「発売前」「日本語版なし」と断定しない。"""
+    from datetime import date as _d
+
+    # 列: card_name, set_code, set_name, released_at, set_type（LEFT JOIN が結べなかった形）
+    monkeypatch.setattr(preview, "_db", lambda sql, params, lane=None: [("X", None, None, None, None)])
+    cards = [
+        {
+            "card_name": "X",
+            "japanese_name": None,
+            "name_display": "X（日本語名は未収録・発売前）",
+            "faces": [{"en": "X", "ja": None, "display": "X（日本語版なし）"}],
+        }
+    ]
+    preview.apply_preview_to_cards(cards, today=_d(2026, 11, 6))
+    n = cards[0]["preview_note"]
+    assert n.startswith("セット未確認 のカード（発売日未確認）") and "決められない" in n, n
+    assert "発売前のカード" not in n and "今はどのフォーマットでも使えない" not in n
+    assert cards[0]["name_display"] == "X（日本語名未収録）"
+    assert cards[0]["faces"][0]["display"] == "X（日本語名未収録）"
+    assert cards[0]["name_note"] == "日本語名は未収録（発売日が確かめられない）＝name_display をそのまま使う（訳名を作らない）"
+
+
 def test_apply_preview_to_cards_preserves_partial_dfc_japanese_front(monkeypatch):
     """片面（表面）だけ日本語名がある両面カード（japanese_name=None, faces[0]['ja'] あり）の表面日本語名を消さない。"""
     from datetime import date as _d

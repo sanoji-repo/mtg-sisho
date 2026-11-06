@@ -214,6 +214,20 @@ def test_preview_lookup_failure_keeps_known_translations_at_consumers(monkeypatc
     assert "発売状態の照会に失敗" in note and "Future" in note, note     # 失敗は返り値の注記まで届く
 
 
+def test_unknown_release_date_is_neutral_at_display_map():
+    """発売日の分からない先行収録の行（UNKNOWN）は、sql と combos の入口でも「日本語名未収録」に倒し、注記も
+    「発売前のカード」と言わない（cards の apply_preview_to_cards と同じ扱い）。"""
+    def fake_db(sql_text, params=None, lane=None):
+        if "s.released_at" in sql_text:
+            return [("Future", "zzz", None, None, None)]     # mtg_sets に行が無い＝発売日が分からない
+        # 列: card_name, name_en_front, name_ja_front, name_en_back, name_ja_back, name_display, japanese_name, digital, is_prev
+        return [("Future", "Future", None, None, None, "Future（日本語名は未収録・発売前）", None, False, True)]
+
+    disp, pnotes = names.display_map_for_en_names(["Future"], _db=fake_db)
+    assert disp == {"Future": "Future（日本語名未収録）"}
+    assert pnotes["Future"].startswith("zzz のカード（発売日未確認）") and "発売前のカード" not in pnotes["Future"]
+
+
 def test_find_combos_reports_preview_lookup_failure(monkeypatch):
     """コンボ検索の返り値（JSON）にも、発売状態の照会に失敗したことが載る（注記を捨てない）。"""
     import json

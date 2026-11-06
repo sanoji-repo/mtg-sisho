@@ -163,3 +163,10 @@ if __name__ == "__main__":
         print(f"snapshot を更新: {SNAPSHOT_PATH}")
     else:
         pytest.main([__file__, "-v"])
+
+
+def test_tools_return_text_only_without_structured_copy():
+    """道具は本文だけを返す。outputSchema が付くと SDK が structuredContent に同じ表の写しを足し、
+    客によっては AI が同じ表を二度読む。新しい道具も mcp_server._tool で登録する。"""
+    with_schema = [t.name for t in m.server._tool_manager.list_tools() if t.output_schema is not None]
+    assert not with_schema, f"outputSchema（＝構造化の写し）が付いている道具: {with_schema}"
