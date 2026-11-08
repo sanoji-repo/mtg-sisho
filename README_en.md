@@ -34,8 +34,9 @@ The following tools are available to connected clients:
 | `find_combos` | Query the public Commander Spellbook API with a list of card names (up to a full deck) to find combos you can assemble now, combos one card away, and combos that need one more color, complete with prerequisites and source URLs (real-time query, source: Commander Spellbook). |
 | `describe_mtg_tables` | List database tables, column names, and data types for inspecting schema before writing custom SQL. |
 | `mtg_rag_health` | Check database connectivity, row counts, and data freshness of major tables. |
+| `show_card_images` | Show the card images for up to 10 card names, preferring the Japanese-printing image and falling back to the English one. Clients that support MCP Apps (an extension that lets a tool return an HTML screen) display the images side by side; other clients get the card names and image URLs as text. Images are served by Scryfall; the card images and text are copyrighted by Wizards of the Coast. |
 
-10 out of 11 tools connect directly to a local PostgreSQL database (`find_combos` queries an external API on demand) without calling any LLMs or vector search pipelines. Primary tool responses complete in under 1 second (local benchmarks, excluding heavy co-occurrence aggregations and external API calls).
+11 out of 12 tools connect directly to a local PostgreSQL database (`find_combos` queries an external API on demand) without calling any LLMs or vector search pipelines. Primary tool responses complete in under 1 second (local benchmarks, excluding heavy co-occurrence aggregations and external API calls).
 
 To prevent AI assistants from mistranslating card names into Japanese, tools return card names in a standardized format: `《Japanese Name/English Name》`. Cards without an official Japanese print return only the English name with a note (`（日本語版なし）`).
 This principle of "enforcing correctness via structured return values rather than prompt instructions" and its supporting benchmarks are detailed in the [docs/bench/README.md](./docs/bench/README.md) summary and [DESIGN.md](./DESIGN.md).

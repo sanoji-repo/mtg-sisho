@@ -12,8 +12,8 @@
 - 全道具がローカル PostgreSQL 直結。API サーバ（:8000）依存は撤去済み。
 - search_mtg_cards は素の一致検索（名前優先→本文 AND・EDHREC 人気順）。
   LLM もルーターも呼ばない＝決定的・応答は 1 秒未満。
-- 門と札: 接続 URL は発行ページ（/issue）のボタン一つで札（token_urlsafe）を
-  発行し、/mcp/<鍵> で待ち受ける。GateASGI が鍵ごとのレート制限（60/分・find_combos 10/分）
+- 受付と接続用の鍵: 接続 URL は発行ページ（/issue）のボタン一つで接続用の鍵（token_urlsafe）を
+  発行し、/mcp/<鍵> で待ち受ける。GateASGI が鍵ごとのレート制限（60/分。find_combos は道具の側で 10/分）
   を課し、未知の鍵は 404（not found）で存在を漏らさない。旧パスは legacy の鍵として当面生かす。
 - 依存（mcp SDK 等）は requirements.txt。
 
@@ -23,6 +23,7 @@ import logging
 import os
 
 from mcp.server import MCPServer
+from mcp.server.apps import Apps, ResourceCsp
 
 # 役目ごとの包み。旧名で受けるのは tests と外の脚本が
 # m._RateLimiter・m._db・m._log_tool のまま触れるようにするため（再輸出）。
@@ -34,6 +35,7 @@ from sisho.tools import cards as _tool_cards
 from sisho.tools import combos as _tool_combos
 from sisho.tools import draft as _tool_draft
 from sisho.tools import health as _tool_health
+from sisho.tools import images as _tool_images
 from sisho.tools import partners as _tool_partners
 from sisho.tools import pool as _tool_pool
 from sisho.tools import probability as _tool_probability
@@ -47,6 +49,14 @@ from sisho.tools import verify as _tool_verify
 # ＝instructions には変わる事実を書かない。版・日付は下限にできないので道具に投げる。
 # 正確な件数・ルール版・鮮度は mtg_rag_health が読んだ瞬間の実測を返す（分担）。
 
+
+# カード画像の画面（MCP Apps＝道具が ui:// の HTML 画面を伴って返る公式の拡張）。Apps は画面の資源と
+# 拡張の宣言だけに使う。MCPServer(extensions=[apps]) は構築のときに拡張の道具を先に登録してしまい道具の並びが崩れるので、
+# 道具そのものは下でほかの道具と同じ _tool により一覧の最後に登録する。画像は Scryfall の配信だけを CSP で許す。
+_apps = Apps()
+_apps.add_html_resource(
+    _tool_images.CARD_IMAGES_URI, _tool_images.HTML, name="card-images", title="カード画像",
+    csp=ResourceCsp(resource_domains=["https://cards.scryfall.io"]))
 
 server = MCPServer(
     name="mtg-rag",
@@ -94,6 +104,7 @@ server = MCPServer(
         "返ってきた「未確認の名前」があれば、そのカードを search_mtg_cards で引いて正式名に直す（自分の記憶の訳名は使わない）。"
         "未確認ゼロなら返ってきた修正版をそのまま答えにする。略称・省略は 2 回目以降でも禁止（冗長でよい）。\n"
         "このMCPは無料です。"),
+    extensions=[_apps],
 )
 
 
@@ -125,6 +136,7 @@ TOOL_CATALOG: tuple[tuple[str, str], ...] = (
     ("verify_answer", "答えのカード名の検査"),
     ("describe_mtg_tables", "表と列の一覧"),
     ("mtg_rag_health", "健全性と鮮度"),
+    ("show_card_images", "カード画像を画面に並べる"),
 )
 TOOL_CATALOG_LINE = (
     f"【sisho の道具は {len(TOOL_CATALOG)} 個。使いたい道具が手元の一覧に無ければ、正確な道具名で検索して読み込んでから呼ぶ】"
@@ -196,6 +208,14 @@ mtg_rag_health = _tool(
     name="mtg_rag_health",
     description=_tool_health.DESCRIPTION)(observed(_tool_health.mtg_rag_health))
 
+# カード画像の画面つき道具（一覧の最後）= sisho/tools/images.py・画面は card_images.html。
+# meta の後ろの平らな鍵 "ui/resourceUri" は古いホスト向けの互換（公式の手順が両方付けている）
+show_card_images = _tool(
+    name="show_card_images",
+    description=_tool_images.DESCRIPTION,
+    meta={"ui": {"resourceUri": _tool_images.CARD_IMAGES_URI},
+          "ui/resourceUri": _tool_images.CARD_IMAGES_URI})(observed(_tool_images.show_card_images))
+
 
 # ─── 旧名の再輸出（tests と外の脚本が mcp_server 越しに触る名前）───────────
 # 契約試験 test_module_reexports が毎回検査する。注意: これは束縛の写しなので、
@@ -223,7 +243,7 @@ _names = _tool_verify._names
 _JA_STOP = _tool_verify._JA_STOP
 
 
-# レート制限（公開前の門）の実装は sisho/ratelimit.py（公開名は RateLimiter／RateLimitASGI）。
+# レート制限（公開前の受付）の実装は sisho/ratelimit.py（公開名は RateLimiter／RateLimitASGI）。
 # 内部の名前 _RateLimiter／_RateLimitASGI でも届くように冒頭で別名輸入している。
 # 設計の根拠と実測値は sisho/ratelimit.py の注記にある。
 
@@ -272,8 +292,8 @@ if __name__ == "__main__":
         # Cloudflare 即席トンネルが持つ。DNS rebinding 防御はトンネルの Host 名
         # （毎回ランダム）が allowed_hosts に書けないため、この一時試験に限り無効化。
         # 恒久のリモート版では allowed_hosts を固定ドメインで縫うこと。
-        # Origin の検査は門（sisho/gate.py の許可リスト・MCP_PUBLIC_BASE と MCP_ALLOWED_ORIGINS）が
-        # 全部の道（札・旧パス・発行ページ）の手前でする。SDK の側は切ったまま（Host は 127.0.0.1 の見張りの
+        # Origin の検査は受付（sisho/gate.py の許可リスト・MCP_PUBLIC_BASE と MCP_ALLOWED_ORIGINS）が
+        # 全部の道（接続用の鍵・旧パス・発行ページ）の手前でする。SDK の側は切ったまま（Host は 127.0.0.1 の見張りの
         # 呼び出しと Funnel の公開名の両方が来るので、SDK の allowed_hosts に一本で書けない）。
         from mcp.server.transport_security import TransportSecuritySettings
         port = int(sys.argv[2]) if len(sys.argv) > 2 else 8765
@@ -301,7 +321,7 @@ if __name__ == "__main__":
         # 道具の contract（必須引数の宣言）には触れないので、外から見える schema は不変。
         from sisho.backstage import BackstageASGI
         app = BackstageASGI(app)
-        # 門と札の外皮（sisho/gate.py を参照）。
+        # 受付と接続用の鍵の外皮（sisho/gate.py を参照）。
         # 鍵ごとのレート制限・発行ページ（/issue）・旧パス互換を GateASGI が束ねる。
         from sisho.gate import GateASGI
         app = GateASGI.from_env(app, inner_path=http_path)

@@ -8,6 +8,8 @@ daily_set_watch.py — Scryfall・17lands の毎日監視
      突然の追加・禁止改定・オラクル訂正が全部翌朝には入る。
   2. /sets 報告（1 コール）: 45 日以内に発売が来るセットの接近と card_count、
      21 日以内に発売済みセットの日本語名の欠けを報告。
+  2b. 新しいセットの set_codes: 発売 45 日前〜発売 21 日後のセット（先行収録と同じ種類）について、fill_set_codes.py が
+     そのセットの印刷を Scryfall の検索 API で引き、set_codes に記号を足す（足すだけ・日本語画像は空の行だけ）。
   3. 17lands 見張り: 候補セット（expansion 等・発売 -7〜+90 日）の PremierDraft ファイルを
      S3 に HEAD。未取り込みで現れていたら 17Lands のセット一覧（状態の置き場の 17lands_premier_sets.tsv・
      L17_LIST で変えられる）に行を足して
@@ -171,12 +173,15 @@ def main():
     except Exception as e:
         log_line(f"/sets 取得失敗 {type(e).__name__}（今夜の報告は無し）")
         sets = []
-    recent_codes = []
+    recent_codes, fill_codes = [], []
     for x in sets:
         rel = x.get("released_at")
         if not rel:
             continue
         d = date.fromisoformat(rel)
+        if (today - timedelta(days=21) <= d <= today + timedelta(days=PREVIEW_DAYS)
+                and x.get("set_type") in PREVIEW_TYPES):
+            fill_codes.append(x["code"])
         if today < d <= today + timedelta(days=45) and x.get("set_type") != "token":
             log_line(f"接近: {x['code']} {x['name']}（{rel}・あと {(d - today).days} 日・"
                      f"card_count {x.get('card_count', 0)}）")
@@ -188,6 +193,16 @@ def main():
             recent_codes.append(x["code"])
     if recent_codes:
         ja_report(recent_codes)
+
+    # --- 2b. 新しいセットの set_codes を足す（足すだけ）---
+    # 1 の取り込み（oracle_cards＝代表の印刷だけ）は set_codes を書かないので、先行収録の新カードは NULL のまま残る。
+    # 発売 45 日前〜発売 21 日後のセットだけ、印刷の一覧を引いて足す。
+    if fill_codes:
+        try:
+            import fill_set_codes
+            fill_set_codes.fill(fill_codes, dry_run=args.dry_run, log=log_line)
+        except Exception as e:
+            log_line(f"set_codes の足し込み失敗 {type(e).__name__}: {e}（次の夜に再挑戦）")
 
     # --- 3. 17lands 見張り ---
     candidates = [x for x in sets

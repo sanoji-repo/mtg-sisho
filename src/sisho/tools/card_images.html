@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>カード画像</title>
+<style>
+  :root {
+    --fg: #1f2328;
+    --muted: #59636e;
+    --bg: transparent;
+    --ph: #e6e8eb;
+    --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fg: #e6edf3;
+      --muted: #9198a1;
+      --ph: #2b3138;
+      --warn: #d29922;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body {
+    padding: 8px;
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans CJK JP", "Yu Gothic UI", sans-serif;
+  }
+  #grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  @media (min-width: 520px) { #grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (min-width: 720px) { #grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  @media (min-width: 900px) { #grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+  figure { margin: 0; min-width: 0; }
+  /* 画像は切り抜かず、縦横比を保って縮めるだけ（Scryfall の画像の決まり） */
+  .frame { width: 100%; aspect-ratio: 488 / 680; background: var(--ph); }
+  .frame img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .none {
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    width: 100%; height: 100%; padding: 8px; color: var(--muted); font-size: 13px;
+  }
+  figcaption { margin-top: 4px; font-size: 13px; line-height: 1.4; word-break: break-word; }
+  #notes { margin: 12px 0 0; padding: 0; list-style: none; color: var(--warn); font-size: 13px; }
+  #notes li { margin: 2px 0; }
+  #status { color: var(--muted); }
+  #credit { margin: 12px 0 0; color: var(--muted); font-size: 11px; }
+</style>
+</head>
+<body>
+<p id="status">画像のデータを待っています…</p>
+<div id="grid" hidden></div>
+<ul id="notes" hidden></ul>
+<p id="credit">カード画像: Scryfall ／ カードの画像と文章の著作権は Wizards of the Coast</p>
+<script type="module">
+const IMG_PREFIX = "https://cards.scryfall.io/";
+const FAIL = "画像のデータを受け取れませんでした";
+const $status = document.getElementById("status");
+const $grid = document.getElementById("grid");
+const $notes = document.getElementById("notes");
+
+let nextId = 1;
+const pending = new Map();
+let ready = false;
+let received = false;
+let lastSize = "";
+let wantSize = null;
+
+function post(msg) {
+  window.parent.postMessage(msg, "*");
+}
+
+function request(method, params) {
+  const id = nextId++;
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    post({ jsonrpc: "2.0", id, method, params });
+  });
+}
+
+function notify(method, params) {
+  const m = { jsonrpc: "2.0", method };
+  if (params !== undefined) m.params = params;
+  post(m);
+}
+
+function reportSize() {
+  const h = Math.ceil(document.body.getBoundingClientRect().height);
+  const w = Math.ceil(window.innerWidth);
+  wantSize = { width: w, height: h };
+  if (!ready) return;
+  const key = w + "x" + h;
+  if (key === lastSize) return;
+  lastSize = key;
+  notify("ui/notifications/size-changed", wantSize);
+}
+
+function showFailure() {
+  $grid.hidden = true;
+  $notes.hidden = true;
+  $status.hidden = false;
+  $status.textContent = FAIL;
+}
+
+function isStr(x) { return typeof x === "string" && x.length > 0; }
+
+function render(meta) {
+  const cards = meta && Array.isArray(meta.cards) ? meta.cards : null;
+  if (!cards || cards.length === 0) { showFailure(); return; }
+  $grid.replaceChildren();
+  for (const c of cards) {
+    if (!c || !isStr(c.display)) continue;
+    const fig = document.createElement("figure");
+    const frame = document.createElement("div");
+    frame.className = "frame";
+    const ok = isStr(c.image) && c.image.startsWith(IMG_PREFIX);
+    if (ok) {
+      const img = document.createElement("img");
+      img.loading = "lazy";
+      img.alt = c.display;
+      img.addEventListener("error", () => {
+        const none = document.createElement("div");
+        none.className = "none";
+        none.textContent = "画像を読み込めませんでした";
+        img.replaceWith(none);
+      });
+      img.src = c.image;
+      frame.appendChild(img);
+    } else {
+      const none = document.createElement("div");
+      none.className = "none";
+      none.textContent = "画像なし";
+      frame.appendChild(none);
+    }
+    const cap = document.createElement("figcaption");
+    cap.textContent = c.display;
+    fig.append(frame, cap);
+    $grid.appendChild(fig);
+  }
+  if ($grid.children.length === 0) { showFailure(); return; }
+
+  $notes.replaceChildren();
+  const nf = Array.isArray(meta.not_found) ? meta.not_found : [];
+  for (const n of nf) {
+    if (typeof n !== "string") continue;
+    const li = document.createElement("li");
+    li.textContent = "見つかりません: " + n;
+    $notes.appendChild(li);
+  }
+  const am = Array.isArray(meta.ambiguous) ? meta.ambiguous : [];
+  for (const a of am) {
+    if (!a || typeof a.name !== "string") continue;
+    const cand = Array.isArray(a.candidates) ? a.candidates.filter((x) => typeof x === "string") : [];
+    const li = document.createElement("li");
+    li.textContent = "1 枚に決まりません: " + a.name + (cand.length ? " → " + cand.join("・") : "");
+    $notes.appendChild(li);
+  }
+  $notes.hidden = $notes.children.length === 0;
+  $status.hidden = true;
+  $grid.hidden = false;
+}
+
+function onToolResult(params) {
+  received = true;
+  try {
+    const meta = params && typeof params === "object" ? params._meta : null;
+    render(meta);
+  } catch (e) {
+    showFailure();
+  }
+}
+
+function handleRequestFromHost(msg) {
+  if (msg.method === "ui/resource-teardown") {
+    post({ jsonrpc: "2.0", id: msg.id, result: {} });
+  } else {
+    post({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: "Method not found: " + String(msg.method) } });
+  }
+}
+
+function handleNotification(msg) {
+  if (msg.method === "ui/notifications/tool-result") onToolResult(msg.params);
+  // tool-input・host-context-changed・tool-cancelled などは使わない
+}
+
+window.addEventListener("message", (ev) => {
+  if (ev.source !== window.parent) return;
+  const msg = ev.data;
+  if (!msg || typeof msg !== "object" || msg.jsonrpc !== "2.0") return;
+  const hasId = msg.id !== undefined && msg.id !== null;
+  if (hasId && msg.method === undefined) {
+    const p = pending.get(msg.id);
+    if (!p) return;
+    pending.delete(msg.id);
+    if (msg.error) p.reject(msg.error); else p.resolve(msg.result);
+  } else if (hasId && typeof msg.method === "string") {
+    handleRequestFromHost(msg);
+  } else if (typeof msg.method === "string") {
+    handleNotification(msg);
+  }
+});
+
+new ResizeObserver(reportSize).observe(document.body);
+
+request("ui/initialize", {
+  appInfo: { name: "sisho-card-images", version: "1.0.0" },
+  appCapabilities: {},
+  protocolVersion: "2026-01-26",
+}).then(() => {
+  notify("ui/notifications/initialized");
+  ready = true;
+  lastSize = "";
+  reportSize();
+}).catch(() => {
+  if (!received) showFailure();
+});
+
+setTimeout(() => { if (!received) showFailure(); }, 15000);
+</script>
+</body>
+</html>

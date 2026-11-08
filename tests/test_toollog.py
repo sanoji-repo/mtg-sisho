@@ -8,7 +8,7 @@
   3. outcome が ok・error_kind（JSON もテキストも）・exception で正しく分かれること。
   4. 1 秒（MCP_SLOW_SEC）超の道具と DB 呼び出しが journal に warning を出すこと
      （DB の warning に引数を載せないこと）。
-  5. 包み越しでも道具の名前・docstring・署名が保たれ、登録済みの 10 本が全部包まれていること。
+  5. 包み越しでも道具の名前・docstring・署名が保たれ、登録済みの道具が全部包まれていること。
 
 大半は DB を要らない（差し替えと純粋な検査）。走らせ方: pytest tests/test_toollog.py -v
 """
@@ -336,7 +336,7 @@ def test_every_registered_tool_is_wrapped():
     tools = m.server._tool_manager.list_tools()
     unwrapped = [t.name for t in tools if not hasattr(t.fn, "__wrapped__")]
     assert not unwrapped, f"包まれていない道具: {unwrapped}"
-    assert len(tools) == 12   # draft_pack_stats と draft_pool を含めて 12 本
+    assert len(tools) == 13   # draft_pack_stats・draft_pool・show_card_images を含めて 13 本
 
 
 @pytest.mark.parametrize("name", [
